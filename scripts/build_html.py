@@ -19,7 +19,7 @@ from markdown_it import MarkdownIt
 MD = MarkdownIt("commonmark", {"html": True, "typographer": True}) \
     .enable("table").enable("strikethrough")
 
-CALLOUT_RE = re.compile(r"^:::\s*(info|tip|warn|quote|stat)\s*(.*)$")
+CALLOUT_RE = re.compile(r"^:::\s*(info|tip|warn|quote|stat|pull)\s*(.*)$")
 
 def md_to_html(md: str) -> str:
     """markdown subset -> html, with ::: callout directive support."""
@@ -38,7 +38,13 @@ def md_to_html(md: str) -> str:
             while i < len(lines) and lines[i].strip() != ":::":
                 body.append(lines[i]); i += 1
             i += 1
-            if kind == "stat":
+            if kind == "pull":
+                ls = [l.strip() for l in body if l.strip()]
+                quote_t = ls[0] if ls else ""
+                speaker = ls[1] if len(ls) > 1 else ""
+                sp = f'<div class="pull-speaker">{speaker}</div>' if speaker else ""
+                out.append(f'<section class="pullquote"><div class="pull-text">{quote_t}</div>{sp}</section>')
+            elif kind == "stat":
                 ls = [l.strip() for l in body if l.strip()]
                 value = ls[0] if ls else ""
                 label = ls[1] if len(ls) > 1 else ""
@@ -50,7 +56,19 @@ def md_to_html(md: str) -> str:
         else:
             buf.append(lines[i]); i += 1
     flush()
-    return "\n".join(out)
+    html = "\n".join(out)
+    # 이미지 문단 -> figure/figcaption (alt=캡션, title="출처: …")
+    def fig(m):
+        src, alt, title = m.group("src"), m.group("alt") or "", m.group("title") or ""
+        cap = alt
+        if title:
+            cap = f"{cap} · {title}" if cap else title
+        c = f"<figcaption>{cap}</figcaption>" if cap else ""
+        return f'<figure><img src="{src}" alt="{alt}">{c}</figure>'
+    html = re.sub(
+        r'<p><img src="(?P<src>[^"]+)" alt="(?P<alt>[^"]*)"(?: title="(?P<title>[^"]*)")?\s*/?></p>',
+        fig, html)
+    return html
 
 def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Path):
     ts = book_dir / "typeset"
@@ -79,6 +97,11 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
         # strip the leading H1 (title comes from outline)
         raw = re.sub(r"^#\s+.*\n", "", raw, count=1)
         body_html = md_to_html(raw)
+        # 전면 요소(풀퀘트)는 다단 chapter-body 밖으로 분리
+        body_html = re.sub(
+            r'(<section class="pullquote">.*?</section>)',
+            r'</div>\1<div class="chapter-body">',
+            body_html, flags=re.S)
         summary = ch.get("summary") or ""
         sections.append(
             f'<section class="chapter" id="{mk}">\n'

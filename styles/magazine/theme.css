@@ -115,3 +115,18 @@ body {
 /* ---- colophon ---- */
 .colophon { page: nofolio; break-before: page; padding-top: 200mm;
   font-size: 6.5pt; line-height: 1.6; color: var(--ink-faint); letter-spacing: 0.08em; }
+
+/* ---- figure/figcaption (md 이미지) ---- */
+.chapter-body figure { margin: 6mm 0; break-inside: avoid; width: 100%; }
+.chapter-body figure img { width: 100%; display: block; }
+.chapter-body figcaption { font-size: 7.5pt; line-height: 1.45; color: var(--ink-soft, #5a5a5a);
+  margin-top: 3mm; }
+
+/* ---- T3 풀퀘트 면 (전면 인용) ---- */
+.pullquote { break-before: page; break-after: page;
+  height: 210mm; display: flex; flex-direction: column; justify-content: center; }
+.pull-text { font-family: var(--display); font-weight: 700; font-size: 40pt; line-height: 1.10;
+  letter-spacing: -0.015em; color: var(--ink); width: 115mm; word-break: keep-all; position: relative; }
+.pull-text::before { content: "\201C"; position: absolute; left: -14mm; top: -4mm;
+  color: var(--key); font-size: 64pt; font-family: var(--serif); }
+.pull-speaker { font-size: 6.5pt; letter-spacing: 0.08em; color: var(--ink-faint); margin-top: 8mm; }

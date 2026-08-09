@@ -135,3 +135,9 @@ b, strong { font-weight: 500; }
 /* ---- 판권 ---- */
 .colophon { break-before: page; padding-top: 175mm;
   font-size: 7pt; line-height: 1.7; color: var(--ink-mute); }
+
+/* ---- figure/figcaption (md 이미지) ---- */
+.chapter-body figure { margin: 6mm 0; break-inside: avoid; width: 100%; }
+.chapter-body figure img { width: 100%; display: block; }
+.chapter-body figcaption { font-size: 7.5pt; line-height: 1.45; color: var(--ink-soft, #5a5a5a);
+  margin-top: 3mm; }
