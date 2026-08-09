@@ -136,4 +136,17 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
                        capture_output=True, text=True, env=env)
     if r.returncode != 0:
         sys.exit("HTML pass2 print failed:\n" + r.stderr)
+
+    # optional theme post-decoration (running marks, folio) via PyMuPDF
+    dec = style_dir / "decorate.py"
+    if dec.exists():
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("theme_decorate", dec)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        doc = fitz.open(out)
+        mod.decorate(doc, {"book": book, "pages": pages,
+                           "fonts_dir": skill / "assets" / "fonts"})
+        doc.saveIncr()
+        doc.close()
     print(f"OK draft: {out} (chapter pages: {pages})")

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>$title</title>
+<style>
+$css
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div class="cover-mark">
+    <div class="wordmark">$author<br><span>INSIGHT SERIES</span></div>
+    <div class="badge">$date</div>
+  </div>
+  <div class="cover-title">$title</div>
+  <div class="cover-pub">$subtitle</div>
+  <svg class="cover-circuit" viewBox="0 0 400 300" preserveAspectRatio="xMaxYMax meet">
+    <g fill="none" stroke="#1f7fb4" stroke-width="1">
+      <path d="M40 260 H180 L220 220 H360" stroke-dasharray="4 5"/>
+      <path d="M80 300 V180 L120 140 H240" stroke-dasharray="4 5"/>
+      <path d="M300 300 V200 L260 160 H160" stroke-dasharray="4 5"/>
+      <circle cx="240" cy="140" r="22" stroke-width="1.4"/>
+      <circle cx="360" cy="220" r="14" stroke-width="1.4"/>
+      <circle cx="160" cy="160" r="9"/>
+    </g>
+    <g fill="#1f7fb4">
+      <circle cx="40" cy="260" r="4"/><circle cx="80" cy="180" r="4"/>
+      <circle cx="300" cy="200" r="4"/><circle cx="240" cy="140" r="5"/>
+    </g>
+  </svg>
+</section>
+
+<section class="toc-page">
+  <div class="toc-sidebar"></div>
+  <div class="toc-body">
+    <div class="toc-word">Contents</div>
+    $toc
+  </div>
+</section>
+
+$body
+
+<section class="colophon">
+  <p>$title — $subtitle<br>$author · $date · bookforge로 조판 · 수록 생성 이미지는 캡션에 표기</p>
+</section>
+
+</body>
+</html>
