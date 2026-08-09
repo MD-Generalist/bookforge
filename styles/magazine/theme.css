@@ -1,0 +1,112 @@
+/* bookforge magazine — 200x265mm, Monocle-derived grid (STYLE.md 준거)
+   MECHANICS SKELETON — 시각 세부는 STYLE.md 전 항목 반영으로 확장할 것 */
+
+@font-face { font-family: "Pretendard"; src: url("$fonts_dir/Pretendard-Regular.otf"); font-weight: 400; }
+@font-face { font-family: "Pretendard"; src: url("$fonts_dir/Pretendard-Medium.otf"); font-weight: 500; }
+@font-face { font-family: "Pretendard"; src: url("$fonts_dir/Pretendard-SemiBold.otf"); font-weight: 600; }
+@font-face { font-family: "Pretendard"; src: url("$fonts_dir/Pretendard-Bold.otf"); font-weight: 700; }
+@font-face { font-family: "Pretendard"; src: url("$fonts_dir/Pretendard-ExtraBold.otf"); font-weight: 800; }
+@font-face { font-family: "Noto Serif KR"; src: url("$fonts_dir/NotoSerifKR-Regular.otf"); font-weight: 400; }
+@font-face { font-family: "Noto Serif KR"; src: url("$fonts_dir/NotoSerifKR-Bold.otf"); font-weight: 700; }
+
+:root {
+  --paper: #FFFFFF; --paper-tint: #F4F1EC;
+  --ink: #111111; --ink-soft: #5A5A5A; --ink-faint: #8C8C8C;
+  --rule: #D8D4CC;
+  --key: $key_color; --key-tint: $key_tint; --key-ink: #FFFFFF;
+  --serif: "Noto Serif KR", serif;
+  --sans: "Pretendard", sans-serif;
+}
+
+@page {
+  size: 200mm 265mm;
+  margin: 22mm 16mm 27mm 20mm;
+  @bottom-right {
+    content: counter(page);
+    font-family: "Pretendard"; font-weight: 700; font-size: 9.5pt; color: #111;
+    margin-bottom: 9mm;
+  }
+}
+@page nofolio { margin: 0; @bottom-right { content: none; } }
+@page opener  { margin: 0; @bottom-right { content: none; } }
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  font-family: var(--sans); font-size: 9.5pt; line-height: 5.4mm;
+  color: var(--ink); background: var(--paper);
+  word-break: keep-all; line-break: strict; text-wrap: pretty;
+}
+
+/* ---- cover (page 1, no folio) ---- */
+.cover { page: nofolio; width: 200mm; height: 265mm; position: relative; overflow: hidden;
+  break-after: page; background: linear-gradient(160deg, #0E7C7B 0%, #063d3c 100%); }
+.cover-art { position: absolute; inset: 0; background-size: cover; background-position: center; }
+.cover-scrim { position: absolute; inset: 0; height: 40%;
+  background: linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0)); }
+.cover-content { position: absolute; inset: 0; padding: 18mm 16mm 16mm; color: #fff; }
+.masthead { font-family: var(--serif); font-weight: 700; font-size: 44pt;
+  letter-spacing: -0.03em; line-height: 0.95; }
+.coverlines { position: absolute; left: 16mm; bottom: 60mm; width: 56mm; }
+.coverline-main { font-size: 21pt; line-height: 1.15; font-weight: 600; letter-spacing: -0.01em; }
+.issue-bar { position: absolute; left: 16mm; bottom: 16mm; font-size: 7pt;
+  letter-spacing: 0.14em; text-transform: uppercase; }
+
+/* ---- toc ---- */
+.toc-page { page: nofolio; break-after: page; padding-top: 4mm; }
+.toc-header { font-size: 7pt; letter-spacing: 0.14em; color: var(--key);
+  border-top: 1.5pt solid var(--key); padding-top: 4mm; margin-bottom: 14mm; }
+.toc { list-style: none; }
+.toc li { display: flex; align-items: baseline; gap: 6mm; margin-bottom: 8.1mm; }
+.tocpg { font-weight: 700; font-size: 17pt; color: var(--key); order: -1; min-width: 12mm; }
+.toc-title { font-size: 22pt; font-weight: 700; letter-spacing: -0.005em; }
+.toc-leader { display: none; }
+
+/* ---- chapter opener (FO-C type-only, full page, no folio) ---- */
+.opener { page: opener; width: 200mm; height: 265mm; position: relative;
+  break-before: page; break-after: page; padding: 22mm 16mm 27mm 20mm; }
+.pgmark { position: absolute; top: 0; left: 0; font-size: 1px; color: transparent; }
+.opener-num { font-family: var(--sans); font-weight: 800; font-size: 126pt;
+  line-height: 0.86; letter-spacing: -0.03em; color: var(--key); margin-top: 40mm; }
+.opener-title { font-family: var(--serif); font-weight: 700; font-size: 53pt;
+  line-height: 0.98; letter-spacing: -0.02em; margin-top: 10mm; }
+.opener-summary { font-size: 12.5pt; line-height: 1.55; color: var(--ink-soft);
+  width: 98mm; margin-top: 10mm; }
+
+/* ---- body ---- */
+.chapter-body { column-count: 2; column-gap: 8mm; text-align: justify; }
+.chapter-body p { margin-bottom: 5.4mm; }
+.chapter-body h2 { column-span: all; font-size: 17pt; line-height: 1.4; font-weight: 700;
+  margin: 10.8mm 0 5.4mm; }
+.chapter-body h3 { font-size: 11pt; font-weight: 700; margin: 5.4mm 0 2.7mm; }
+.chapter-body ul, .chapter-body ol { margin: 0 0 5.4mm 5mm; }
+.chapter-body blockquote { font-family: var(--serif); font-size: 12.5pt; line-height: 1.55;
+  color: var(--ink-soft); border-left: 3pt solid var(--key); padding-left: 6mm; margin: 5.4mm 0; }
+.chapter-body table { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin: 5.4mm 0;
+  break-inside: avoid; }
+.chapter-body th { border-top: 1.5pt solid var(--ink); border-bottom: 0.5pt solid var(--ink);
+  text-align: left; padding: 2mm 2mm; font-weight: 700; }
+.chapter-body td { border-bottom: 0.5pt solid var(--rule); padding: 2mm 2mm; }
+.chapter-body img { max-width: 100%; }
+.chapter-body pre { background: var(--paper-tint); padding: 4mm; font-size: 8pt;
+  line-height: 1.5; overflow: hidden; white-space: pre-wrap; margin-bottom: 5.4mm;
+  break-inside: avoid; }
+.chapter-body code { font-family: ui-monospace, monospace; }
+
+.callout { background: var(--key-tint); border-left: 3pt solid var(--key);
+  padding: 8mm; margin: 5.4mm 0; break-inside: avoid; }
+.callout-title { font-size: 7pt; letter-spacing: 0.14em; color: var(--key);
+  font-weight: 700; margin-bottom: 2mm; }
+.callout p:last-child { margin-bottom: 0; }
+.callout-warn { border-left-color: #C4491F; background: rgba(196,73,31,0.08); }
+.callout-warn .callout-title { color: #C4491F; }
+
+.stat { border-top: 0.5pt solid var(--rule); border-bottom: 0.5pt solid var(--rule);
+  padding: 6mm 0; margin: 5.4mm 0; break-inside: avoid; }
+.stat-value { font-weight: 800; font-size: 40pt; line-height: 1.1; color: var(--key);
+  letter-spacing: -0.015em; margin-right: 4mm; }
+.stat-label { font-size: 7.5pt; color: var(--ink-soft); }
+
+/* ---- colophon ---- */
+.colophon { page: nofolio; break-before: page; padding-top: 200mm;
+  font-size: 6.5pt; line-height: 1.6; color: var(--ink-faint); letter-spacing: 0.08em; }

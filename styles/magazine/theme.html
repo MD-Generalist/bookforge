@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>$title</title>
+<style>
+/* ---- bookforge magazine theme (placeholders filled by build_html.py) */
+$css
+</style>
+</head>
+<body data-brand="$brand">
+
+<section class="cover">
+  <div class="cover-art" style="$cover_art"></div>
+  <div class="cover-scrim"></div>
+  <div class="cover-content">
+    <div class="masthead">$title</div>
+    <div class="coverlines">
+      <div class="coverline-main">$subtitle</div>
+    </div>
+    <div class="issue-bar">$date · $author</div>
+  </div>
+</section>
+
+<section class="toc-page">
+  <div class="toc-header">CONTENTS</div>
+  $toc
+</section>
+
+$body
+
+<section class="colophon">
+  <p>$title — $subtitle<br>$author · $date · bookforge로 조판 · 수록 이미지 중 생성 이미지는 캡션에 표기</p>
+</section>
+
+</body>
+</html>
