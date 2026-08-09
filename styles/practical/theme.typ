@@ -26,6 +26,7 @@
 #let make-cover(meta) = {
   let t = TT
   page(margin: 0mm, header: none, footer: none, fill: t.brand, {
+    set par(justify: false, first-line-indent: 0em)
     // thin frame lines (NIA-style restrained decoration)
     place(top + left, dx: 10mm, dy: 10mm,
       rect(width: t.trim.w - 20mm, height: t.trim.h - 20mm, stroke: 0.7pt + white.transparentize(55%)))

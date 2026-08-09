@@ -61,6 +61,7 @@
       // invisible but real heading: outline + bookmarks + running-head queries
       hide(block(height: 0pt, heading(level: 1, outlined: true, bookmarked: true, title)))
       v(-1.2em)
+      set par(justify: false, first-line-indent: 0em)
       if opener != none { (opener)(n, title, summary, t) }
       else {
         full-bleed(t, block(fill: t.brand, width: 100%, height: 100%, inset: (x: t.margin.left, y: t.margin.top), {
@@ -132,6 +133,7 @@
 // ---- front matter -----------------------------------------------------------
 #let title-page(meta, t) = {
   page(header: none, footer: none, {
+    set par(justify: false, first-line-indent: 0em)
     v(28%)
     set text(font: t.display-font)
     text(size: 26pt, weight: "bold", fill: t.ink, keep-words(meta.title))

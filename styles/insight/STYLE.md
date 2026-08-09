@@ -21,13 +21,16 @@
 |---|---|---|---|
 | 본문·캡션 한글 | KoPubWorld돋움 Light / Medium / Bold | Pretendard Light / Medium / Bold | 견본 동일 계열 |
 | 표제(표지·장제목·Contents) | Paperlogy 8 ExtraBold | Pretendard ExtraBold | 나눔고딕 ExtraBold 대체 |
-| 숫자·폴리오·키스탯 | **Barlow(OFL)** 1순위 / Roboto Condensed(OFL) 2순위 | Pretendard + `tnum` | DIN 대체 |
+| 숫자·폴리오·키스탯 | **Barlow(OFL-1.1, 라이선스 확인 완료)** | Pretendard + `tnum` | DIN 대체 |
 
-- **DIN 대체 근거**(메트릭 실측, D-DIN PRO 기준선 대비 5차원 거리): Barlow 0.99 · Roboto Condensed 1.01 · IBM Plex Sans Condensed 1.43 · Archivo 3.03 · Inter 3.72. Barlow는 Normal/SemiCondensed/Condensed 3폭 × 9웨이트로 DIN의 Mittelschrift·Engschrift 이원 구조를 그대로 커버한다. **Oswald·Bai Jamjuree 금지** — `tnum`이 없고 숫자 폭이 10종 전부 달라 표 자릿수가 무너진다.
+- **DIN 대체 근거**: Barlow는 교통·표지 활자에서 출발한 저대비 그로테스크로 DIN 대체 1순위로 널리 지목되며(learnui.design, similarfont.io), Normal / SemiCondensed / Condensed 3폭을 갖춰 DIN의 폭 변주를 커버한다. 라이선스 OFL-1.1(google/fonts `ofl/barlow`).
+- **혼용 메트릭(fontTools 직접 계측)**: Pretendard cap 0.707 em / x-height 0.5303 em, Barlow cap 0.700 em / x-height 0.506 em. **캡 높이가 1% 이내로 맞아 한글 Pretendard + 숫자 Barlow를 광학 보정 없이 섞을 수 있다.** 단 Barlow x-height가 4.6% 낮으므로 숫자만 쓰는 자리(폴리오·키스탯)에 한정하고, 한글과 한 줄에 섞이는 본문 숫자는 Pretendard로 둔다.
+- Barlow는 `case`·`zero` 피처가 **없다**. 슬래시드 제로나 대문자 맞춤 괄호가 필요하면 Pretendard 쪽을 쓴다.
 - **크기 보정 규칙**: Pretendard는 KoPubWorld돋움 대비 x-height가 크다. KoPub 값 그대로 쓰지 말고 **본문 −0.4 pt, 제목 −1.0 pt** 적용, 행간(17.5 pt)은 유지.
   - 본문: KoPubWorld돋움 Light **9.9 pt / 17.5 pt** ↔ Pretendard Light 9.5 pt / 17.5 pt.
-- **숫자 조판(필수)**: Pretendard·Barlow 모두 **기본 숫자가 비례폭**이다. 표·차트 라벨·키스탯·폴리오 스코프에 `font-variant-numeric: tabular-nums` (= `"tnum" 1`)를 **하드코딩**한다. 미적용 시 Pretendard는 `1`(0.4385 em)과 `0`(0.6143 em) 사이 최대 40% 폭 차이가 난다. `"case" 1`도 함께 켠다(숫자 옆 괄호·대시 높이 보정). `"zero"`(슬래시드 제로)는 기술 표에서만 선택 적용.
-- Pretendard cap/em 0.707 ↔ Barlow 0.700 — 한글 Pretendard + 숫자 Barlow 혼용 시 광학 보정 없이 캡 높이가 맞는다. Barlow `tnum` 숫자 폭 0.527 em은 Pretendard 0.614 em보다 14% 좁아 표 숫자 열이 절약된다.
+- **숫자 조판(필수, fontTools 계측 근거)**: Pretendard·Barlow 모두 **기본 숫자가 비례폭**이다. 미적용 시 자릿수 폭 편차는 Pretendard 42.3%(`1` 0.4385 em ↔ `4` 0.624 em), Barlow 61.4%(`1` 0.35 em ↔ `0` 0.565 em)에 달해 표 숫자 열이 무너진다. 표·차트 라벨·키스탯·폴리오 스코프에 `font-variant-numeric: tabular-nums`(= `"tnum" 1`)를 **하드코딩**한다.
+  - `tnum` 적용 시 균등폭: Pretendard 0.6143 em, Barlow 0.527 em. **Barlow 숫자 열이 14.2% 좁다** — 자릿수 많은 표는 Barlow 쪽이 유리하다.
+  - Pretendard는 `case`·`zero`·`frac` 보유, `onum`/`lnum` 없음(라이닝 전용이라 올드스타일 오조판 위험 없음). `"case" 1` 동반 권장.
 - 자간: 한글 본문 −0.02em, 표제 −0.04em, 표지 대형 타이틀 −0.05em, 키스탯 숫자 −0.03em. 그 외 0.
 - 웨이트는 Light(300) / Medium(500) / Bold(700) / ExtraBold(800) 4단만 사용. Regular(400) 금지 — Light와 구분이 안 되어 위계가 뭉갠다.
 
@@ -53,7 +56,7 @@
 --accent-teal  #4fb3ae   아이콘 원형 3색 중 하나
 --tint         #ecf8fe   표 zebra·박스 바탕
 ```
-- 면적 배분: `--paper` 최소 60%, 이미지 20% 내외. **순액센트(`--blue-600`·`--cyan-500` 이상 채도) 마크 비율은 지면 전체의 10% 이하** — 나머지는 먹·그레이 램프. (Deloitte Insights 실측 액센트 비율 ≈9%와 동일 기준)
+- 면적 배분(하우스 룰): `--paper` 최소 60%, 이미지 20% 내외. **순액센트(`--blue-600`·`--cyan-500`) 마크 비율은 지면 전체의 10% 이하** — 나머지는 먹·그레이 램프.
 - 본문 텍스트에 `--blue-600` 외의 컬러를 쓰지 않는다. 강조는 웨이트(Medium/Bold)로.
 
 ## 표지 문법
@@ -124,11 +127,11 @@
 - **팁/주석 박스**: 와이드 측정, 바탕 `--tint`, 테두리 없음, 좌측에 3 pt `--blue-600` 세로 바. 패딩 상하 5 mm / 좌우 6 mm. 라벨은 Medium 8.5 pt `--blue-600` 대문자 자간 0.08em.
 
 ### 키 스탯(대형 숫자) 문법
-실측 리포트 5종의 숫자:라벨 비율 밴드는 2.0 ~ 4.0(중앙값 2.5)이다. B5 판면·130 mm 측정에서는 **3.0**을 고정값으로 쓴다.
+견본 ETRI에는 키 스탯 지면이 없다. 아래는 견본의 타입스케일(본문 9.9 / 장제목 21 / 장번호 27 pt)과 정합하도록 **이 팩에서 새로 정한 하우스 룰**이며, 외부 리포트 실측에서 도출한 값이 아니다.
 
 - 구성 3단: **에이브로(kicker, 선택) → 숫자 → 라벨**.
 - **숫자**: 숫자 서체 Bold **36 pt / 행간 36 pt**, `--blue-600`, 자간 −0.03em, `tnum`. 상단 정렬(top-aligned).
-- **단위·기호는 숫자와 같은 크기·같은 웨이트·같은 색.** `%`, `배`, `×`, `조원`, `$`, `−`를 축소하거나 위첨자로 올리지 않는다(레퍼런스 6종 중 예외 0건).
+- **단위·기호는 숫자와 같은 크기·같은 웨이트·같은 색.** `%`, `배`, `×`, `조원`, `$`, `−`를 축소하거나 위첨자로 올리지 않는다.
 - **라벨**: 본문 Light **12 pt / 15.6 pt(1.3)**, `--ink-soft`. 숫자의 **1/3**. **최대 4행**, 폭은 숫자 블록이 아니라 컬럼 폭의 90%에 맞춘다.
 - 라벨 첫 행은 숫자 베이스라인에서 아래로 고정 3 mm(라벨 길이와 무관하게 고정).
 - 에이브로: Medium 8 pt `--cyan-500`, 자간 0.08em, 숫자 위 3 mm.
@@ -141,7 +144,7 @@
 - **캡션 서체**: 본문 Medium **8.95 pt**. 라벨(`그림 1-1` / `표 1-1.`)은 `--blue-600`, 뒤 설명은 `--ink`. 라벨과 설명 사이 공백 1칸.
 - **표 캡션은 표 위**(표 상단에서 8 mm), **그림 캡션은 그림 아래**(그림 하단에서 5 mm). 둘 다 해당 요소 폭 기준 **가운데 정렬**.
 - **출처 주석**: 캡션 끝에 이어 붙임. Medium **7.96 pt**(본문의 0.80×) `--ink`, `[출처 : …]` 형식. 줄이 넘치면 캡션 아래 행으로 내리고 동일 가운데 정렬.
-- **차트의 Source / Note**: 캡션이 아니라 **차트 바로 아래**, 차트 좌측 라인에 좌측 정렬. **`Source:` 먼저, 그 아래 행에 `Note:`**(행 간격 3.5 mm). 크기 **6.8 pt**(본문의 0.68×), 색 `--ink-mute`. `Note:`에는 약어 정의·산정 기준만 넣는다.
+- **차트의 출처·주기**: 차트 이미지 안이 아니라 **차트 바로 아래 지면 텍스트**로 조판(그래야 검색·접근성이 산다). 차트 좌측 라인에 좌측 정렬, `출처:` 먼저 그 아래 행에 `주:`(행 간격 3.5 mm). 크기 **8 pt** `--ink-mute`. `주:`에는 약어 정의·산정 기준만.
 - **표**:
   - 폭 = 와이드 측정 130 mm 고정. 부분 폭 표 금지.
   - 헤더 행: 채움 `--blue-400`, 높이 9 mm, 텍스트 Medium 9 pt `--paper` 가운데 정렬. 헤더 내부 열 구분은 1 pt `--paper` 세로선.
@@ -172,13 +175,13 @@
 - **벡터 차트·다이어그램** — 용도: 수치 비교, 프로세스·구조 설명, 표준화 로드맵.
   - 폭은 와이드 측정 130 mm 또는 narrow measure 106 mm 중 택1. 중간 폭 금지.
   - **차트 제목은 이미지 안이 아니라 지면 텍스트로** 조판한다(캡션 규약 사용). 2단 구성 — 주장형 헤드라인 + `그림 n-n` 통계 부제(대상·기간·단위).
-  - **단위는 플롯 좌상단에 괄호로** 별도 표기(`(십억 원)`), 7.5 pt `--ink-soft`.
+  - **단위**: 축 라벨·데이터 라벨에 단위를 붙여 데이터가 있는 자리에서 읽히게 한다(`20조`, `12%`). 단위를 부제에만 적고 플롯에서 빼지 않는다.
   - 색: 계열 1개면 `--blue-600` 단색. 2~3계열이면 `--blue-600` / `--blue-400` / `--cyan-400`. **강조 계열 1개만 `--blue-600`, 나머지는 `--rule-gray` 30%** 가 기본.
-  - **계열 수 상한**: 라인 4개 / 파이·도넛 조각 5개 / 스택 4개 / 클러스터 막대 4개. 초과하면 차트를 쪼갠다.
-  - 축: **막대 차트 값축은 반드시 0에서 시작**, 축 절단 금지. 그리드선 0.3 pt `--rule-gray` 25% **수평만, 최대 10개**. 데이터 라벨을 직접 붙였으면 그리드와 값축을 통째로 삭제한다. 세로 그리드·축 프레임·눈금 마크 금지.
-  - **축 라벨은 항상 수평**(회전 금지). 안 들어가면 문구를 줄이거나 차트 종류를 바꾼다. 범주가 많으면 간격 축약(`'18 '20 '22 '24`)하되 **마지막 틱은 반드시 라벨링**.
-  - 라벨: 축·데이터 라벨 Medium 7.5 pt `--ink-soft`, 숫자 `tnum`. **범례 금지 — 계열 라벨은 데이터에 직접 붙인다**(라인은 우측 끝, 스택·파이는 조각 안에 `--paper` knockout, 조각이 좁으면 밖으로 빼고 계열색). 텍스트가 도형과 겹치면 지면색 아웃라인 0.5 pt.
-  - 텍스트 위계는 **2단계만**(7.5 pt `--ink-soft` / 9 pt `--ink` Bold). 3단계 이상 금지.
+  - **계열 수 상한**(Urban Institute 지침 채택): 범주 7개 미만 / 라인 5개 이하 / 파이·도넛 조각 5개 미만. 초과하면 범주를 통합하거나 차트를 쪼갠다.
+  - 축: **막대 차트 값축은 반드시 0에서 시작**, 축 절단 금지(산점도·라인은 예외). 그리드선 0.3 pt `--rule-gray` 25% 수평만. **데이터 라벨을 직접 붙였으면 값축 라벨과 그리드를 통째로 삭제한다.** 세로 그리드·축 프레임·눈금 마크 금지.
+  - **축 라벨은 절대 회전하지 않는다**(Datawrapper). 안 들어가면 문구를 줄이거나 가로 막대로 바꾼다. 범주가 많으면 간격 축약(`'18 '20 '22 '24`)하되 마지막 틱은 라벨링.
+  - 라벨: 축·데이터 라벨 Medium 7.5 pt `--ink-soft`, 숫자 `tnum`. **범례 대신 직접 라벨링을 기본으로 한다** — 라인은 우측 끝, 스택·파이는 조각 안에 `--paper` knockout, 조각이 좁으면 밖으로 빼고 계열색. 직접 라벨이 물리적으로 불가능할 때만 차트 상단에 가로 1행 범례를 두고, 범례 순서를 차트 내 계열 순서와 일치시킨다. 텍스트가 도형과 겹치면 지면색 아웃라인 0.5 pt.
+  - 텍스트 위계는 **2단계만**(7.5 pt `--ink-soft` / 9 pt `--ink` Bold). 3단계 이상 금지(Datawrapper).
   - 숫자 포맷: 후행 0·불필요한 소수점 제거, 큰 수는 축약형(`20조`, `20b`)을 라벨에 직접.
   - 배경 채움·테두리·범례 박스·패턴·그림자·3D·그라디언트·도넛 중앙 장식·라인 마커 금지.
   - 다이어그램 박스: 라운드 2 mm, 테두리 0.5 pt `--blue-600`, 채움 `--paper` 또는 `--tint`, 연결선 0.75 pt 직각 엘보 + 화살촉 2 mm.
@@ -192,9 +195,15 @@
 5. 이미지 위 본문 오버레이, 생성 이미지 위 문자 합성(캡션은 지면 텍스트로만).
 
 ## 레퍼런스 출처
-- **1차 견본(전량 실측)**: `/mnt/d/PDF스킬/ex/ETRI+Insight+표준화동향+2019-01+인공지능.pdf` — 판면 182×257 mm, 컬럼 106/130 mm, 폰트 pt, 컬러 hex, 괘선 두께(3.0/1.0/0.3 pt), 이미지 블리드 7형태를 PyMuPDF 스팬·드로잉 추출로 직접 계측.
-- **판면·타입스케일 보강(PDF 실측)**: 삼정KPMG Samjong INSIGHT Vol.93(A4, KoPubDotum Light 9.9/18) · SPRi 이슈리포트 IS-231(A4, 판면 170 mm, 자간 −0.02~−0.08em) · NIA The AI Report 2025-6(187.7×262.8 mm, KoPubWorldDotum 10 pt) · Deloitte Insights Tech Trends 2026(바깥 마진 90° 회전 러닝헤드, 액센트 마크 ≈9%) · CB Insights State of Venture 2022 · State of AI Report 2025.
-- **키 스탯 비율(2.0~4.0 : 1)**: OpenAI「The State of Enterprise AI」2025(40/10 pt, 3-up 138 pt 피치) · CB Insights(35/16 pt, 5-up) · Deloitte(19.6/8.7 pt).
-- **차트 독트린**: Urban Institute Data Visualization Style Guide(`urbaninstitute.github.io/graphics-styleguide/`) · UK Gov Analysis Function 데이터시각화 지침(계열 수 상한·그리드 10개·축 0 시작) · Datawrapper「Text in data visualizations」(2단 위계·직접 라벨링) · FT Visual Vocabulary · IBCS SUCCESS(상세 노테이션은 비공개라 미반영).
-- **폰트(바이너리 fontTools 검사)**: Pretendard OFL-1.1 — `tnum`/`zero`/`case`/`frac` 보유, `onum`/`lnum` 없음(라이닝 전용), 기본 숫자 비례(0.4385~0.6143 em). DIN 기준선은 D-DIN PRO(OFL). Barlow·Roboto Condensed·IBM Plex Sans Condensed 모두 OFL-1.1(Roboto Condensed는 바이너리 nameID 14에 Apache 문자열이 남아 있으나 정본 `googlefonts/roboto-3-classic`은 OFL-1.1).
-- **미확인**: McKinsey Global Institute·삼일PwC 인사이트 PDF는 봇 차단/JS 렌더링으로 계측하지 못함 — 해당 관행은 본 규칙에 반영하지 않았다.
+근거 등급을 3단으로 표시한다. **[실측]** = 이 작업에서 직접 계측 / **[출처]** = 공개 문서에서 확인 / **[하우스]** = 근거 없이 이 팩이 정한 값.
+
+- **[실측] 1차 견본** — `/mnt/d/PDF스킬/ex/ETRI+Insight+표준화동향+2019-01+인공지능.pdf`, PyMuPDF 스팬·드로잉 추출. 판면 182×257 mm, 컬럼 106/130 mm, 전 폰트 pt, 컬러 hex 전량, 괘선 두께(3.0 / 1.0 / 0.3 pt), 표 구조, 이미지 블리드 7형태, 러닝헤드·폴리오 좌표.
+- **[실측] 폰트 메트릭** — fontTools로 로컬 바이너리 직접 검사.
+  - Pretendard-Regular.otf: em 2048, cap 0.707 em, x-height 0.5303 em, 기본 숫자 비례(폭 편차 42.3%), `tnum` 균등폭 0.6143 em. GSUB에 `tnum`/`zero`/`case`/`frac`/`pnum` 보유, `onum`·`lnum` 없음. OFL(동봉 `LICENSE-Pretendard-OFL.txt`).
+  - Barlow-Regular.ttf(`google/fonts` `ofl/barlow`): em 1000, cap 0.700 em, x-height 0.506 em, 기본 숫자 비례(폭 편차 61.4%), `tnum` 균등폭 0.527 em. `case`·`zero` **없음**. OFL-1.1(Copyright 2017 The Barlow Project Authors).
+- **[출처] 차트 규약**
+  - Urban Institute Data Visualization Style Guide — https://urbaninstitute.github.io/graphics-styleguide/ (막대 값축 0 시작, 데이터 라벨 사용 시 y축 라벨·그리드 생략, 직접 라벨링 우선·범례는 상단 가로 배치, 범주 7개 미만·라인 5~6개·파이 조각 5개 미만, PDF 축/데이터 라벨 8.5 pt·출처 8 pt, 표 셀 소수점 정렬)
+  - Datawrapper「Text in data visualizations」 — https://www.datawrapper.de/blog/text-in-data-visualizations/ (텍스트 위계 2단, 축 라벨 회전 금지, 색상 키 대신 직접 라벨, 단위는 데이터가 있는 자리에 반복, 축약형 20k/20m/20b)
+- **[출처] DIN 대체** — learnui.design「DIN: 6 Best Free Alternatives」, similarfont.io「3 Google Fonts Similar to DIN」: Barlow를 DIN에 가장 근접한 무료 대안으로 지목, Condensed/SemiCondensed 폭 변주 보유.
+- **[하우스] 근거 없이 정한 값** — 키 스탯 3단 구성과 36/12 pt(3:1) 비율, 3-up 40 mm 피치, 액센트 면적 10% 상한, 지면 템플릿 6종 분류, 이미지 삽입 빈도(4~6페이지당 1회), 컬러 토큰 이름. 견본 타입스케일과의 정합만 맞췄을 뿐 외부 실측 근거는 없다. 실물 조판 후 조정 대상.
+- **미조사** — 삼정KPMG·삼일PwC·SPRi·NIA·Deloitte·McKinsey·a16z·State of AI 등 국내외 리포트 실물은 이번에 계측하지 못했다. 해당 소스를 근거로 든 수치는 본 문서에 없다.

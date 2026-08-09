@@ -49,6 +49,7 @@
 
 #let make-cover(meta) = {
   page(margin: 0mm, header: none, footer: none, fill: navy-900, {
+    set par(justify: false, first-line-indent: 0em)
     block(width: 100%, height: 40%, clip: true, cover-pattern(200mm, 112mm))
     place(top + left, dx: 20mm, dy: 20mm, rect(width: 24mm, height: 4mm, fill: accent))
     block(width: 100%, inset: (x: 20mm), {
@@ -77,6 +78,7 @@
 #let biz-opener(n, title, summary, t) = {
   full-bleed(t, block(fill: navy-900, width: 100%, height: 100%, inset: (x: 20mm, y: 28mm), {
     set text(fill: white, font: t.display-font)
+    set par(justify: false, first-line-indent: 0em)
     v(10mm)
     text(size: 76pt, weight: "extrabold", tracking: -0.03em, fill: navy-300, numpad(n))
     v(6mm)

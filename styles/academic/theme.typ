@@ -26,6 +26,7 @@
 // ---- 표지: 이중 룰 표제 블록, 타이포 전용 ------------------------------------
 #let make-cover(meta) = {
   page(header: none, footer: none, {
+    set par(justify: false, first-line-indent: 0em)
     v(48mm - 26mm)
     line(length: 100%, stroke: 1.2pt + accent)
     v(9mm)

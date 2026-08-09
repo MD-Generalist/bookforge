@@ -27,6 +27,7 @@
 #let make-cover(meta) = {
   let t = TT
   page(margin: 0mm, header: none, footer: none, fill: t.paper, {
+    set par(justify: false, first-line-indent: 0em)
     block(width: 100%, height: 100%, inset: (left: 20mm, right: 20mm), {
       v(46mm)  // 침묵대
       text(font: t.display-font, size: 28pt, weight: "regular", fill: t.ink,
