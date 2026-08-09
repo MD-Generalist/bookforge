@@ -49,6 +49,9 @@
   })
 }
 
+#let fig-counter = counter("bf-fig")
+#let tbl-counter = counter("bf-tbl")
+
 // ---- 장 헤더: 도비라 별면 금지 — 같은 면에서 본문 시작 ------------------------
 #let bf-chapter(title, summary: none) = {
   pagebreak(weak: true)
@@ -99,9 +102,6 @@
 
 #let bf-stat(value, label) = bf-callout(title: "수치")[#strong(value) — #label]
 
-#let fig-counter = counter("bf-fig")
-#let tbl-counter = counter("bf-tbl")
-
 #let bf-fig(path, caption: none, source: none, width: 100%) = {
   block(breakable: false, above: 5mm, below: 5mm, {
     align(center, image(path, width: width))
@@ -120,6 +120,47 @@
       }
     }
   })
+}
+
+// 표: 콘텐츠가 [표] 캡션을 준 경우에만 번호 라벨. 캡션 없으면 표만 렌더.
+#let bf-tbl(caption: none, source: none, body) = block(breakable: false, above: 6mm, below: 6mm, width: 100%, {
+  if caption != none {
+    context {
+      tbl-counter.step()
+      let n = chapter-state.get().num
+      let m = tbl-counter.get().first() + 1
+      align(center, {
+        text(font: TT.sans-font, size: 8.5pt, weight: "semibold", fill: accent,
+          "표 " + str(n) + "-" + str(m) + ".")
+        h(0.5em)
+        text(font: TT.sans-font, size: 8.5pt, fill: ink, caption)
+      })
+    }
+    v(2mm)
+  }
+  body
+  if source != none {
+    v(1.5mm)
+    align(center, text(font: TT.sans-font, size: 7.5pt, fill: muted, [자료: #source]))
+  }
+})
+
+// ---- 목차 보조: 제목에 이미 박힌 번호를 뽑아낸다(중복 표기 방지) --------------
+#let bf-plain(c) = {
+  if c == none { "" }
+  else if type(c) == str { c }
+  else if type(c) == content {
+    if c.has("text") { c.text }
+    else if c.has("children") { c.children.map(bf-plain).fold("", (a, b) => a + b) }
+    else if c.has("body") { bf-plain(c.body) }
+    else { "" }
+  } else { "" }
+}
+
+// "1.2 제목" → ("1.2", "제목") / 번호가 없으면 (none, 원문)
+#let bf-split-num(s) = {
+  let m = s.match(regex("^\s*([0-9]+(?:[.\-][0-9]+)*)[.)]?[ \t]+(.+)$"))
+  if m == none { (none, s) } else { (m.captures.at(0), m.captures.at(1)) }
 }
 
 #let colophon(meta, t) = {
@@ -172,6 +213,7 @@
   set text(font: t.body-font, size: 10pt, fill: ink, lang: "ko", region: "KR",
     top-edge: 0.8em, bottom-edge: -0.2em, hyphenate: false,
     number-type: "lining", number-width: "tabular")
+  set text(costs: (orphan: 100%, widow: 100%, runt: 200%))
   set par(justify: true, leading: 7.5pt, spacing: 7.5pt,
     first-line-indent: (amount: 1em, all: true))
 
@@ -206,25 +248,8 @@
     width: 100%, fill: luma(248), inset: 8pt, above: 5mm, below: 5mm,
     text(size: 8.5pt, it))
 
-  // 3선표(booktabs): 상하 1.0pt 먹, 헤더 아래 0.4pt + 자동 번호 캡션(표와 분리 불가)
+  // 3선표(booktabs): 상하 1.0pt 먹, 헤더 아래 0.4pt. 캡션은 콘텐츠 [표] 계약(bf-tbl)만
   set table(stroke: none, inset: (x: 8pt, y: 5pt))
-  show figure.where(kind: table): it => context {
-    tbl-counter.step()
-    let n = chapter-state.get().num
-    let m = tbl-counter.get().first() + 1
-    block(breakable: false, above: 6mm, below: 6mm, {
-      align(center, {
-        text(font: t.sans-font, size: 8.5pt, weight: "semibold", fill: accent,
-          "표 " + str(n) + "-" + str(m) + ".")
-        h(0.5em)
-        text(font: t.sans-font, size: 8.5pt, fill: ink, "본문 정리")
-      })
-      v(2mm)
-      it.body
-      v(1.5mm)
-      align(center, text(font: t.sans-font, size: 7.5pt, fill: muted, "자료: 본문 서술 기준 저자 정리"))
-    })
-  }
   show table: it => { set text(size: 9pt, font: t.sans-font); it }
   set table(stroke: (x, y) => (
     top: if y == 0 { 1pt + ink } else if y == 1 { 0.4pt + rule-c } else { none },
@@ -248,26 +273,84 @@
     align(center, text(font: t.display-font, weight: "medium", size: 10pt, meta.at("author", default: "")))
   })
   if toc {
-    page(header: none, footer: none, {
-      v(24mm - 26mm + 4mm)
-      text(font: t.display-font, weight: "semibold", size: 16pt, tracking: 1em, toc-title)
-      v(10mm)
-      line(length: 100%, stroke: 0.4pt + rule-c)
-      v(6mm)
-      show link: it => text(fill: ink, it)   // 목차 글자에 별색 금지
-      show outline.entry.where(level: 1): it => {
-        v(2.5mm, weak: true)
-        link(it.element.location(), context {
-          let n = query(heading.where(level: 1).before(it.element.location(), inclusive: true)).len()
-          box(width: 14mm, text(font: t.sans-font, weight: "medium", size: 10.5pt,
-            fill: accent, "제" + str(n) + "장"))
-          text(font: t.sans-font, weight: "medium", size: 10.5pt, fill: ink, it.element.body)
-          h(1fr)
-          box(width: 9mm, align(right, text(size: 10pt, fill: ink, it.page())))
-        })
-      }
-      outline(title: none, depth: 1)
-    })
+    // 앞붙이 쪽번호(i, ii, iii…) · 러닝헤드 없음
+    counter(page).update(1)
+    // 목차 1행 = 번호칼럼 14mm + 제목 + flex 공백 + 쪽번호 9mm(우측). 리더 점선 없음.
+    // 행송 16pt: em 박스가 1em으로 고정(top-edge .8em / bottom-edge -.2em)돼 있으므로
+    // 블록 간격 6pt + 본문 10pt = 16pt, 되돌이 줄도 leading 6pt로 같은 행송을 쓴다.
+    // bottom-edge: "baseline" — 칼럼 박스의 아래끝을 베이스라인에 맞춘다.
+    // (전역 em 박스 고정(bottom-edge -0.2em) 탓에 그냥 두면 박스가 2pt 떠서
+    //  번호·쪽번호 베이스라인이 제목과 어긋나고 행송도 16 → 18pt로 벌어진다.)
+    // fill을 text()로 직접 박는 이유: 전역 `show link: 별색` 규칙을 안쪽에서 덮기 위함.
+    let toc-row(loc, indent: 0mm, num: none, num-font: none, num-fill: ink,
+                title: none, page-no: none,
+                size: 10pt, weight: "regular", above: 6pt, sticky: false) = block(
+      width: 100%, above: above, below: 0pt, sticky: sticky,
+      {
+        set par(first-line-indent: 0em, hanging-indent: indent + 14mm,
+          leading: 16pt - size, spacing: 0pt, justify: false)
+        if indent > 0mm { h(indent) }
+        link(loc, box(width: 14mm, text(font: num-font, size: size, fill: num-fill,
+          weight: weight, bottom-edge: "baseline",
+          number-type: "lining", number-width: "tabular", num)))
+        link(loc, text(font: t.sans-font, size: size, weight: weight, fill: ink, title))
+        h(1fr)
+        link(loc, box(width: 9mm, align(right,
+          text(font: t.body-font, size: size - 0.5pt, fill: ink, bottom-edge: "baseline",
+            number-type: "lining", number-width: "tabular", page-no))))
+      })
+    page(
+      header: none,
+      numbering: "i",
+      footer: context align(center, text(font: t.sans-font, size: 9pt, fill: ink,
+        counter(page).display("i"))),
+      {
+        v(24mm)
+        text(font: t.display-font, weight: "semibold", size: 16pt, tracking: 1em,
+          fill: ink, toc-title)
+        // 표제 아래 정확히 10mm. 룰을 그냥 놓으면 문단 어센트(0.8em)가 얹혀
+        // 실측 12.6mm가 되므로 높이 0 블록에 place로 앉힌다.
+        v(10mm)
+        block(width: 100%, height: 0pt, above: 0pt, below: 0pt,
+          place(top + left, line(length: 100%, stroke: 0.4pt + rule-c)))
+        v(6mm)
+
+        // 장: 10.5pt Medium, 번호 칼럼 `제N장`, 장과 장 사이 2.5mm
+        show outline.entry.where(level: 1): it => context {
+          let loc = it.element.location()
+          let n = query(heading.where(level: 1).before(loc, inclusive: true)).len()
+          let (embedded, rest) = bf-split-num(bf-plain(it.element.body))
+          toc-row(loc,
+            num: if embedded == none { "제" + str(n) + "장" } else { embedded },
+            num-font: t.sans-font, num-fill: accent,
+            title: if embedded == none { it.element.body } else { rest },
+            page-no: it.page(),
+            size: 10.5pt, weight: "medium", above: 6pt + 2.5mm, sticky: true)
+        }
+
+        // 절: 10pt Regular, 14mm 추가 들여쓰기, 번호 `N.M`
+        show outline.entry.where(level: 2): it => context {
+          let loc = it.element.location()
+          let ch = query(heading.where(level: 1).before(loc))
+          let cn = ch.len()
+          let sn = if cn == 0 {
+            query(heading.where(level: 2).before(loc, inclusive: true)).len()
+          } else {
+            query(heading.where(level: 2)
+              .after(ch.last().location()).before(loc, inclusive: true)).len()
+          }
+          let (embedded, rest) = bf-split-num(bf-plain(it.element.body))
+          toc-row(loc,
+            indent: 14mm,
+            num: if embedded == none { str(cn) + "." + str(sn) } else { embedded },
+            num-font: t.body-font, num-fill: ink,
+            title: if embedded == none { it.element.body } else { rest },
+            page-no: it.page(),
+            size: 10pt, weight: "regular", above: 6pt)
+        }
+
+        outline(title: none, depth: 2, indent: 0pt)
+      })
   }
   counter(page).update(1)
   body

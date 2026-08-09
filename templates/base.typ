@@ -55,6 +55,7 @@
   let t = merged(t)
   pagebreak(weak: true)
   chapter-state.update(s => (num: s.num + 1, title: title))
+  counter("bf-tbl-n").update(0)
   context {
     let n = chapter-state.get().num
     page(header: none, footer: none, {
@@ -130,6 +131,32 @@
   )
 }
 
+// ---- tables (caption은 콘텐츠가 준다 — 필러 라벨 금지) ----------------------
+#let tbl-counter = counter("bf-tbl-n")
+
+#let bf-tbl-base(caption: none, source: none, t: (:), label-fmt: none, body) = {
+  let t = merged(t)
+  block(breakable: false, above: 1.3em, below: 1.3em, width: 100%, {
+    if caption != none {
+      context {
+        tbl-counter.step()
+        let n = chapter-state.get().num
+        let m = tbl-counter.get().first() + 1
+        let lab = if label-fmt != none { (label-fmt)(n, m) } else { "표 " + str(n) + "-" + str(m) }
+        text(font: t.sans-font, size: 8.5pt, weight: "semibold", fill: t.brand, lab)
+        h(0.6em)
+        text(font: t.sans-font, size: 8.5pt, fill: t.ink, caption)
+      }
+      v(2mm)
+    }
+    body
+    if source != none {
+      v(1.5mm)
+      text(font: t.sans-font, size: 7.5pt, fill: t.muted, [자료: #source])
+    }
+  })
+}
+
 // ---- front matter -----------------------------------------------------------
 #let title-page(meta, t) = {
   page(header: none, footer: none, {
@@ -166,26 +193,30 @@
 }
 
 // ---- table of contents ------------------------------------------------------
-#let book-toc(t, depth: 2, title: "차례") = {
+#let book-toc(t, depth: 2, title: "차례", cols: 1) = {
   page(header: none, footer: none, {
     text(font: t.display-font, size: 20pt, weight: "bold", fill: t.ink, title)
     v(1.8em)
     set text(size: 9.2pt)
     show outline.entry.where(level: 1): it => {
-      v(0.72em, weak: true)
+      v(0.9em, weak: true)
       strong(text(font: t.sans-font, size: 10pt, fill: t.brand, it))
     }
     show outline.entry.where(level: 2): it => {
-      v(0.42em, weak: true)
+      v(0.45em, weak: true)
       text(size: 8.8pt, it)
     }
-    outline(title: none, depth: depth)
+    if cols > 1 {
+      columns(cols, gutter: 8mm, outline(title: none, depth: depth))
+    } else {
+      outline(title: none, depth: depth)
+    }
   })
 }
 
 // ---- master wrapper ---------------------------------------------------------
 // theme.typ calls: #show: book.with(meta: (...), tokens: theme-tokens, cover: ..)
-#let book(meta: (:), tokens: (:), cover: none, toc: true, toc-title: "차례", body) = {
+#let book(meta: (:), tokens: (:), cover: none, toc: true, toc-title: "차례", toc-cols: 1, body) = {
   let t = merged(tokens)
 
   set document(title: meta.at("title", default: "무제"), author: meta.at("author", default: "bookforge"))
@@ -209,6 +240,8 @@
     },
   )
   set text(font: t.body-font, size: t.body-size, fill: t.ink, lang: "ko", region: "KR")
+  // 고아/과부 2행 계약(pagination.md §3) — 기본값과 같아도 명시로 고정
+  set text(costs: (orphan: 100%, widow: 100%, runt: 200%))
   set par(justify: true, leading: t.body-leading, spacing: 1.15em, first-line-indent: (amount: 1em, all: false))
 
   // headings 2/3 (level 1 is consumed by chapter())
@@ -253,7 +286,7 @@
   // front matter
   if cover != none { cover }
   title-page(meta, t)
-  if toc { book-toc(t, title: toc-title) }
+  if toc { book-toc(t, title: toc-title, cols: toc-cols) }
   counter(page).update(1)
 
   body

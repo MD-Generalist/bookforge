@@ -58,15 +58,42 @@ body {
 .issue-bar { position: absolute; left: 16mm; bottom: 16mm; font-size: 7pt;
   letter-spacing: 0.14em; text-transform: uppercase; }
 
-/* ---- toc ---- */
-.toc-page { page: nofolio; break-after: page; padding-top: 4mm; }
-.toc-header { font-size: 7pt; letter-spacing: 0.14em; color: var(--key);
-  border-top: 1.5pt solid var(--key); padding-top: 4mm; margin-bottom: 14mm; }
+/* ---- toc = 콘텐츠 맵 (STYLE.md「목차 문법」) ----
+   스프레드 좌면=리스트 / 우면=이미지 맵을, 단면 판형에서 한 면의 좌우 칼럼으로 보정.
+   판면 164mm = 리스트 92mm + 8mm + 이미지 맵 64mm. */
+.toc-page { page: nofolio; break-after: page; width: 200mm; height: 265mm;
+  padding: 22mm 16mm 27mm 20mm; overflow: hidden; }
+
+/* 섹션 헤더: 상단 key 괘선 1.5pt + 하단 4mm 라벨 (섹션 1개) */
+.toc-section-head { border-top: 1.5pt solid var(--key); padding-top: 4mm;
+  display: flex; justify-content: space-between; align-items: baseline; }
+.toc-section-label { font-size: 7pt; line-height: 1; letter-spacing: 0.14em;
+  text-transform: uppercase; font-weight: 600; color: var(--key); }
+.toc-section-id { font-size: 7pt; line-height: 1; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-faint); }
+
+.toc-grid { display: grid; grid-template-columns: 92mm 64mm; column-gap: 8mm;
+  margin-top: 12mm; align-items: start; }
+
+/* 항목 행: 쪽번호 + 6mm + 제목 / 다음 행 한줄 요약. 항목 간 8.1mm, 괘선 없음 */
 .toc { list-style: none; }
-.toc li { display: flex; align-items: baseline; gap: 6mm; margin-bottom: 8.1mm; }
-.tocpg { font-family: var(--num); font-weight: 700; font-size: 17pt; color: var(--key); order: -1; min-width: 12mm; }
-.toc-title { font-family: var(--display); font-size: 22pt; font-weight: 700; letter-spacing: -0.005em; }
+.toc li { display: flex; flex-wrap: wrap; align-items: baseline;
+  column-gap: 6mm; row-gap: 0; margin-bottom: 8.1mm; }
+.toc li:last-child { margin-bottom: 0; }
+.tocpg { font-family: var(--num); font-weight: 700; font-size: 17pt; line-height: 1;
+  color: var(--key); font-variant-numeric: tabular-nums; order: -1; flex: 0 0 11mm;
+  text-align: right; }
+.toc-title { flex: 1 1 auto; font-family: var(--display); font-size: 22pt; line-height: 1.30;
+  font-weight: 700; letter-spacing: -0.005em; }
 .toc-leader { display: none; }
+/* 요약은 40자 캡(build_html) + 1행 클램프 — 단면 보정으로 좁아진 칼럼에서도 "한 줄"을 지킨다.
+   ::after는 *{box-sizing} 대상이 아니므로 border-box를 명시해야 칼럼 밖으로 새지 않는다. */
+.toc li[data-sum]::after { content: attr(data-sum);
+  box-sizing: border-box; flex: 0 0 100%; width: 100%; max-width: 100%; padding-left: 17mm;
+  font-family: var(--sans); font-size: 9.5pt; line-height: 5.4mm; color: var(--ink-soft);
+  letter-spacing: 0.005em;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
+.toc li[data-sum=""]::after { display: none; }
 
 /* ---- chapter opener (FO-C type-only, full page, no folio) ---- */
 .chapter { break-before: page; }
@@ -82,7 +109,9 @@ body {
 
 /* ---- body ---- */
 .chapter-body { column-count: 2; column-gap: 8mm; text-align: justify; }
-.chapter-body p { margin-bottom: 5.4mm; }
+.chapter-body p { margin-bottom: 5.4mm; orphans: 2; widows: 2; }
+.chapter-body li { orphans: 2; widows: 2; }
+.chapter-body h2, .chapter-body h3 { break-after: avoid; }
 .chapter-body h2 { column-span: all; font-size: 17pt; line-height: 1.4; font-weight: 700;
   margin: 10.8mm 0 5.4mm; }
 .chapter-body h3 { font-size: 11pt; font-weight: 700; margin: 5.4mm 0 2.7mm; }
@@ -100,12 +129,13 @@ body {
   break-inside: avoid; }
 .chapter-body code { font-family: ui-monospace, monospace; }
 
-.callout { background: var(--key-tint); border-left: 3pt solid var(--key);
-  padding: 8mm; margin: 5.4mm 0; break-inside: avoid; }
+/* 박스: 매거진 문법(STYLE.md L5 사이드바) — 리포트식 좌측 바·키컬러 배경 금지 */
+.callout { background: var(--paper-tint); padding: 6mm; margin: 5.4mm 0; break-inside: avoid; }
 .callout-title { font-size: 7pt; letter-spacing: 0.14em; color: var(--key);
-  font-weight: 700; margin-bottom: 2mm; }
+  font-weight: 700; margin-bottom: 2.5mm; }
+.callout p { font-size: 8.5pt; line-height: 4.8mm; }
 .callout p:last-child { margin-bottom: 0; }
-.callout-warn { border-left-color: #C4491F; background: rgba(196,73,31,0.08); }
+.callout-warn { background: none; border-top: 0.5pt solid #C4491F; border-bottom: 0.5pt solid #C4491F; }
 .callout-warn .callout-title { color: #C4491F; }
 
 .stat { border-top: 0.5pt solid var(--rule); border-bottom: 0.5pt solid var(--rule);
@@ -122,24 +152,31 @@ body {
   line-height: 1.3; color: var(--ink); width: 120mm; margin-top: 60mm; }
 .colophon p { font-size: 6.5pt; line-height: 1.6; color: var(--ink-faint); letter-spacing: 0.08em; }
 
+/* 표 캡션 계약([표] 제목 | 자료: 출처) 렌더 */
+.tablewrap { break-inside: avoid; margin: 5.4mm 0; }
+.tbl-caption { font-size: 7.5pt; font-weight: 700; margin-bottom: 2mm; }
+.tbl-caption .no { color: var(--key); }
+.tbl-source { font-size: 6.5pt; color: var(--ink-faint); margin-top: 2mm; letter-spacing: 0.08em; }
+
 /* ---- figure/figcaption (md 이미지) ---- */
 .chapter-body figure { column-span: all; margin: 8.1mm 0; break-inside: avoid; width: 100%; }
 .chapter-body figure img { width: 100%; display: block; }
 .chapter-body figcaption { font-size: 7.5pt; line-height: 1.45; color: var(--ink-soft, #5a5a5a);
   margin-top: 3mm; }
 
-/* ---- T3 풀퀘트 면 (전면 인용) ---- */
-.pullquote { break-before: page; page: opener;
-  width: 200mm; height: 265mm; padding: 22mm 16mm 27mm 20mm;
-  display: flex; flex-direction: column; justify-content: center; }
-.pull-text { font-family: var(--display); font-weight: 700; font-size: 40pt; line-height: 1.10;
-  letter-spacing: -0.015em; color: var(--ink); width: 115mm; word-break: keep-all; position: relative; }
-.pull-text::before { content: "\201C"; position: absolute; left: -13mm; top: -6mm;
-  color: var(--key); font-size: 64pt; font-family: var(--serif); line-height: 1; }
-.pull-speaker { font-size: 6.5pt; letter-spacing: 0.08em; color: var(--ink-faint); margin-top: 8mm; }
+/* ---- 풀퀘트: 본문 흐름 내 전폭 밴드 — 전용 면 강제 금지(원문과 같은 면 원칙, pagination.md §6) ---- */
+.pullquote { break-inside: avoid; margin: 8mm 0; padding: 7mm 0 5mm;
+  border-top: 2.5pt solid var(--key); border-bottom: 0.5pt solid var(--rule); }
+.pull-text { font-family: var(--display); font-weight: 700; font-size: 21pt; line-height: 1.22;
+  letter-spacing: -0.015em; color: var(--ink); word-break: keep-all; width: 92%; }
+.pull-text::before { content: "\201C"; color: var(--key); font-family: var(--serif);
+  font-size: 30pt; line-height: 0; margin-right: 2mm; vertical-align: -0.25em; }
+.pull-speaker { font-size: 6.5pt; letter-spacing: 0.08em; color: var(--ink-faint); margin-top: 3mm; }
 
-/* ---- 목차 이미지 맵 ---- */
-.toc-map { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; margin-top: 16mm; }
+/* ---- 목차 이미지 맵: 64mm 썸네일 세로 스택, 간격 6mm, 하단에 해당 쪽번호 ---- */
+.toc-map { display: flex; flex-direction: column; row-gap: 6mm; }
 .toc-map figure { margin: 0; }
-.toc-map img { width: 100%; height: 34mm; object-fit: cover; display: block; }
-.toc-map figcaption { font-size: 7pt; color: var(--ink-soft); margin-top: 1.5mm; }
+.toc-map img { width: 64mm; height: 28mm; object-fit: cover; display: block; }
+.toc-map figcaption { margin-top: 1.5mm; }
+.toc-map figcaption .tocpg { display: block; font-size: 7.5pt; line-height: 1.45;
+  letter-spacing: 0.01em; color: var(--ink-soft); text-align: left; }

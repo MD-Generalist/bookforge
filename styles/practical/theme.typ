@@ -22,6 +22,13 @@
 
 #let TT = theme-tokens
 
+// ---- STYLE.md 컬러 토큰 (brand 계열만 주제색 교체, 나머지는 고정) -----------
+#let c-brand = TT.brand
+#let c-pale = TT.brand-light            // brand-pale  — 목차 필 바탕
+#let c-deep = TT.brand.darken(30%)      // brand-deep  — 밝은 바탕 위 브랜드 글자
+#let c-high = rgb("#BDD756")            // highlight   — 브랜드 색면 위 라벨 (고정)
+#let c-rule = rgb("#D9DCDE")            // rule        — 점 리더·괘선 (고정)
+
 // ---- cover: vector typography, solid brand ground + light rules ------------
 #let make-cover(meta) = {
   let t = TT
@@ -68,8 +75,170 @@
   }))
 }
 
+// ---- TOC: 파트 목차 1쪽 (STYLE.md「목차 문법」) ------------------------------
+// 헤더 밴드 56mm(우하단 r12mm) → PART 배지 23×46mm(x 27, y 41.6) → 파트 제목
+// → 항목 행 20pt `[필 라벨][제목][점 리더][쪽번호]`
+#let toc-band-h = 56mm
+#let toc-badge-x = 27mm
+#let toc-badge-y = 41.6mm
+#let toc-badge-w = 23mm
+#let toc-badge-h = 46mm
+#let toc-col-x = toc-badge-x + toc-badge-w + 6mm   // 배지 오른쪽 6mm
+#let toc-row-h = 20pt
+
+#let toc-part-badge(num) = block(
+  width: toc-badge-w, height: toc-badge-h,
+  fill: c-brand, radius: 3mm, stroke: none, inset: 0pt,
+  {
+    set align(center)
+    set par(leading: 0em, spacing: 0em)
+    v(8.2mm)
+    text(font: TT.sans-font, size: 20pt, weight: "bold", tracking: 0.03em,
+      fill: c-high, "PART")
+    v(5.0mm)
+    line(length: 16mm, stroke: 0.6pt + white)
+    v(4.4mm)
+    text(font: TT.display-font, size: 46pt, weight: "black", tracking: -0.045em,
+      fill: white, num)
+  })
+
+#let practical-toc(meta, t, title: "차례") = {
+  let col-w = t.trim.w - t.margin.right - toc-col-x
+  page(header: none, footer: none, margin: 0mm, fill: t.paper, {
+    set par(justify: false, first-line-indent: 0em)
+
+    // ① 헤더 밴드 — 풀블리드, 우하단 모서리만 r12mm
+    place(top + left, rect(width: t.trim.w, height: toc-band-h, fill: c-brand,
+      stroke: none, radius: (bottom-right: 12mm)))
+    place(top + left, dx: toc-badge-x, dy: 21.0mm,
+      text(font: TT.sans-font, size: 8pt, weight: "bold", tracking: 0.26em,
+        fill: c-high, "CONTENTS"))
+    place(top + left, dx: toc-badge-x, dy: 25.9mm,
+      text(font: TT.display-font, size: 23pt, weight: "black", tracking: -0.03em,
+        fill: white, title))
+
+    // ② PART 배지
+    place(top + left, dx: toc-badge-x, dy: toc-badge-y, toc-part-badge("01"))
+
+    // ③ 파트 제목 + ④ 항목 행 — 밴드 아래(배지는 밴드에서 내려온 탭)
+    place(top + left, dx: toc-col-x, dy: toc-band-h + 3.4mm, block(width: col-w, {
+      show link: it => text(fill: t.ink, it)          // 목차 글자에 별색 금지
+      text(font: TT.display-font, size: 20.9pt, weight: "bold", tracking: -0.03em,
+        fill: t.ink, keep-words(meta.title))
+      if meta.at("subtitle", default: none) != none {
+        v(2.2mm)
+        text(font: TT.sans-font, size: 8.5pt, weight: "regular", fill: t.muted,
+          keep-words(meta.subtitle))
+      }
+      v(5.6mm)
+      show outline.entry.where(level: 1): it => block(
+        width: 100%, height: toc-row-h, above: 0pt, below: 0pt,
+        spacing: 0pt, breakable: false,
+        align(horizon, context {
+          let n = query(heading.where(level: 1)
+            .before(it.element.location(), inclusive: true)).len()
+          link(it.element.location(), {
+            // 필 라벨 — brand-pale 필, 높이 4.7mm, Bold 6.9pt / brand-deep
+            box(height: 4.7mm, fill: c-pale, radius: 1mm, inset: (x: 2.1mm),
+              baseline: 1.35mm,
+              align(horizon, text(font: TT.sans-font, size: 6.9pt, weight: "bold",
+                fill: c-deep, tracking: 0.02em, number-width: "tabular",
+                "CHAPTER│" + numpad(n))))
+            h(3mm)
+            // 제목
+            text(font: TT.sans-font, size: 9.5pt, weight: "regular", fill: t.ink,
+              it.element.body)
+            // 점 리더 — 0.5pt 원점, 간격 2pt, rule
+            box(width: 1fr, inset: (x: 2.0mm),
+              repeat(gap: 2pt, box(baseline: -0.9pt,
+                circle(radius: 0.35pt, fill: c-rule, stroke: none))))
+            // 쪽번호
+            box(width: 9mm, align(right, text(font: TT.sans-font, size: 10pt,
+              weight: "medium", fill: t.ink, number-width: "tabular", it.page())))
+          })
+        }))
+      outline(title: none, depth: 1)
+    }))
+  })
+}
+
+// ---- 마스터 래퍼: base.book()에서 TOC만 교체 --------------------------------
+#let book(meta: (:), tokens: (:), cover: none, toc: true, toc-title: "차례",
+          toc-cols: 1, body) = {
+  let t = merged(tokens)
+
+  set document(title: meta.at("title", default: "무제"), author: meta.at("author", default: "bookforge"))
+  set page(
+    width: t.trim.w, height: t.trim.h,
+    margin: (top: t.margin.top, bottom: t.margin.bottom, left: t.margin.left, right: t.margin.right),
+    fill: t.paper,
+    footer: context {
+      let pn = counter(page).get().first()
+      align(center, text(font: t.sans-font, size: 8pt, fill: t.muted, str(pn)))
+    },
+    header: context {
+      let sel = heading.where(level: 1)
+      let prev = query(sel.before(here()))
+      if prev.len() > 0 {
+        set text(font: t.sans-font, size: 7.5pt, fill: t.muted, tracking: 0.06em)
+        prev.last().body
+        h(1fr)
+        text(fill: t.brand, meta.at("title", default: ""))
+      }
+    },
+  )
+  set text(font: t.body-font, size: t.body-size, fill: t.ink, lang: "ko", region: "KR")
+  set text(costs: (orphan: 100%, widow: 100%, runt: 200%))
+  set par(justify: true, leading: t.body-leading, spacing: 1.15em, first-line-indent: (amount: 1em, all: false))
+
+  show heading.where(level: 2): it => {
+    v(1.6em, weak: true)
+    block(text(font: t.sans-font, size: t.heading2-size, weight: "bold", fill: t.ink, it.body))
+    v(0.7em, weak: true)
+  }
+  show heading.where(level: 3): it => {
+    v(1.2em, weak: true)
+    block({
+      box(baseline: -0.12em, circle(radius: 2.2pt, fill: t.brand))
+      h(6pt)
+      text(font: t.sans-font, size: t.heading3-size, weight: "semibold", fill: t.ink, it.body)
+    })
+    v(0.5em, weak: true)
+  }
+  set heading(numbering: none)
+
+  show quote.where(block: true): it => block(
+    inset: (left: 1.2em, y: 0.3em),
+    stroke: (left: 2pt + t.brand.transparentize(50%)),
+    text(fill: t.ink.transparentize(15%), it.body))
+  set list(marker: ([•], [–]), indent: 0.5em)
+  set enum(indent: 0.5em)
+  show raw.where(block: true): it => block(
+    width: 100%, fill: luma(247), radius: 4pt, inset: 9pt, breakable: true,
+    text(size: 8pt, it))
+  show raw.where(block: false): it => box(fill: luma(243), radius: 2pt, inset: (x: 3pt, y: 1pt), text(size: 0.92em, it))
+  set table(stroke: none, inset: (x: 7pt, y: 6pt))
+  show table: it => {
+    set text(size: 8.7pt, font: t.sans-font)
+    it
+  }
+  show table.cell.where(y: 0): it => text(weight: "semibold", fill: white, it)
+  set table(fill: (x, y) => if y == 0 { t.brand } else if calc.odd(y) { t.brand-light.transparentize(45%) } else { none })
+  show figure.where(kind: table): set figure.caption(position: top)
+  show figure.caption: it => text(font: t.sans-font, size: 8.5pt, fill: t.muted, it)
+  show link: it => text(fill: t.brand, it)
+
+  if cover != none { cover }
+  title-page(meta, t)
+  if toc { practical-toc(meta, t, title: toc-title) }
+  counter(page).update(1)
+
+  body
+}
+
 // ---- baked helpers for converter output ------------------------------------
 #let bf-chapter(title, summary: none) = chapter(title, summary: summary, t: TT, opener: practical-opener)
 #let bf-callout(kind: "info", title: none, body) = callout(kind: kind, title: title, t: TT, body)
 #let bf-stat(value, label) = stat(value, label, t: TT)
 #let bf-fig(path, caption: none, source: none, width: 100%) = bookfig(path, caption: caption, source: source, width: width, t: TT)
+#let bf-tbl(caption: none, source: none, body) = bf-tbl-base(caption: caption, source: source, t: TT, body)

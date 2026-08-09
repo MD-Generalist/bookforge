@@ -45,6 +45,12 @@ def build_typst(book_dir: Path, book: dict, outline: dict, style_dir: Path):
             break
     (style_snap / "meta.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
 
+    # refit-params.json: 장별 자간 미세조정(pagination.md §5 L2, refit.py가 산출)
+    refit = {}
+    rp = book_dir / "refit-params.json"
+    if rp.exists():
+        refit = json.loads(rp.read_text(encoding="utf-8"))
+
     includes = []
     for ch in outline["chapters"]:
         src = book_dir / "chapters" / ch["file"]
@@ -52,6 +58,11 @@ def build_typst(book_dir: Path, book: dict, outline: dict, style_dir: Path):
             die(f"chapter file missing: {src}")
         dst = chap_out / (src.stem + ".typ")
         convert_chapter(src, dst, ch["title"], ch.get("summary"))
+        prm = refit.get(src.stem, {})
+        if prm.get("tracking_em"):
+            head, _, rest = dst.read_text(encoding="utf-8").partition("\n")
+            dst.write_text(f"{head}\n#set text(tracking: {prm['tracking_em']}em)\n{rest}",
+                           encoding="utf-8")
         includes.append(f'#include "chapters/{dst.name}"')
 
     main = "\n".join([

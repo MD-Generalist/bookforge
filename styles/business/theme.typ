@@ -18,6 +18,17 @@
 #let rule-c   = rgb("#D5D9DE")
 #let paper-alt = rgb("#F4F6F8")
 
+// content → 평문 (목차 Executive Summary 판별용)
+#let plain-text(c) = {
+  if type(c) == str { c }
+  else if type(c) != content { "" }
+  else if c.func() == text { c.text }
+  else if c.has("children") { c.children.map(plain-text).join("") }
+  else if c.has("body") { plain-text(c.body) }
+  else if c.func() == smartquote { "'" }
+  else { " " }
+}
+
 #let theme-tokens = default-tokens + (
   trim: (w: 200mm, h: 280mm),
   // 본문 5컬럼 132.5mm + 바깥 마진 컬럼 22.5mm(+거터 5mm) 확보
@@ -152,6 +163,27 @@
   })
 }
 
+// 표: 콘텐츠 [표] 캡션 계약 — 캡션이 실재할 때만 <표 n-m> 라벨, 출처는 콘텐츠가 준 것만
+#let bf-tbl(caption: none, source: none, body) = block(breakable: false, above: 6mm, below: 6mm, width: 100%, {
+  if caption != none {
+    context {
+      biz-tbl.step()
+      let n = chapter-state.get().num
+      let m = biz-tbl.get().first() + 1
+      text(font: TT.sans-font, size: 9pt, weight: "bold", fill: navy-700,
+        "<표 " + str(n) + "-" + str(m) + ">")
+      h(0.5em)
+      text(font: TT.sans-font, size: 9.5pt, weight: "semibold", fill: ink, caption)
+    }
+    v(2mm)
+  }
+  body
+  if source != none {
+    v(2mm)
+    text(font: TT.sans-font, size: 7.5pt, fill: ink-60, [자료: #source])
+  }
+})
+
 #let colophon(meta, t) = {
   pagebreak(weak: true)
   set text(size: 8pt, fill: ink-60)
@@ -197,12 +229,12 @@
     },
   )
   set text(font: t.body-font, size: t.body-size, fill: ink, lang: "ko", region: "KR")
+  set text(costs: (orphan: 100%, widow: 100%, runt: 200%))
   set par(justify: true, leading: t.body-leading, spacing: 1.0em, first-line-indent: 0em)
 
-  // 절/항: 액션 타이틀 문법 — 한 면 한 메시지(절마다 새 면)
+  // 절/항: 액션 타이틀 문법 — 강제 개면 금지(흐름 배치), 개면은 H1만
   show heading.where(level: 2): it => {
-    pagebreak(weak: true)
-    v(0.2em, weak: true)
+    v(1.8em, weak: true)
     block({
       text(font: t.sans-font, size: 16pt, weight: "bold", tracking: -0.01em, fill: navy-900, it.body)
       v(2.2mm)
@@ -241,44 +273,144 @@
   ))
   show table.cell.where(y: 0): it => text(weight: "semibold", fill: navy-900, it)
   show table.cell: set align(left + horizon)
-  // 표 라벨·출처 강제: 라벨 없는 표는 렌더될 수 없다
-  show figure.where(kind: table): it => context {
-    biz-tbl.step()
-    let n = chapter-state.get().num
-    let m = biz-tbl.get().first() + 1
-    block(breakable: false, above: 6mm, below: 6mm, width: 100%, {
-      text(font: t.sans-font, size: 9pt, weight: "bold", fill: navy-700,
-        "<표 " + str(n) + "-" + str(m) + ">")
-      h(0.5em)
-      text(font: t.sans-font, size: 9.5pt, weight: "semibold", fill: ink, "핵심 정리")
-      v(2mm)
-      it.body
-      v(2mm)
-      text(font: t.sans-font, size: 7.5pt, fill: ink-60, "자료: bookforge 분석")
-    })
-  }
   show link: it => text(fill: navy-500, it)
   show figure.caption: it => text(font: t.sans-font, size: 8pt, fill: ink-60, it)
 
   if cover != none { cover }
-  // 리포트형: 속표지 생략, 목차 1면 완결
+  // 리포트형: 속표지 생략, 목차 1면 완결 (STYLE.md「목차 문법」)
+  //  - 좌측 22.5mm 컬럼 장번호 / 우측 5컬럼 장제목 + 절제목 리스트
+  //  - 점선 리더 금지, 쪽번호 우측 정렬 tabular, 위계는 장·절 2단계까지
+  //  - 최상단 Executive Summary는 장번호 없이 별도 행
   if toc {
-    page(header: none, footer: none, background: none, {
-      text(font: t.display-font, size: 20pt, weight: "extrabold", fill: navy-900, toc-title)
-      v(10mm)
-      show outline.entry.where(level: 1): it => {
-        v(12mm, weak: true)
-        link(it.element.location(), context {
-          let n = query(heading.where(level: 1).before(it.element.location(), inclusive: true)).len()
-          box(width: 22.5mm,
-            text(font: t.sans-font, size: 24pt, weight: "extrabold", fill: navy-300, numpad(n)))
-          text(font: t.sans-font, size: 15pt, weight: "semibold", fill: ink, it.element.body)
-          h(1fr)
-          text(size: 10.5pt, fill: navy-700, it.page())
-        })
+    // 한 행 = 제목(1fr) + 쪽번호(우측 정렬). 리더 없음.
+    let toc-row(body, pnum, t-size, p-size, t-fill, p-fill, t-weight, t-font) = grid(
+      columns: (1fr, 11mm), column-gutter: 3mm,
+      align: (left + top, right + top),
+      text(font: t-font, size: t-size, weight: t-weight, tracking: -0.01em, fill: t-fill, body),
+      {
+        // 쪽번호를 제목 베이스라인에 맞춰 내림(급수 차 보정)
+        v((t-size - p-size) * 0.88)
+        text(font: t.sans-font, size: p-size, weight: "medium", fill: p-fill, str(pnum))
+      },
+    )
+
+    // 항목 전체 렌더 — 간격/급수는 tier로 주입(1면 완결을 위한 적응 축소)
+    let toc-body(entries, ch-gap, sec-gap, ch-size, sec-size, num-size) = {
+      // 간격은 오직 v()로만 — 블록 자동 간격 제거(1면 예산 계산의 전제)
+      set par(justify: false, first-line-indent: 0em, leading: 0.42em, spacing: 0em)
+      set block(spacing: 0em)
+      for (i, e) in entries.enumerate() {
+        if i > 0 { v(ch-gap) }
+        block(breakable: false, width: 100%, grid(
+          columns: (22.5mm, 1fr),
+          {
+            // 장번호 01 / ES는 번호 없이 accent 마커
+            if e.num == none {
+              v(ch-size * 0.5)
+              rect(width: 12mm, height: 2pt, fill: accent)
+            } else {
+              text(font: t.display-font, size: num-size, weight: "extrabold",
+                tracking: -0.02em, fill: navy-300, numpad(e.num))
+            }
+          },
+          {
+            link(e.loc, toc-row(e.title, e.page, ch-size, ch-size * 0.7,
+              navy-900, navy-700, "semibold", t.sans-font))
+            if e.secs.len() > 0 {
+              v(sec-gap * 0.9)
+              for (j, s) in e.secs.enumerate() {
+                if j > 0 { v(sec-gap) }
+                link(s.loc, toc-row(s.title, s.page, sec-size, sec-size,
+                  ink-60, ink-60, "regular", t.body-font))
+              }
+            }
+          },
+        ))
+        // ES 블록은 본장과 헤어라인으로 분리
+        if e.num == none {
+          v(ch-gap * 0.6)
+          line(length: 100%, stroke: 0.4pt + rule-c)
+        }
       }
-      outline(title: none, depth: 1)
-    })
+    }
+
+    let toc-head = {
+      set par(spacing: 0em)
+      set block(spacing: 0em)
+      text(font: t.sans-font, size: 8pt, tracking: 0.06em, weight: "bold", fill: accent, "CONTENTS")
+      v(3mm)
+      text(font: t.display-font, size: 20pt, weight: "extrabold", tracking: -0.02em,
+        fill: navy-900, toc-title)
+      v(4mm)
+      line(length: 100%, stroke: 1.2pt + navy-900)
+      v(8mm)
+    }
+
+    // 넉넉한 사양치부터 시도해 1면에 들어가는 첫 tier 채택
+    let tiers = (
+      (ch: 12mm,  sec: 6mm,   chs: 15pt,   secs: 10.5pt, num: 24pt),
+      (ch: 10mm,  sec: 5mm,   chs: 14.5pt, secs: 10pt,   num: 22pt),
+      (ch: 8mm,   sec: 4.2mm, chs: 14pt,   secs: 9.5pt,  num: 21pt),
+      (ch: 6.5mm, sec: 3.4mm, chs: 13pt,   secs: 9pt,    num: 19pt),
+      (ch: 6.0mm, sec: 3.1mm, chs: 12.5pt, secs: 8.8pt,  num: 18pt),
+      (ch: 5.2mm, sec: 2.8mm, chs: 12pt,   secs: 8.5pt,  num: 17pt),
+      (ch: 4.2mm, sec: 2.2mm, chs: 11.5pt, secs: 8.2pt,  num: 16pt),
+      (ch: 3.4mm, sec: 1.7mm, chs: 11pt,   secs: 8pt,    num: 15pt),
+      (ch: 2.8mm, sec: 1.2mm, chs: 10.5pt, secs: 7.6pt,  num: 14pt),
+    )
+
+    // 목차 면은 6컬럼 전폭(160mm)을 쓴다 — 바깥 마진 컬럼 해제
+    page(
+      margin: (top: t.margin.top, bottom: t.margin.bottom,
+        left: t.margin.left, right: t.margin.left),
+      header: none, footer: none, background: none,
+      context {
+        let w = t.trim.w - t.margin.left * 2
+        let avail = t.trim.h - t.margin.top - t.margin.bottom
+
+        // 장·절 수집 (2단계까지, 항 제외)
+        let hs = query(heading).filter(h => h.level <= 2 and h.outlined)
+        let entries = ()
+        for h in hs {
+          let p = counter(page).at(h.location()).first()
+          if h.level == 1 {
+            entries.push((
+              num: entries.len() + 1, title: h.body,
+              page: p, loc: h.location(), secs: (),
+            ))
+          } else if entries.len() > 0 {
+            let last = entries.pop()
+            last.secs.push((title: h.body, page: p, loc: h.location()))
+            entries.push(last)
+          }
+        }
+        // 1장이 Executive Summary면 번호 없는 별도 행으로
+        if entries.len() > 0 {
+          let head-title = lower(plain-text(entries.first().title))
+          if head-title.contains("executive summary") or head-title.contains("요약") {
+            let first = entries.first()
+            first.num = none
+            entries.at(0) = first
+          }
+        }
+
+        let hh = measure(block(width: w, toc-head)).height
+        let budget = avail - hh - 4mm
+        let fits(tier) = measure(block(width: w,
+          toc-body(entries, tier.ch, tier.sec, tier.chs, tier.secs, tier.num))).height
+        let pick = tiers.last()
+        for tier in tiers {
+          if fits(tier) <= budget { pick = tier; break }
+        }
+        // 남은 여백은 장 사이 간격으로 되돌린다(사양치 12mm 상한)
+        let slack = budget - fits(pick)
+        let gaps = calc.max(entries.len() - 1, 1)
+        let ch-gap = calc.min(pick.ch + slack / gaps, 12mm)
+
+        toc-head
+        toc-body(entries, ch-gap, pick.sec, pick.chs, pick.secs, pick.num)
+      },
+    )
   }
   counter(page).update(1)
   body

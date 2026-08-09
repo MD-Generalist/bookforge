@@ -84,6 +84,8 @@ b, strong { font-weight: 500; }
 .chapter-body { text-align: justify; }
 .chapter-body p { margin: 0; }
 .chapter-body p + p { text-indent: 0; }
+/* 고아/과부 2행 계약(pagination.md §3) — 3 이상은 중간면 채움 하락, refit 탐색으로만 */
+.chapter-body p, .chapter-body li { orphans: 2; widows: 2; }
 .chapter-body h2 { counter-increment: sec; counter-reset: subsec;
   font-weight: 700; font-size: 13pt; color: var(--ink); line-height: 1.3;
   margin: 24mm 0 6mm; break-after: avoid; }

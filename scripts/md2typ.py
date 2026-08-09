@@ -95,6 +95,12 @@ def render_tokens(tokens, ctx) -> str:
                 out.append("=" * min(level, 4) + " " + content + "\n")
             continue
         if ty == "paragraph_open":
+            raw_line = (tokens[i + 1].content or "").strip()
+            capm = re.match(r"^\[표\]\s*(.+?)(?:\s*\|\s*자료\s*[:：]\s*(.+))?$", raw_line)
+            if capm:
+                ctx["pending_tbl"] = (capm.group(1).strip(), (capm.group(2) or "").strip() or None)
+                i += 3
+                continue
             children = tokens[i + 1].children or []
             imgs = [c for c in children if c.type == "image"]
             if imgs and all(c.type in ("image", "softbreak", "text") and (c.type != "text" or not c.content.strip()) for c in children):
@@ -153,7 +159,8 @@ def render_tokens(tokens, ctx) -> str:
             j = i
             while tokens[j].type != "table_close":
                 j += 1
-            out.append(render_table(tokens[i:j + 1], ctx))
+            cap = ctx.pop("pending_tbl", None)
+            out.append(render_table(tokens[i:j + 1], ctx, cap=cap))
             i = j + 1
             continue
         if ty == "hr":
@@ -184,7 +191,7 @@ def render_list(tokens, ctx) -> str:
             i += 1
     return "\n".join(items) + "\n"
 
-def render_table(tokens, ctx) -> str:
+def render_table(tokens, ctx, cap=None) -> str:
     rows, cur = [], None
     for t in tokens:
         if t.type == "tr_open":
@@ -200,9 +207,16 @@ def render_table(tokens, ctx) -> str:
     for r in rows:
         r = r + [""] * (ncol - len(r))
         cells.extend(f"[{c}]" for c in r)
-    return (f"#figure(table(columns: {ncol}, " + ", ".join(cells) + "))\n")
+    tbl = f"table(columns: {ncol}, " + ", ".join(cells) + ")"
+    if cap:
+        title, source = cap
+        args = [f"caption: [{esc(title)}]"]
+        if source:
+            args.append(f"source: [{esc(source)}]")
+        return f"#bf-tbl({', '.join(args)}, {tbl})\n"
+    return f"#bf-tbl({tbl})\n"
 
-CALLOUT_RE = re.compile(r"^:::\s*(info|tip|warn|quote|stat)\s*(.*)$")
+CALLOUT_RE = re.compile(r"^:::\s*(info|tip|warn|quote|stat|pull)\s*(.*)$")
 
 def split_callouts(md: str):
     """Yield ('md', text) and ('callout', kind, title, body) segments."""
@@ -243,6 +257,8 @@ def convert_chapter(md_path: Path, out_path: Path, title: str, summary: str | No
                 label = ls[1] if len(ls) > 1 else ""
                 parts.append(f'#bf-stat("{content_escape(value)}", "{content_escape(label)}")\n')
             else:
+                if kind == "pull":  # 풀퀘트는 HTML 전용 — Typst 트랙에선 인용으로 강등
+                    kind = "quote"
                 inner = render_tokens(MD.parse(body), ctx).strip()
                 targ = f"title: [{esc(title_c)}], " if title_c else ""
                 parts.append(f'#bf-callout(kind: "{kind}", {targ})[{inner}]\n'.replace(", )", ")"))

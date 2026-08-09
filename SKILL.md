@@ -67,7 +67,10 @@ python3 <SKILL>/scripts/scaffold.py <book_dir> --style practical \
 :::
 ```
 
-종류 `info|tip|warn|quote|stat`. HTML 태그·각주·이모지는 쓰지 않는다.
+종류 `info|tip|warn|quote|stat|pull`(pull은 magazine 풀퀘트 — **본문에 실재하는 문장만**, 없는 인용은 G10 하드 실패).
+- 표 캡션: 표 **바로 앞 문단**에 `[표] 제목 | 자료: 출처` 한 줄 — 이 줄을 준 표만 번호 라벨이 붙는다. 캡션 없는 표는 라벨 없이 렌더된다(자동 필러 캡션은 존재하지 않는다).
+- `stat`의 수치는 같은 장 본문에 실재해야 한다(G10) — 박스에만 있는 숫자는 날조로 판정된다.
+
 표지·도비라용 생성 아트를 쓸 경우 [references/art-policy.md](references/art-policy.md)를 읽고 따른다(무텍스트 원칙).
 
 완료 기준: outline의 모든 장 파일이 존재하고, 각 파일 첫 줄이 `# {title}`이며, 분량 프리셋에 맞는 총 글자수(short 기준 본문 1.2만~2.2만 자)를 갖춘다.
@@ -79,7 +82,9 @@ python3 <SKILL>/scripts/build.py <book_dir>          # → draft/book.pdf
 python3 <SKILL>/scripts/qc_gate.py <book_dir>        # PASS 시에만 final/<slug>.pdf 생성
 ```
 
-게이트: G1 렌더·분량범위 / G2 폰트 전량 임베드 / G3 오버플로 0 / G4 목차·북마크 정합 / G5 빈 페이지 0. 실패 시 `gate-report.json`의 원인 항목만 고치고 재실행한다 — G1 분량 미달이면 얇은 장을 보강하고, G3 오버플로면 해당 페이지의 표·코드블록을 분할한다. 같은 게이트가 3회 연속 실패하면 원인을 사용자에게 보고한다.
+게이트: G10 인용·수치 실재(렌더 전) / G1 렌더·분량범위 / G2 폰트 임베드 / G3 오버플로 0 / G4 목차·북마크 정합 / G7 밀도(백면·꼬리 채움·판면 드리프트) / G8 공기 채움 / G9 제목 고립·widow / G11 사유 코드 무결성 / G12 필러 백면. 기준 수치와 대응법은 [references/pagination.md](references/pagination.md)가 정본이다.
+
+실패 시 `gate-report.json`의 원인 항목만 고치고 재실행한다. **금지 대응**: 분량 미달을 부록·용어집 추가로 메우기, 절별 강제 개면, 빈 줄·행간 확대로 면 채우기 — 전부 게이트가 다시 잡는다. 올바른 대응: G7 꼬리 미달은 `refit.py`(자간 미세조정 자동 탐색) → 해 없으면 문단 1~2개 국소 증감 또는 `pageroles.json` 사유 코드(의도된 여백 선언, G11이 진위 검증). 재배치(원고 유지) 시에는 `qc_gate.py <dir> --refit`으로 분량범위를 WARN 강등. 같은 게이트 3회 연속 실패면 원인을 사용자에게 보고한다.
 
 ## P5 — 시각 검수 (필수, 생략 금지)
 
@@ -94,6 +99,7 @@ python3 <SKILL>/scripts/contact_sheet.py <book_dir>/final/*.pdf <book_dir>/qc --
 
 - [modes/topic.md](modes/topic.md) — 주제만 받았을 때: 조사→목차→집필 절차
 - [modes/manuscript.md](modes/manuscript.md) — 원고를 받았을 때: 인제스트·장 분할 절차
+- [references/pagination.md](references/pagination.md) — **배치 규칙서(정본)**: 채움/비움의 사유, 레버 사다리, 밀도 게이트 수치, 사유 코드
 - [references/art-policy.md](references/art-policy.md) — 생성 아트(표지·도비라) 규칙: 무텍스트 원칙, 스타일별 사용처
 - [references/orchestration.md](references/orchestration.md) — (Claude Code 전용, 선택) 장별 집필을 codex 스웜·서브에이전트로 병렬화하는 법
 - [references/extending.md](references/extending.md) — 새 스타일 팩 추가·테마 수정 가이드

@@ -116,6 +116,19 @@
   )
 }
 
+// 표(에세이엔 드묾): 번호 라벨 없이 캡션·출처만 조용히
+#let bf-tbl(caption: none, source: none, body) = block(breakable: false, above: 1.3em, below: 1.3em, width: 100%, {
+  if caption != none {
+    text(font: TT.sans-font, size: 8.5pt, fill: TT.muted, caption)
+    v(2mm)
+  }
+  body
+  if source != none {
+    v(1.5mm)
+    text(font: TT.sans-font, size: 7.5pt, fill: TT.muted, [· #source])
+  }
+})
+
 // ---- 판권면 ------------------------------------------------------------------
 #let colophon(meta, t) = {
   pagebreak(weak: true)
@@ -155,6 +168,7 @@
   // 행송 19pt 고정(사륙판 20행 격자): edge 고정 + leading=spacing=9pt
   set text(font: t.body-font, size: t.body-size, fill: t.ink, lang: "ko", region: "KR",
     top-edge: 0.8em, bottom-edge: -0.2em)
+  set text(costs: (orphan: 100%, widow: 100%, runt: 200%))
   set par(justify: true, leading: 9pt, spacing: 9pt,
     first-line-indent: (amount: 1em, all: false))
 
