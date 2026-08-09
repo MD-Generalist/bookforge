@@ -13,9 +13,9 @@ Six topics × six styles (all in Korean, showcasing Korean book typography). Cli
 | | | |
 |:---:|:---:|:---:|
 | [![practical](examples/showcase/practical-prompt-patterns-cover.png)](examples/practical-prompt-patterns.pdf) | [![insight](examples/showcase/insight-ondevice-ai-cover.png)](examples/insight-ondevice-ai.pdf) | [![academic](examples/showcase/academic-game-theory-cover.png)](examples/academic-game-theory.pdf) |
-| **practical** how-to book<br>*24 Prompt Patterns*, 32p | **insight** tech report<br>*On-Device AI 2026*, 28p | **academic** scholarly<br>*Foundations of Game Theory*, 32p |
+| **practical** how-to book<br>*24 Prompt Patterns*, 28p | **insight** tech report<br>*On-Device AI 2026*, 30p | **academic** scholarly<br>*Foundations of Game Theory*, 35p |
 | [![essay](examples/showcase/essay-evening-sentences-cover.png)](examples/essay-evening-sentences.pdf) | [![business](examples/showcase/business-sme-ai-cover.png)](examples/business-sme-ai.pdf) | [![magazine](examples/showcase/magazine-trend-brief-cover.png)](examples/magazine-trend-brief.pdf) |
-| **essay** minimal prose<br>*Sentences on the Way Home*, 32p | **business** consulting paper<br>*SME AI Adoption Strategy*, 43p | **magazine** trend issue<br>*TREND BRIEF*, 28p |
+| **essay** minimal prose<br>*Sentences on the Way Home*, 32p | **business** consulting paper<br>*SME AI Adoption Strategy*, 28p | **magazine** trend issue<br>*TREND BRIEF*, 25p |
 
 ## The six style packs
 
@@ -61,6 +61,8 @@ python3 scripts/qc_gate.py mybook      # gates pass → final/mybook.pdf
 ```
 
 ## Quality gates
+
+Page breaking, filling, and intentional whitespace follow a pagination rulebook ([references/pagination.md](references/pagination.md)) distilled from measurements of commercial Korean books; density gates catch both unjustified emptiness and forced filler.
 
 Only the gate script can create `final/`: G1 render + page-count range · G2 all fonts embedded · G3 zero bbox overflow · G4 TOC/bookmarks match actual chapter pages · G5 zero unintended blank pages · G6 visual inspection of rendered pages by the agent.
 
