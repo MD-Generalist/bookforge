@@ -6,6 +6,9 @@
 @font-face { font-family: "Pretendard"; src: url("$fonts_dir/Pretendard-SemiBold.otf"); font-weight: 600; }
 @font-face { font-family: "Pretendard"; src: url("$fonts_dir/Pretendard-Bold.otf"); font-weight: 700; }
 @font-face { font-family: "Pretendard"; src: url("$fonts_dir/Pretendard-ExtraBold.otf"); font-weight: 800; }
+@font-face { font-family: "Paperlogy"; src: url("$fonts_dir/Paperlogy-7Bold.ttf"); font-weight: 700; }
+@font-face { font-family: "Paperlogy"; src: url("$fonts_dir/Paperlogy-8ExtraBold.ttf"); font-weight: 800; }
+@font-face { font-family: "Gmarket Sans"; src: url("$fonts_dir/GmarketSansBold.otf"); font-weight: 700; }
 @font-face { font-family: "Noto Serif KR"; src: url("$fonts_dir/NotoSerifKR-Regular.otf"); font-weight: 400; }
 @font-face { font-family: "Noto Serif KR"; src: url("$fonts_dir/NotoSerifKR-Bold.otf"); font-weight: 700; }
 
@@ -16,6 +19,8 @@
   --key: $key_color; --key-tint: $key_tint; --key-ink: #FFFFFF;
   --serif: "Noto Serif KR", serif;
   --sans: "Pretendard", sans-serif;
+  --display: "Paperlogy", "Pretendard", sans-serif;
+  --num: "Gmarket Sans", "Pretendard", sans-serif;
 }
 
 @page {
@@ -45,7 +50,7 @@ body {
 .cover-scrim { position: absolute; inset: 0; height: 40%;
   background: linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0)); }
 .cover-content { position: absolute; inset: 0; padding: 18mm 16mm 16mm; color: #fff; }
-.masthead { font-family: var(--serif); font-weight: 700; font-size: 44pt;
+.masthead { font-family: var(--display); font-weight: 700; font-size: 44pt;
   letter-spacing: -0.03em; line-height: 0.95; }
 .coverlines { position: absolute; left: 16mm; bottom: 60mm; width: 56mm; }
 .coverline-main { font-size: 21pt; line-height: 1.15; font-weight: 600; letter-spacing: -0.01em; }
@@ -58,7 +63,7 @@ body {
   border-top: 1.5pt solid var(--key); padding-top: 4mm; margin-bottom: 14mm; }
 .toc { list-style: none; }
 .toc li { display: flex; align-items: baseline; gap: 6mm; margin-bottom: 8.1mm; }
-.tocpg { font-weight: 700; font-size: 17pt; color: var(--key); order: -1; min-width: 12mm; }
+.tocpg { font-family: var(--num); font-weight: 700; font-size: 17pt; color: var(--key); order: -1; min-width: 12mm; }
 .toc-title { font-size: 22pt; font-weight: 700; letter-spacing: -0.005em; }
 .toc-leader { display: none; }
 
@@ -66,7 +71,7 @@ body {
 .opener { page: opener; width: 200mm; height: 265mm; position: relative;
   break-before: page; break-after: page; padding: 22mm 16mm 27mm 20mm; }
 .pgmark { position: absolute; top: 0; left: 0; font-size: 1px; color: transparent; }
-.opener-num { font-family: var(--sans); font-weight: 800; font-size: 126pt;
+.opener-num { font-family: var(--num); font-weight: 800; font-size: 126pt;
   line-height: 0.86; letter-spacing: -0.03em; color: var(--key); margin-top: 40mm; }
 .opener-title { font-family: var(--serif); font-weight: 700; font-size: 53pt;
   line-height: 0.98; letter-spacing: -0.02em; margin-top: 10mm; }
