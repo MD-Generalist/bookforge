@@ -175,12 +175,12 @@
   // 글 제목(h2) / 소제목(h3)
   show heading.where(level: 2): it => {
     v(38pt, weak: true)
-    block(text(font: t.display-font, size: 12pt, weight: "regular", fill: t.ink, it.body))
+    block(sticky: true, text(font: t.display-font, size: 12pt, weight: "regular", fill: t.ink, it.body))
     v(19pt, weak: true)
   }
   show heading.where(level: 3): it => {
     v(28.5pt, weak: true)
-    block(text(font: t.sans-font, size: 10pt, weight: "medium", tracking: 0.04em, fill: t.ink, it.body))
+    block(sticky: true, text(font: t.sans-font, size: 10pt, weight: "medium", tracking: 0.04em, fill: t.ink, it.body))
     v(9.5pt, weak: true)
   }
   set heading(numbering: none)

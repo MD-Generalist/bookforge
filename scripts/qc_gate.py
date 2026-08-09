@@ -201,6 +201,27 @@ def main():
     colophon_pages = {i + 1 for i, t in enumerate(page_texts)
                       if "bookforge" in t and "조판" in t and i + 1 >= (ch_starts[-1] if ch_starts else 1)}
     fullbleed = {p["page"] for p in pages if p["imgarea"] >= 0.60}
+    # float 밀림 면제(구조 파생): 다음 면 첫 블록(통짜 표·그림)이 이 면 잔여 공간보다 크면
+    # 이 면의 미달은 결속 규칙의 정당한 대가다 — 중간면 판정에서 제외.
+    float_pushed = set()
+    pitch_ref = m["book_pitch"] or 12
+    for i, p in enumerate(pages[:-1]):
+        nxt = pages[i + 1]
+        fl, ft, fr, fb = nxt["frame"]
+        # 텍스트는 나눠 흐를 수 있으므로 면제 사유가 못 된다 — 객체(표 괘선·그림·박스)만 본다.
+        segs = sorted(nxt["_objs"])
+        if not segs or segs[0][0] > ft + 2 * pitch_ref:
+            continue  # 다음 면이 객체로 시작하지 않으면 밀림이 아니다
+        top0, cur1 = segs[0]
+        for a, b in segs[1:]:
+            if a - cur1 > pitch_ref * 3:  # 표는 모든 행에 괘선이 있지 않다 — 행 건너뜀 허용
+                break
+            cur1 = max(cur1, b)
+        first_block_h = cur1 - top0
+        remaining = (1 - p["reach"]) * (p["frame"][3] - p["frame"][1])
+        # 블록은 CSS/Typst 마진을 데리고 다닌다 — 3행송 슬랙 인정
+        if first_block_h + pitch_ref * 3 > remaining:
+            float_pushed.add(p["page"])
     body_last = max((p["page"] for p in pages
                      if p["lines"] > 0 and p["page"] not in colophon_pages), default=n)
     tails = {p - 1 for p in ch_starts if p - 1 >= first_ch} | {body_last}
@@ -313,6 +334,9 @@ def main():
                     g7t["ok"] = False
                     fails.append(f"G7-TAIL: p{pg} reach {p['reach']} < {tail_warn}, 사유 코드 없음")
         else:
+            if pg in float_pushed:
+                report["warns"].append(f"G7-MID: p{pg} reach {p['reach']} — float 밀림 면제(다음 면 통짜 블록)")
+                continue
             if p["reach"] < MID_HARD:
                 g7m["underfull"].append({"page": pg, "reach": p["reach"]})
                 g7m["ok"] = False
@@ -338,13 +362,16 @@ def main():
     g8 = {"stretched": [], "ok": True}
     for p in pages:
         pg = p["page"]
-        if pg < first_ch or pg in structural or pg in tails or pg in role_by_page:
+        if pg < first_ch or pg in structural or pg in tails or pg in role_by_page \
+                or pg in float_pushed:
             continue
         if p["gap"] > 0.18 and p["lines"] < 0.8 * N:
             g8["stretched"].append({"page": pg, "gap": p["gap"], "lines": p["lines"]})
+        # 행송 편차는 WARN만 — 두 엔진 모두 페이지 단위로 행송을 벌릴 능력이 없다(실측).
+        # 리스트·코드·콜아웃 혼합 면의 자연 편차가 대부분이라 FAIL로 쓰면 오탐.
         if p["pitch"] and m["book_pitch"] and p["lines"] >= 10 and \
                 abs(p["pitch"] - m["book_pitch"]) / m["book_pitch"] > 0.03:
-            g8["stretched"].append({"page": pg, "pitch": p["pitch"], "book_pitch": m["book_pitch"]})
+            report["warns"].append(f"G8: p{pg} 행송 편차 {p['pitch']} vs {m['book_pitch']} (혼합 콘텐츠 추정)")
     g8["ok"] = not g8["stretched"]
     report["gates"]["G8"] = g8
     if g8["stretched"]:
@@ -352,10 +379,11 @@ def main():
         fails.append(f"G8-STRETCH: 공기 채움/행송 이탈 {len(g8['stretched'])}면, 첫 면 p{first['page']}")
 
     # ---- G9-KEEP 제목 고립·widow ----
+    # 본문 크기 = 글자 수 가중 최빈값(행 수 기준이면 리스트·표 9pt가 본문 10.5pt를 이길 수 있다)
     sizes = Counter()
     for p in pages:
         for l in p["_lines"]:
-            sizes[round(l["size"] * 2) / 2] += 1
+            sizes[round(l["size"] * 2) / 2] += len(l["text"])
     body_size = sizes.most_common(1)[0][0] if sizes else 10.0
     g9 = {"violations": [], "ok": True}
     single_col = style in ("practical", "academic", "essay", "business")

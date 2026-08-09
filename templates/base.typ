@@ -247,12 +247,12 @@
   // headings 2/3 (level 1 is consumed by chapter())
   show heading.where(level: 2): it => {
     v(1.6em, weak: true)
-    block(text(font: t.sans-font, size: t.heading2-size, weight: "bold", fill: t.ink, it.body))
+    block(sticky: true, text(font: t.sans-font, size: t.heading2-size, weight: "bold", fill: t.ink, it.body))
     v(0.7em, weak: true)
   }
   show heading.where(level: 3): it => {
     v(1.2em, weak: true)
-    block({
+    block(sticky: true, {
       box(baseline: -0.12em, circle(radius: 2.2pt, fill: t.brand))
       h(6pt)
       text(font: t.sans-font, size: t.heading3-size, weight: "semibold", fill: t.ink, it.body)

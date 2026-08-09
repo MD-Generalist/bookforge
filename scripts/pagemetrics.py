@@ -124,7 +124,10 @@ def analyze(pdf_path, frame_mm):
         half = (book_pitch or 12) / 2
         for l in p["_lines"]:
             c = (l["y0"] + l["y1"]) / 2
-            segs.append((max(ft, c - half), min(fb, c + half)))
+            # pitch 슬롯과 실제 행 높이 중 큰 쪽 — 디스플레이 급수(스탯·제목) 과소평가 방지
+            y0 = min(l["y0"], c - half)
+            y1 = max(l["y1"], c + half)
+            segs.append((max(ft, y0), min(fb, y1)))
         ink = _union_len(segs) / fh if fh > 0 else 0.0
         p["ink"] = round(min(1.0, ink), 3)
         p["gap"] = round(max(0.0, p["reach"] - p["ink"]), 3)

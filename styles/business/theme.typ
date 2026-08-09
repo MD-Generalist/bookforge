@@ -235,7 +235,7 @@
   // 절/항: 액션 타이틀 문법 — 강제 개면 금지(흐름 배치), 개면은 H1만
   show heading.where(level: 2): it => {
     v(1.8em, weak: true)
-    block({
+    block(sticky: true, {
       text(font: t.sans-font, size: 16pt, weight: "bold", tracking: -0.01em, fill: navy-900, it.body)
       v(2.2mm)
       line(length: 100%, stroke: 0.8pt + navy-700)
@@ -244,7 +244,7 @@
   }
   show heading.where(level: 3): it => {
     v(1.5em, weak: true)
-    block(text(font: t.sans-font, size: 12pt, weight: "semibold", fill: navy-700, it.body))
+    block(sticky: true, text(font: t.sans-font, size: 12pt, weight: "semibold", fill: navy-700, it.body))
     v(0.6em, weak: true)
   }
   set heading(numbering: none)

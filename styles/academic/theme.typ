@@ -223,7 +223,7 @@
   })
   show heading.where(level: 2): it => {
     v(26.25pt, weak: true)
-    block(text(font: t.sans-font, size: 11.5pt, weight: "semibold", fill: ink, {
+    block(sticky: true, text(font: t.sans-font, size: 11.5pt, weight: "semibold", fill: ink, {
       counter(heading).display((..n) => str(chapter-state.get().num) + "." + str(n.pos().at(1, default: 1)))
       h(1.5em)
       it.body
@@ -232,7 +232,7 @@
   }
   show heading.where(level: 3): it => {
     v(17.5pt, weak: true)
-    block(text(font: t.sans-font, size: 10.5pt, weight: "medium", fill: ink, it.body))
+    block(sticky: true, text(font: t.sans-font, size: 10.5pt, weight: "medium", fill: ink, it.body))
     v(5pt, weak: true)
   }
 
