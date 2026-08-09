@@ -76,16 +76,22 @@
   }))
 }
 
-// ---- TOC: 파트 목차 1쪽 (STYLE.md「목차 문법」) ------------------------------
+// ---- TOC: 파트 목차 1쪽 (STYLE.md「목차 문법」+ 2단 변형) --------------------
 // 헤더 밴드 56mm(우하단 r12mm) → PART 배지 23×46mm(x 27, y 41.6) → 파트 제목
-// → 항목 행 20pt `[필 라벨][제목][점 리더][쪽번호]`
+// → 장(H1) 행 20pt `[필 라벨][제목][점 리더][쪽번호]`
+// → 절(H2) 행 16pt `[4mm 들여쓰기][제목][점 리더][쪽번호]`
+// 항목이 판면 1단에 안 들어가면 판면 폭 2단(거터 11.8mm, 단 경계 0.3pt brand 룰)
 #let toc-band-h = 56mm
 #let toc-badge-x = 27mm
 #let toc-badge-y = 41.6mm
 #let toc-badge-w = 23mm
 #let toc-badge-h = 46mm
 #let toc-col-x = toc-badge-x + toc-badge-w + 6mm   // 배지 오른쪽 6mm
-#let toc-row-h = 20pt
+#let toc-row-h = 20pt        // 장 행
+#let toc-sub-h = 16pt        // 절 행 (2단 변형 행간)
+#let toc-gutter = 11.8mm     // 단 거터
+#let toc-list-y = 91mm       // 배지 하단(87.6mm) 아래에서 목록 시작
+#let toc-chip-w = 11.5mm
 
 #let toc-part-badge(num) = block(
   width: toc-badge-w, height: toc-badge-h,
@@ -103,8 +109,50 @@
       fill: white, num)
   })
 
+// 한 행 = 한 줄 계약: 단 폭을 넘치는 제목만 그 행에서 축소(잘라내기·줄바꿈 금지)
+#let toc-fit(body, avail, size, weight, fill) = context {
+  let f = TT.sans-font
+  let m = measure(text(font: f, size: size, weight: weight, body))
+  let s = if m.width > avail and m.width > 0pt { size * (avail / m.width) } else { size }
+  text(font: f, size: s, weight: weight, fill: fill, body)
+}
+
+// 점 리더 — 0.5pt 원점, 간격 2pt, rule
+#let toc-leader(pad) = box(width: 1fr, inset: (x: pad),
+  repeat(gap: 2pt, box(baseline: -0.85pt,
+    circle(radius: 0.33pt, fill: c-rule, stroke: none))))
+
+#let toc-pageno(loc, w, size, fill) = box(width: w, align(right,
+  text(font: TT.sans-font, size: size, weight: "medium", fill: fill,
+    number-width: "tabular", str(counter(page).at(loc).first()))))
+
+// 장(H1) 행 — 필 라벨 + 제목 + 리더 + 쪽번호
+#let toc-ch-row(n, hd, cw, t) = block(
+  width: 100%, height: toc-row-h, above: 0pt, below: 0pt, spacing: 0pt, breakable: false,
+  align(horizon, link(hd.location(), {
+    box(width: toc-chip-w, height: 4.7mm, fill: c-pale, radius: 1mm, baseline: 1.35mm,
+      align(center + horizon, text(font: TT.sans-font, size: 6.9pt, weight: "bold",
+        fill: c-deep, tracking: 0.02em, number-width: "tabular", "CH│" + numpad(n))))
+    h(3mm)
+    toc-fit(hd.body, cw - toc-chip-w - 3mm - 2mm - 9mm, 9.5pt, "regular", t.ink)
+    toc-leader(2mm)
+    toc-pageno(hd.location(), 9mm, 10pt, t.ink)
+  })))
+
+// 절(H2) 행 — 필 라벨 없이 4mm 들여쓰기 + 제목 + 리더 + 쪽번호
+#let toc-sub-row(hd, cw, t) = block(
+  width: 100%, height: toc-sub-h, above: 0pt, below: 0pt, spacing: 0pt, breakable: false,
+  align(horizon, link(hd.location(), {
+    h(4mm)
+    toc-fit(hd.body, cw - 4mm - 1.3mm - 5.6mm, 8.5pt, "light", t.ink)
+    toc-leader(1.3mm)
+    toc-pageno(hd.location(), 5.6mm, 8.5pt, t.muted)
+  })))
+
 #let practical-toc(meta, t, title: "차례") = {
   let col-w = t.trim.w - t.margin.right - toc-col-x
+  let list-w = t.trim.w - t.margin.left - t.margin.right
+  let cw = (list-w - toc-gutter) / 2
   page(header: none, footer: none, margin: 0mm, fill: t.paper, {
     set par(justify: false, first-line-indent: 0em)
 
@@ -121,9 +169,8 @@
     // ② PART 배지
     place(top + left, dx: toc-badge-x, dy: toc-badge-y, toc-part-badge("01"))
 
-    // ③ 파트 제목 + ④ 항목 행 — 밴드 아래(배지는 밴드에서 내려온 탭)
+    // ③ 파트 제목 — 밴드 아래(배지는 밴드에서 내려온 탭)
     place(top + left, dx: toc-col-x, dy: toc-band-h + 3.4mm, block(width: col-w, {
-      show link: it => text(fill: t.ink, it)          // 목차 글자에 별색 금지
       text(font: TT.display-font, size: 20.9pt, weight: "bold", tracking: -0.03em,
         fill: t.ink, keep-words(meta.title))
       if meta.at("subtitle", default: none) != none {
@@ -131,35 +178,58 @@
         text(font: TT.sans-font, size: 8.5pt, weight: "regular", fill: t.muted,
           keep-words(meta.subtitle))
       }
-      v(5.6mm)
-      show outline.entry.where(level: 1): it => block(
-        width: 100%, height: toc-row-h, above: 0pt, below: 0pt,
-        spacing: 0pt, breakable: false,
-        align(horizon, context {
-          let n = query(heading.where(level: 1)
-            .before(it.element.location(), inclusive: true)).len()
-          link(it.element.location(), {
-            // 필 라벨 — brand-pale 필, 높이 4.7mm, Bold 6.9pt / brand-deep
-            box(height: 4.7mm, fill: c-pale, radius: 1mm, inset: (x: 2.1mm),
-              baseline: 1.35mm,
-              align(horizon, text(font: TT.sans-font, size: 6.9pt, weight: "bold",
-                fill: c-deep, tracking: 0.02em, number-width: "tabular",
-                "CHAPTER│" + numpad(n))))
-            h(3mm)
-            // 제목
-            text(font: TT.sans-font, size: 9.5pt, weight: "regular", fill: t.ink,
-              it.element.body)
-            // 점 리더 — 0.5pt 원점, 간격 2pt, rule
-            box(width: 1fr, inset: (x: 2.0mm),
-              repeat(gap: 2pt, box(baseline: -0.9pt,
-                circle(radius: 0.35pt, fill: c-rule, stroke: none))))
-            // 쪽번호
-            box(width: 9mm, align(right, text(font: TT.sans-font, size: 10pt,
-              weight: "medium", fill: t.ink, number-width: "tabular", it.page())))
-          })
-        }))
-      outline(title: none, depth: 1)
     }))
+
+    // ④ 항목 — 장(H1) + 그에 속한 절(H2)을 한 그룹으로, 판면 폭에 배치
+    context {
+      let groups = ()
+      for hd in query(heading).filter(hd => hd.level <= 2) {
+        if hd.level == 1 { groups.push((ch: hd, subs: ())) }
+        else if groups.len() > 0 {
+          let g = groups.pop()
+          g.subs.push(hd)
+          groups.push(g)
+        }
+      }
+      if groups.len() == 0 { return }
+      let gh = groups.map(g => toc-row-h + g.subs.len() * toc-sub-h)
+      let total = gh.fold(0pt, (a, b) => a + b)
+      let avail = t.trim.h - t.margin.bottom - toc-list-y
+
+      let draw(idxs, w) = {
+        show link: it => text(fill: t.ink, it)     // 목차 글자에 별색 금지
+        for i in idxs {
+          block(breakable: false, above: 0pt, below: 0pt, spacing: 0pt, {
+            toc-ch-row(i + 1, groups.at(i).ch, w, t)
+            for s in groups.at(i).subs { toc-sub-row(s, w, t) }
+          })
+        }
+      }
+
+      if total > avail and groups.len() > 1 {
+        // 2단 변형 — 그룹 단위 균형 분할
+        let k = 1
+        let bd = none
+        let cum = 0pt
+        for i in range(1, groups.len()) {
+          cum = cum + gh.at(i - 1)
+          let d = calc.abs((cum - total / 2).pt())
+          if bd == none or d < bd { bd = d; k = i }
+        }
+        let h1 = gh.slice(0, k).fold(0pt, (a, b) => a + b)
+        let h2 = gh.slice(k).fold(0pt, (a, b) => a + b)
+        place(top + left, dx: t.margin.left, dy: toc-list-y,
+          block(width: cw, draw(range(0, k), cw)))
+        place(top + left, dx: t.margin.left + cw + toc-gutter, dy: toc-list-y,
+          block(width: cw, draw(range(k, groups.len()), cw)))
+        // 단 경계 세로 룰 — 0.3pt brand
+        place(top + left, dx: t.margin.left + cw + toc-gutter / 2, dy: toc-list-y,
+          line(angle: 90deg, length: calc.max(h1, h2), stroke: 0.3pt + c-brand))
+      } else {
+        place(top + left, dx: t.margin.left, dy: toc-list-y,
+          block(width: list-w, draw(range(0, groups.len()), list-w)))
+      }
+    }
   })
 }
 

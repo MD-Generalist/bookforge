@@ -150,8 +150,9 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
             sec = sec.replace('<div class="chapter-body">',
                               f'<div class="chapter-body" style="letter-spacing:{prm["letter_spacing_em"]}em">')
         sections.append(sec)
-        # data-sum: 목차 한줄 요약(40자 말줄임). 속성이라 이를 쓰지 않는 테마는 무시한다.
-        tsum = re.sub(r"\s+", " ", summary).strip()
+        # data-sum: 목차 한줄 카피. outline의 toc_line(목차 전용 완결 카피)이 있으면 그것을,
+        # 없으면 summary 40자 말줄임. 속성이라 이를 쓰지 않는 테마는 무시한다.
+        tsum = re.sub(r"\s+", " ", ch.get("toc_line") or summary).strip()
         if len(tsum) > 40:
             tsum = tsum[:40].rstrip(" ,.·") + "…"
         toc_items.append(
