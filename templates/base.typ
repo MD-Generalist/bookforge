@@ -170,10 +170,14 @@
   page(header: none, footer: none, {
     text(font: t.display-font, size: 20pt, weight: "bold", fill: t.ink, title)
     v(1.8em)
-    set text(size: 9.5pt)
+    set text(size: 9.2pt)
     show outline.entry.where(level: 1): it => {
-      v(1.05em, weak: true)
-      strong(text(font: t.sans-font, size: 10.5pt, fill: t.brand, it))
+      v(0.72em, weak: true)
+      strong(text(font: t.sans-font, size: 10pt, fill: t.brand, it))
+    }
+    show outline.entry.where(level: 2): it => {
+      v(0.42em, weak: true)
+      text(size: 8.8pt, it)
     }
     outline(title: none, depth: depth)
   })

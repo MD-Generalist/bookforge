@@ -48,7 +48,9 @@ b, strong { font-weight: 500; }
 .cover-title { position: absolute; top: 71mm; right: 21mm; left: 24mm; text-align: right;
   font-family: var(--disp); font-weight: 800; font-size: 40pt; line-height: 1.05;
   letter-spacing: -0.05em; color: var(--blue-800); }
-.cover-pub { position: absolute; top: 128mm; right: 21mm; text-align: right;
+.cover-sub { position: absolute; top: 108mm; right: 21mm; left: 40mm; text-align: right;
+  font-weight: 500; font-size: 12pt; color: var(--ink-soft); }
+.cover-pub { position: absolute; top: 126mm; right: 21mm; text-align: right;
   font-weight: 700; font-size: 15pt; color: var(--ink); }
 .cover-circuit { position: absolute; bottom: 0; right: 0; width: 60%; height: 42%; }
 
@@ -56,10 +58,7 @@ b, strong { font-weight: 500; }
 .toc-page { page: full; position: relative;
   width: 182mm; height: 257mm;
   background: var(--paper); break-after: page; }
-.toc-sidebar { position: absolute; top: 0; left: 0; width: 40mm; height: 257mm;
-  background: var(--blue-toc);
-  background-image: repeating-linear-gradient(45deg,
-    var(--blue-toc-hi) 0, var(--blue-toc-hi) 0.18mm, transparent 0.18mm, transparent 3mm); }
+.toc-sidebar { position: absolute; top: 0; left: 0; width: 40mm; height: 257mm; display: block; }
 .toc-body { position: absolute; left: 57mm; top: 41mm; right: 20mm; }
 .toc-word { font-family: var(--disp); font-weight: 800; font-size: 30pt; color: var(--ink); margin-bottom: 14mm; }
 .toc { list-style: none; }
@@ -112,8 +111,10 @@ b, strong { font-weight: 500; }
   font-size: 8.95pt; margin: 8mm 0; break-inside: avoid; }
 .chapter-body th { background: #679bc7; color: #fff; font-weight: 500;
   padding: 2.2mm 3mm; text-align: left; }
+.chapter-body tr:nth-child(odd) td { background: var(--tint); }
 .chapter-body td { border-bottom: 0.3pt solid var(--rule); padding: 2.2mm 3mm;
-  font-weight: 300; font-variant-numeric: tabular-nums; }
+  font-weight: 300; font-variant-numeric: tabular-nums; text-align: left; }
+.chapter-body th, .stat-label, .callout p, .chapter-body figcaption, .chapter-body li { text-align: left; }
 
 /* 콜아웃: 팁 박스(와이드, tint, 좌측 블루 바) */
 .callout { width: 130mm; max-width: none; background: var(--tint);
@@ -137,7 +138,14 @@ b, strong { font-weight: 500; }
   font-size: 7pt; line-height: 1.7; color: var(--ink-mute); }
 
 /* ---- figure/figcaption (md 이미지) ---- */
-.chapter-body figure { margin: 6mm 0; break-inside: avoid; width: 100%; }
+.chapter-body figure { margin: 8mm 0; break-inside: avoid; width: 130mm; max-width: none; }
 .chapter-body figure img { width: 100%; display: block; }
 .chapter-body figcaption { font-size: 7.5pt; line-height: 1.45; color: var(--ink-soft, #5a5a5a);
   margin-top: 3mm; }
+
+/* ---- 표 캡션(자동) ---- */
+.tablewrap { width: 130mm; max-width: none; margin: 8mm 0; break-inside: avoid; }
+.tablewrap .tbl-caption { text-align: center; font-weight: 500; font-size: 8.95pt; margin-bottom: 3mm; }
+.tablewrap .tbl-caption .no { color: var(--blue-600); }
+.tablewrap .tbl-source { text-align: left; font-size: 6.8pt; color: var(--ink-mute); margin-top: 2mm; }
+.tablewrap table { margin: 0; }

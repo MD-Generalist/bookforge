@@ -50,7 +50,7 @@ python3 <SKILL>/scripts/scaffold.py <book_dir> --style practical \
   --title "제목" --subtitle "부제" --length short --author "저자" --date "2026-08"
 ```
 
-`--length`: short(30~60쪽)/standard(80~150)/long. `--brand "#hex"`로 브랜드색 교체 가능.
+`--length`: short(30~60쪽)/standard(80~150)/long. `--brand "#hex"`로 브랜드색 교체 가능. book.json의 `images`는 이미지 정책(vector=벡터만·generated=생성 아트 포함·none)이다.
 
 ## P1 — 콘텐츠 계약
 
@@ -85,6 +85,7 @@ python3 <SKILL>/scripts/qc_gate.py <book_dir>        # PASS 시에만 final/<slu
 
 ```bash
 python3 <SKILL>/scripts/contact_sheet.py <book_dir>/final/*.pdf <book_dir>/qc --dpi 90 --pages 1,2,3,4,5
+# 게이트 실패를 진단할 때는 final/ 대신 draft/book.pdf 를 같은 방식으로 렌더해 본다
 ```
 
 표지·차례·도비라·본문 펼침면 PNG를 직접 열어 보고 판단한다: 글자 겹침 없음, 목차 쪽번호=실제 쪽, 도비라 스타일 성립, 본문 여백 리듬 정상. 이상이 있으면 콘텐츠(md)나 book.json을 고쳐 P2-4를 재실행한다. **파일이 생성되었다는 것은 완료가 아니다 — 눈으로 본 것만 완료다.**

@@ -20,7 +20,8 @@
 
 #let theme-tokens = default-tokens + (
   trim: (w: 200mm, h: 280mm),
-  margin: (top: 28mm, bottom: 30mm, left: 20mm, right: 20mm),
+  // 본문 5컬럼 132.5mm + 바깥 마진 컬럼 22.5mm(+거터 5mm) 확보
+  margin: (top: 28mm, bottom: 30mm, left: 20mm, right: 47.5mm),
   brand: navy-700, brand-light: navy-100,
   ink: ink, muted: ink-60, paper: white,
   body-font: ("Pretendard",), sans-font: ("Pretendard",),
@@ -94,7 +95,11 @@
   }))
 }
 
-#let bf-chapter(title, summary: none) = base.chapter(title, summary: summary, t: TT, opener: biz-opener)
+#let biz-tbl = counter("biz-tbl")
+#let bf-chapter(title, summary: none) = {
+  biz-tbl.update(0)
+  base.chapter(title, summary: summary, t: TT, opener: biz-opener)
+}
 
 // ---- 키 스탯: accent 상단 룰 + Gmarket 숫자 ---------------------------------
 #let bf-stat(value, label) = {
@@ -194,9 +199,10 @@
   set text(font: t.body-font, size: t.body-size, fill: ink, lang: "ko", region: "KR")
   set par(justify: true, leading: t.body-leading, spacing: 1.0em, first-line-indent: 0em)
 
-  // 절/항: 액션 타이틀 문법
+  // 절/항: 액션 타이틀 문법 — 한 면 한 메시지(절마다 새 면)
   show heading.where(level: 2): it => {
-    v(2.2em, weak: true)
+    pagebreak(weak: true)
+    v(0.2em, weak: true)
     block({
       text(font: t.sans-font, size: 16pt, weight: "bold", tracking: -0.01em, fill: navy-900, it.body)
       v(2.2mm)
@@ -234,6 +240,23 @@
     bottom: 1.2pt + navy-900,
   ))
   show table.cell.where(y: 0): it => text(weight: "semibold", fill: navy-900, it)
+  show table.cell: set align(left + horizon)
+  // 표 라벨·출처 강제: 라벨 없는 표는 렌더될 수 없다
+  show figure.where(kind: table): it => context {
+    biz-tbl.step()
+    let n = chapter-state.get().num
+    let m = biz-tbl.get().first() + 1
+    block(breakable: false, above: 6mm, below: 6mm, width: 100%, {
+      text(font: t.sans-font, size: 9pt, weight: "bold", fill: navy-700,
+        "<표 " + str(n) + "-" + str(m) + ">")
+      h(0.5em)
+      text(font: t.sans-font, size: 9.5pt, weight: "semibold", fill: ink, "핵심 정리")
+      v(2mm)
+      it.body
+      v(2mm)
+      text(font: t.sans-font, size: 7.5pt, fill: ink-60, "자료: bookforge 분석")
+    })
+  }
   show link: it => text(fill: navy-500, it)
   show figure.caption: it => text(font: t.sans-font, size: 8pt, fill: ink-60, it)
 

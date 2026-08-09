@@ -13,9 +13,9 @@ Six topics × six styles (all in Korean, showcasing Korean book typography). Cli
 | | | |
 |:---:|:---:|:---:|
 | [![practical](examples/showcase/practical-prompt-patterns-cover.png)](examples/practical-prompt-patterns.pdf) | [![insight](examples/showcase/insight-ondevice-ai-cover.png)](examples/insight-ondevice-ai.pdf) | [![academic](examples/showcase/academic-game-theory-cover.png)](examples/academic-game-theory.pdf) |
-| **practical** how-to book<br>*24 Prompt Patterns*, 30p | **insight** tech report<br>*On-Device AI 2026*, 26p | **academic** scholarly<br>*Foundations of Game Theory*, 32p |
+| **practical** how-to book<br>*24 Prompt Patterns*, 32p | **insight** tech report<br>*On-Device AI 2026*, 28p | **academic** scholarly<br>*Foundations of Game Theory*, 32p |
 | [![essay](examples/showcase/essay-evening-sentences-cover.png)](examples/essay-evening-sentences.pdf) | [![business](examples/showcase/business-sme-ai-cover.png)](examples/business-sme-ai.pdf) | [![magazine](examples/showcase/magazine-trend-brief-cover.png)](examples/magazine-trend-brief.pdf) |
-| **essay** minimal prose<br>*Sentences on the Way Home*, 32p | **business** consulting paper<br>*SME AI Adoption Strategy*, 29p | **magazine** trend issue<br>*TREND BRIEF*, 31p |
+| **essay** minimal prose<br>*Sentences on the Way Home*, 32p | **business** consulting paper<br>*SME AI Adoption Strategy*, 43p | **magazine** trend issue<br>*TREND BRIEF*, 28p |
 
 ## The six style packs
 

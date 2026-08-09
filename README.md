@@ -13,19 +13,19 @@
 | | | |
 |:---:|:---:|:---:|
 | [![practical](examples/showcase/practical-prompt-patterns-cover.png)](examples/practical-prompt-patterns.pdf) | [![insight](examples/showcase/insight-ondevice-ai-cover.png)](examples/insight-ondevice-ai.pdf) | [![academic](examples/showcase/academic-game-theory-cover.png)](examples/academic-game-theory.pdf) |
-| **practical** 실용·활용서<br>『바로 쓰는 프롬프트 패턴 24』 30쪽 | **insight** 기술 리포트<br>『온디바이스 AI 2026』 26쪽 | **academic** 학술·논문형<br>『게임이론의 기초』 32쪽 |
+| **practical** 실용·활용서<br>『바로 쓰는 프롬프트 패턴 24』 32쪽 | **insight** 기술 리포트<br>『온디바이스 AI 2026』 28쪽 | **academic** 학술·논문형<br>『게임이론의 기초』 32쪽 |
 | [![essay](examples/showcase/essay-evening-sentences-cover.png)](examples/essay-evening-sentences.pdf) | [![business](examples/showcase/business-sme-ai-cover.png)](examples/business-sme-ai.pdf) | [![magazine](examples/showcase/magazine-trend-brief-cover.png)](examples/magazine-trend-brief.pdf) |
-| **essay** 미니멀 에세이<br>『퇴근길의 문장들』 32쪽 | **business** 컨설팅 백서<br>『중소기업 AI 도입 전략』 29쪽 | **magazine** 트렌드 매거진<br>『TREND BRIEF』 31쪽 |
+| **essay** 미니멀 에세이<br>『퇴근길의 문장들』 32쪽 | **business** 컨설팅 백서<br>『중소기업 AI 도입 전략』 43쪽 | **magazine** 트렌드 매거진<br>『TREND BRIEF』 28쪽 |
 
 ### 내지 미리보기
 
 | practical — 반복 지면 템플릿 | business — Executive Summary | magazine — 이미지 면 |
 |:---:|:---:|:---:|
-| ![](examples/showcase/practical-prompt-patterns-page12.png) | ![](examples/showcase/business-sme-ai-page5.png) | ![](examples/showcase/magazine-trend-brief-page4.png) |
+| ![](examples/showcase/practical-prompt-patterns-page12.png) | ![](examples/showcase/business-sme-ai-page8.png) | ![](examples/showcase/magazine-trend-brief-page6.png) |
 
 | academic — 정의 박스·절 위계 | essay — 여백 낙차형 장 시작 | insight — narrow 측정·키 스탯 |
 |:---:|:---:|:---:|
-| ![](examples/showcase/academic-game-theory-page6.png) | ![](examples/showcase/essay-evening-sentences-page4.png) | ![](examples/showcase/insight-ondevice-ai-page4.png) |
+| ![](examples/showcase/academic-game-theory-page8.png) | ![](examples/showcase/essay-evening-sentences-page4.png) | ![](examples/showcase/insight-ondevice-ai-page5.png) |
 
 ## 스타일 6종
 

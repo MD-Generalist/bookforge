@@ -59,31 +59,31 @@
 
 // ---- 장 시작 면: 여백 낙차형 (배경·괘선·장식 금지) ---------------------------
 #let essay-opener(n, title, summary, t) = {
-  v(43mm)  // 상단 낙차 52mm - 판면 상단여백 내 위치 보정
-  text(font: t.sans-font, size: 9pt, weight: "light", tracking: 0.18em,
-    fill: t.brand, numpad(n))
-  v(6mm)
-  text(font: t.display-font, size: 15pt, weight: "regular", fill: t.ink,
-    keep-words(title))
-  if summary != none {
-    v(8mm)
-    set text(size: 9.5pt, fill: t.ink-soft)
-    set par(leading: 0.85em, justify: false, first-line-indent: 0em)
-    summary
-  }
-  v(12mm)
+  block(width: 100%, {
+    set par(justify: false, first-line-indent: 0em, leading: 7pt, spacing: 7pt)
+    v(28mm)  // 상단 낙차
+    text(font: t.sans-font, size: 9pt, weight: "light", tracking: 0.18em,
+      fill: t.brand, numpad(n))
+    v(6mm)
+    text(font: t.display-font, size: 15pt, weight: "regular", fill: t.ink,
+      keep-words(title))
+    if summary != none {
+      v(7mm)
+      text(size: 9.5pt, fill: t.ink-soft, summary)
+    }
+    v(15mm)
+  })
 }
 
+// 여백 낙차형: 별지 도비라가 아니라 같은 면에서 본문이 흘러야 한다
 #let bf-chapter(title, summary: none) = {
   pagebreak(weak: true)
   chapter-state.update(s => (num: s.num + 1, title: title))
   context {
     let n = chapter-state.get().num
-    page(header: none, footer: none, {
-      hide(block(height: 0pt, heading(level: 1, outlined: true, bookmarked: true, title)))
-      v(-1.2em)
-      essay-opener(n, title, summary, TT)
-    })
+    hide(block(height: 0pt, heading(level: 1, outlined: true, bookmarked: true, title)))
+    v(-1.2em)
+    essay-opener(n, title, summary, TT)
   }
 }
 
@@ -119,17 +119,19 @@
 // ---- 판권면 ------------------------------------------------------------------
 #let colophon(meta, t) = {
   pagebreak(weak: true)
-  set text(font: t.sans-font, size: 8pt, weight: "light", fill: t.ink-soft)
-  set par(leading: 5pt, first-line-indent: 0em)
-  v(1fr)
-  meta.title
-  if meta.at("subtitle", default: none) != none [ — #meta.subtitle]
-  linebreak()
-  [#meta.at("date", default: "") 발행]
-  linebreak()
-  [지은이 #meta.at("author", default: "bookforge")]
-  linebreak()
-  [조판 bookforge · 본문 Noto Serif KR · 표지·라벨 Pretendard]
+  page(header: none, footer: none, {
+    set text(font: t.sans-font, size: 8pt, weight: "light", fill: t.ink-soft)
+    set par(leading: 5pt, spacing: 5pt, first-line-indent: 0em)
+    v(1fr)
+    meta.title
+    if meta.at("subtitle", default: none) != none [ — #meta.subtitle]
+    linebreak()
+    [초판 1쇄 발행 #meta.at("date", default: "")]
+    linebreak()
+    [지은이 #meta.at("author", default: "bookforge") · 펴낸곳 bookforge]
+    linebreak()
+    [조판 bookforge · 본문 Noto Serif KR · 표지·라벨 Pretendard]
+  })
 }
 
 // ---- 마스터 래퍼 (base.book 대체 — 에세이 전용 지면 규칙) ---------------------
@@ -141,11 +143,19 @@
     margin: (top: t.margin.top, bottom: t.margin.bottom, left: t.margin.left, right: t.margin.right),
     fill: t.paper,
     header: none,
-    footer: context align(right,
-      text(font: t.sans-font, size: 9pt, fill: t.muted, str(counter(page).get().first()))),
+    footer: context {
+      // 장 시작 면·판권면은 쪽번호 숨김
+      let starts = query(heading.where(level: 1)).map(h => h.location().page())
+      if not starts.contains(here().page()) {
+        align(right, text(font: t.sans-font, size: 9pt, fill: t.muted,
+          str(counter(page).get().first())))
+      }
+    },
   )
-  set text(font: t.body-font, size: t.body-size, fill: t.ink, lang: "ko", region: "KR")
-  set par(justify: true, leading: t.body-leading, spacing: 0pt,
+  // 행송 19pt 고정(사륙판 20행 격자): edge 고정 + leading=spacing=9pt
+  set text(font: t.body-font, size: t.body-size, fill: t.ink, lang: "ko", region: "KR",
+    top-edge: 0.8em, bottom-edge: -0.2em)
+  set par(justify: true, leading: 9pt, spacing: 9pt,
     first-line-indent: (amount: 1em, all: false))
 
   // 글 제목(h2) / 소제목(h3)

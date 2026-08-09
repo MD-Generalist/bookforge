@@ -28,7 +28,8 @@
   margin: 22mm 16mm 27mm 20mm;
   @bottom-right {
     content: counter(page);
-    font-family: "Pretendard"; font-weight: 700; font-size: 9.5pt; color: #111;
+    font-family: "Gmarket Sans", "Pretendard"; font-weight: 700; font-size: 9.5pt; color: #111;
+    font-variant-numeric: tabular-nums;
     margin-bottom: 9mm;
   }
 }
@@ -50,10 +51,10 @@ body {
 .cover-scrim { position: absolute; inset: 0; height: 40%;
   background: linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0)); }
 .cover-content { position: absolute; inset: 0; padding: 18mm 16mm 16mm; color: #fff; }
-.masthead { font-family: var(--display); font-weight: 700; font-size: 44pt;
-  letter-spacing: -0.03em; line-height: 0.95; }
+.masthead { font-family: var(--display); font-weight: 800; font-size: 62pt;
+  letter-spacing: -0.03em; line-height: 0.92; }
 .coverlines { position: absolute; left: 16mm; bottom: 60mm; width: 56mm; }
-.coverline-main { font-size: 21pt; line-height: 1.15; font-weight: 600; letter-spacing: -0.01em; }
+.coverline-main { font-size: 30pt; line-height: 1.12; font-weight: 700; letter-spacing: -0.01em; font-family: var(--display); }
 .issue-bar { position: absolute; left: 16mm; bottom: 16mm; font-size: 7pt;
   letter-spacing: 0.14em; text-transform: uppercase; }
 
@@ -64,17 +65,18 @@ body {
 .toc { list-style: none; }
 .toc li { display: flex; align-items: baseline; gap: 6mm; margin-bottom: 8.1mm; }
 .tocpg { font-family: var(--num); font-weight: 700; font-size: 17pt; color: var(--key); order: -1; min-width: 12mm; }
-.toc-title { font-size: 22pt; font-weight: 700; letter-spacing: -0.005em; }
+.toc-title { font-family: var(--display); font-size: 22pt; font-weight: 700; letter-spacing: -0.005em; }
 .toc-leader { display: none; }
 
 /* ---- chapter opener (FO-C type-only, full page, no folio) ---- */
+.chapter { break-before: page; }
 .opener { page: opener; width: 200mm; height: 265mm; position: relative;
-  break-before: page; break-after: page; padding: 22mm 16mm 27mm 20mm; }
+  break-after: page; padding: 22mm 16mm 27mm 20mm; }
 .pgmark { position: absolute; top: 0; left: 0; font-size: 1px; color: transparent; }
 .opener-num { font-family: var(--num); font-weight: 800; font-size: 126pt;
   line-height: 0.86; letter-spacing: -0.03em; color: var(--key); margin-top: 40mm; }
-.opener-title { font-family: var(--serif); font-weight: 700; font-size: 53pt;
-  line-height: 0.98; letter-spacing: -0.02em; margin-top: 10mm; }
+.opener-title { font-family: var(--display); font-weight: 800; font-size: 71pt;
+  line-height: 0.94; letter-spacing: -0.025em; margin-top: 10mm; }
 .opener-summary { font-size: 12.5pt; line-height: 1.55; color: var(--ink-soft);
   width: 98mm; margin-top: 10mm; }
 
@@ -113,20 +115,31 @@ body {
 .stat-label { font-size: 7.5pt; color: var(--ink-soft); }
 
 /* ---- colophon ---- */
-.colophon { page: nofolio; break-before: page; padding-top: 200mm;
-  font-size: 6.5pt; line-height: 1.6; color: var(--ink-faint); letter-spacing: 0.08em; }
+.colophon { page: nofolio; break-before: page; width: 200mm; height: 265mm;
+  padding: 22mm 16mm 16mm 16mm; background: var(--paper-tint);
+  display: flex; flex-direction: column; justify-content: space-between; }
+.colophon .backquote { font-family: var(--display); font-weight: 700; font-size: 22pt;
+  line-height: 1.3; color: var(--ink); width: 120mm; margin-top: 60mm; }
+.colophon p { font-size: 6.5pt; line-height: 1.6; color: var(--ink-faint); letter-spacing: 0.08em; }
 
 /* ---- figure/figcaption (md 이미지) ---- */
-.chapter-body figure { margin: 6mm 0; break-inside: avoid; width: 100%; }
+.chapter-body figure { column-span: all; margin: 8.1mm 0; break-inside: avoid; width: 100%; }
 .chapter-body figure img { width: 100%; display: block; }
 .chapter-body figcaption { font-size: 7.5pt; line-height: 1.45; color: var(--ink-soft, #5a5a5a);
   margin-top: 3mm; }
 
 /* ---- T3 풀퀘트 면 (전면 인용) ---- */
-.pullquote { break-before: page; break-after: page;
-  height: 210mm; display: flex; flex-direction: column; justify-content: center; }
+.pullquote { break-before: page; page: opener;
+  width: 200mm; height: 265mm; padding: 22mm 16mm 27mm 20mm;
+  display: flex; flex-direction: column; justify-content: center; }
 .pull-text { font-family: var(--display); font-weight: 700; font-size: 40pt; line-height: 1.10;
   letter-spacing: -0.015em; color: var(--ink); width: 115mm; word-break: keep-all; position: relative; }
-.pull-text::before { content: "\201C"; position: absolute; left: -14mm; top: -4mm;
-  color: var(--key); font-size: 64pt; font-family: var(--serif); }
+.pull-text::before { content: "\201C"; position: absolute; left: -13mm; top: -6mm;
+  color: var(--key); font-size: 64pt; font-family: var(--serif); line-height: 1; }
 .pull-speaker { font-size: 6.5pt; letter-spacing: 0.08em; color: var(--ink-faint); margin-top: 8mm; }
+
+/* ---- 목차 이미지 맵 ---- */
+.toc-map { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; margin-top: 16mm; }
+.toc-map figure { margin: 0; }
+.toc-map img { width: 100%; height: 34mm; object-fit: cover; display: block; }
+.toc-map figcaption { font-size: 7pt; color: var(--ink-soft); margin-top: 1.5mm; }

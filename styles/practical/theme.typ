@@ -27,27 +27,23 @@
   let t = TT
   page(margin: 0mm, header: none, footer: none, fill: t.brand, {
     set par(justify: false, first-line-indent: 0em)
-    // thin frame lines (NIA-style restrained decoration)
-    place(top + left, dx: 10mm, dy: 10mm,
-      rect(width: t.trim.w - 20mm, height: t.trim.h - 20mm, stroke: 0.7pt + white.transparentize(55%)))
-    block(width: 100%, height: 100%, inset: (x: 20mm, y: 24mm), {
+    block(width: 100%, height: 100%, inset: (x: 18mm, y: 22mm), {
       set text(fill: white, font: t.display-font)
-      // series capsule
-      box(fill: white.transparentize(82%), radius: 20pt, inset: (x: 10pt, y: 5pt),
-        text(size: 8.5pt, tracking: 0.12em, weight: "semibold", meta.at("series", default: "BOOKFORGE LIBRARY")))
-      v(16%)
-      text(size: 30pt, weight: "black", keep-words(meta.title))
+      // series capsule: 백색 필 + 브랜드색 글자
+      box(fill: white, radius: 20pt, inset: (x: 10pt, y: 5pt),
+        text(size: 8.5pt, tracking: 0.12em, weight: "bold", fill: t.brand,
+          meta.at("series", default: "BOOKFORGE LIBRARY")))
+      v(12%)
+      text(size: 54pt, weight: "black", tracking: -0.015em, keep-words(meta.title))
       if meta.at("subtitle", default: none) != none {
-        v(1.4em)
-        text(size: 12pt, weight: "medium", fill: white.transparentize(18%), keep-words(meta.subtitle))
+        v(10mm)
+        rect(width: 26mm, height: 2.2mm, fill: white.transparentize(30%))
+        v(6mm)
+        text(size: 13.5pt, weight: "medium", fill: white.transparentize(12%), keep-words(meta.subtitle))
       }
       v(1fr)
-      line(length: 100%, stroke: 0.7pt + white.transparentize(55%))
-      v(8pt)
-      set text(size: 9pt, fill: white.transparentize(15%))
-      meta.at("author", default: "bookforge")
-      h(1fr)
-      meta.at("date", default: "")
+      align(right, text(size: 10.5pt, weight: "semibold", fill: white,
+        meta.at("publisher", default: meta.at("author", default: "bookforge"))))
     })
   })
 }

@@ -102,11 +102,12 @@ def main():
     blanks = []
     for pno in range(n):
         page = doc[pno]
-        if page.get_text().strip():
+        # 폴리오·러닝만 남은 사실상 백면도 잡는다 (본문 텍스트 8자 미만)
+        if len(page.get_text().strip()) >= 8:
             continue
         if page.get_images(full=True):
             continue
-        if page.get_drawings():
+        if len(page.get_drawings()) > 2:
             continue
         blanks.append(pno + 1)
     report["gates"]["G5"] = {"blank_pages": blanks, "ok": not blanks}

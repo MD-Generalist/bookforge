@@ -54,6 +54,8 @@
   pagebreak(weak: true)
   chapter-state.update(s => (num: s.num + 1, title: title))
   counter(heading).step(level: 1)
+  tbl-counter.update(0)
+  fig-counter.update(0)
   context {
     let n = chapter-state.get().num
     v(12mm)
@@ -98,6 +100,7 @@
 #let bf-stat(value, label) = bf-callout(title: "수치")[#strong(value) — #label]
 
 #let fig-counter = counter("bf-fig")
+#let tbl-counter = counter("bf-tbl")
 
 #let bf-fig(path, caption: none, source: none, width: 100%) = {
   block(breakable: false, above: 5mm, below: 5mm, {
@@ -149,7 +152,15 @@
         h(2em)
         prev.last().body
         h(1fr)
-        text(fill: muted, meta.at("title", default: ""))
+        // 우측: 현재 절 러닝헤드 (없으면 책 제목)
+        let secs = query(heading.where(level: 2).before(here()))
+        if secs.len() > 0 {
+          let sc = counter(heading).at(secs.last().location())
+          text(fill: muted, str(prev.len()) + "." + str(sc.at(1, default: 1)) + " ")
+          text(fill: muted, secs.last().body)
+        } else {
+          text(fill: muted, meta.at("title", default: ""))
+        }
         v(1.5mm)
         line(length: 100%, stroke: 0.4pt + rule-c)
       }
@@ -195,8 +206,25 @@
     width: 100%, fill: luma(248), inset: 8pt, above: 5mm, below: 5mm,
     text(size: 8.5pt, it))
 
-  // 3선표(booktabs): 상하 1.0pt 먹, 헤더 아래 0.4pt
+  // 3선표(booktabs): 상하 1.0pt 먹, 헤더 아래 0.4pt + 자동 번호 캡션(표와 분리 불가)
   set table(stroke: none, inset: (x: 8pt, y: 5pt))
+  show figure.where(kind: table): it => context {
+    tbl-counter.step()
+    let n = chapter-state.get().num
+    let m = tbl-counter.get().first() + 1
+    block(breakable: false, above: 6mm, below: 6mm, {
+      align(center, {
+        text(font: t.sans-font, size: 8.5pt, weight: "semibold", fill: accent,
+          "표 " + str(n) + "-" + str(m) + ".")
+        h(0.5em)
+        text(font: t.sans-font, size: 8.5pt, fill: ink, "본문 정리")
+      })
+      v(2mm)
+      it.body
+      v(1.5mm)
+      align(center, text(font: t.sans-font, size: 7.5pt, fill: muted, "자료: 본문 서술 기준 저자 정리"))
+    })
+  }
   show table: it => { set text(size: 9pt, font: t.sans-font); it }
   set table(stroke: (x, y) => (
     top: if y == 0 { 1pt + ink } else if y == 1 { 0.4pt + rule-c } else { none },
@@ -226,14 +254,16 @@
       v(10mm)
       line(length: 100%, stroke: 0.4pt + rule-c)
       v(6mm)
+      show link: it => text(fill: ink, it)   // 목차 글자에 별색 금지
       show outline.entry.where(level: 1): it => {
         v(2.5mm, weak: true)
         link(it.element.location(), context {
           let n = query(heading.where(level: 1).before(it.element.location(), inclusive: true)).len()
-          box(width: 14mm, text(font: t.sans-font, weight: "medium", size: 10.5pt, "제" + str(n) + "장"))
-          text(font: t.sans-font, weight: "medium", size: 10.5pt, it.element.body)
+          box(width: 14mm, text(font: t.sans-font, weight: "medium", size: 10.5pt,
+            fill: accent, "제" + str(n) + "장"))
+          text(font: t.sans-font, weight: "medium", size: 10.5pt, fill: ink, it.element.body)
           h(1fr)
-          box(width: 9mm, align(right, text(size: 10pt, it.page())))
+          box(width: 9mm, align(right, text(size: 10pt, fill: ink, it.page())))
         })
       }
       outline(title: none, depth: 1)

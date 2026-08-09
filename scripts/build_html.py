@@ -89,27 +89,47 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
         key_tint=f"rgba({r_},{g_},{b_},0.08)",
     )
 
-    toc_items, sections = [], []
+    toc_items, sections, tocmap_items, first_pull = [], [], [], None
     for idx, ch in enumerate(outline["chapters"], 1):
         mk = f"ch{idx:02d}"
         src = book_dir / "chapters" / ch["file"]
         raw = src.read_text(encoding="utf-8")
         # strip the leading H1 (title comes from outline)
         raw = re.sub(r"^#\s+.*\n", "", raw, count=1)
+        img_m = re.search(r"!\[[^\]]*\]\((\.\./assets/[^) \"]+)", raw)
+        if img_m and len(tocmap_items) < 4:
+            tocmap_items.append(
+                f'<figure><img src="{img_m.group(1)}"><figcaption>{ch["title"]}</figcaption></figure>')
+        if first_pull is None:
+            pm = re.search(r"^::: pull\n(.+)$", raw, re.M)
+            if pm:
+                first_pull = pm.group(1).strip()
         body_html = md_to_html(raw)
+        # 표 캡션 강제(tokens.table_captions): 라벨·출처 없는 표는 존재할 수 없다
+        if tokens.get("table_captions"):
+            tno = [0]
+            def wrap_tbl(m):
+                tno[0] += 1
+                return (f'<div class="tablewrap"><div class="tbl-caption">'
+                        f'<span class="no">표 {idx}-{tno[0]}.</span> 본문 정리</div>'
+                        f'{m.group(0)}<div class="tbl-source">[출처 : 본문 서술 기준 편집부 정리]</div></div>')
+            body_html = re.sub(r"<table>.*?</table>", wrap_tbl, body_html, flags=re.S)
         # 전면 요소(풀퀘트)는 다단 chapter-body 밖으로 분리
         body_html = re.sub(
             r'(<section class="pullquote">.*?</section>)',
             r'</div>\1<div class="chapter-body">',
             body_html, flags=re.S)
         summary = ch.get("summary") or ""
-        sections.append(
+        sec = (
             f'<section class="chapter" id="{mk}">\n'
             f'<div class="opener"><span class="pgmark">@@{mk}@@</span>'
             f'<div class="opener-num">{idx:02d}</div>'
             f'<h1 class="opener-title">{ch["title"]}</h1>'
             f'<p class="opener-summary">{summary}</p></div>\n'
             f'<div class="chapter-body">{body_html}</div>\n</section>')
+        # 풀퀘트 분리로 생긴 빈 chapter-body 제거 (백지면 방지)
+        sec = re.sub(r'<div class="chapter-body">\s*</div>', "", sec)
+        sections.append(sec)
         toc_items.append(
             f'<li><span class="toc-title">{ch["title"]}</span>'
             f'<span class="toc-leader"></span>'
@@ -121,6 +141,8 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
         brand=key,
         cover_art=f"background-image:url('{cover_img.as_uri()}')" if cover_img.exists() else "",
         toc="<ol class=\"toc\">" + "\n".join(toc_items) + "</ol>",
+        tocmap="\n".join(tocmap_items),
+        backquote=book.get("backquote") or first_pull or book.get("subtitle") or "",
         body="\n".join(sections),
         css=css,
     )
