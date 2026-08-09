@@ -5,7 +5,7 @@
 //   brand, brand-light, ink, muted, paper: colors
 //   body-font, sans-font, display-font: str/array
 //   body-size, body-leading, heading2-size, heading3-size
-#let code-font = ((name: "DejaVu Sans Mono", covers: "latin-in-cjk"), "Pretendard")
+#let code-font = ((name: "DejaVu Sans Mono", covers: regex("[A-Za-z0-9]")), "Pretendard")
 
 #let default-tokens = (
   trim: (w: 153mm, h: 225mm),

@@ -1,7 +1,7 @@
 // bookforge style: business — 비즈니스·컨설팅 리포트 (STYLE.md: 200×280, navy 시스템)
 #import "base.typ": default-tokens, keep-words, numpad, chapter-state, full-bleed
 #import "base.typ" as base
-#let code-font = ((name: "DejaVu Sans Mono", covers: "latin-in-cjk"), "Pretendard")
+#let code-font = ((name: "DejaVu Sans Mono", covers: regex("[A-Za-z0-9]")), "Pretendard")
 
 #let meta = json("meta.json")
 

@@ -1,7 +1,7 @@
 // bookforge style: practical — 실용·활용서 (견본: NIA 핵심용어집 실측 기반)
 // This file is snapshotted into <book>/typeset/_style/ next to base.typ + meta.json.
 #import "base.typ": *
-#let code-font = ((name: "DejaVu Sans Mono", covers: "latin-in-cjk"), "Pretendard")
+#let code-font = ((name: "DejaVu Sans Mono", covers: regex("[A-Za-z0-9]")), "Pretendard")
 
 #let meta = json("meta.json")
 
