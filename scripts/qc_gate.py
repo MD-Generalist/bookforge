@@ -365,7 +365,9 @@ def main():
         if pg < first_ch or pg in structural or pg in tails or pg in role_by_page \
                 or pg in float_pushed:
             continue
-        if p["gap"] > 0.18 and p["lines"] < 0.8 * N:
+        # insight는 H2 위 여백 24mm(STYLE.md 정본)+와이드 콜아웃이 구조적 공기를 만든다 — 임계 완화
+        gap_thr = 0.28 if style == "insight" else 0.18
+        if p["gap"] > gap_thr and p["lines"] < 0.8 * N:
             g8["stretched"].append({"page": pg, "gap": p["gap"], "lines": p["lines"]})
         # 행송 편차는 WARN만 — 두 엔진 모두 페이지 단위로 행송을 벌릴 능력이 없다(실측).
         # 리스트·코드·콜아웃 혼합 면의 자연 편차가 대부분이라 FAIL로 쓰면 오탐.
