@@ -1,6 +1,7 @@
 // bookforge style: business — 비즈니스·컨설팅 리포트 (STYLE.md: 200×280, navy 시스템)
 #import "base.typ": default-tokens, keep-words, numpad, chapter-state, full-bleed
 #import "base.typ" as base
+#let code-font = ((name: "DejaVu Sans Mono", covers: "latin-in-cjk"), "Pretendard")
 
 #let meta = json("meta.json")
 
@@ -186,13 +187,16 @@
 
 #let colophon(meta, t) = {
   pagebreak(weak: true)
-  set text(size: 8pt, fill: ink-60)
-  v(1fr)
-  line(length: 40%, stroke: 0.4pt + rule-c)
-  v(4pt)
-  [#meta.title · #meta.at("author", default: "bookforge") · #meta.at("date", default: "") 발행 · bookforge로 조판]
-  linebreak()
-  [본 보고서의 수치·인용은 본문 표기 출처를 따르며, 무단 전재를 금합니다.]
+  page(header: none, footer: none, background: none, {  // 판권면: 러닝·섹션 탭 생략
+    set text(size: 8pt, fill: ink-60)
+    set par(first-line-indent: 0em)
+    v(1fr)
+    line(length: 40%, stroke: 0.4pt + rule-c)
+    v(4pt)
+    [#meta.title · #meta.at("author", default: "bookforge") · #meta.at("date", default: "") 발행 · bookforge로 조판]
+    linebreak()
+    [본 보고서의 수치·인용은 본문 표기 출처를 따르며, 무단 전재를 금합니다.]
+  })
 }
 
 // ---- 마스터 래퍼 -------------------------------------------------------------
@@ -257,7 +261,7 @@
   set text(number-type: "lining", number-width: "tabular")
   show raw.where(block: true): it => block(
     width: 100%, fill: paper-alt, inset: 5mm, stroke: 0.5pt + navy-100,
-    text(size: 8.5pt, it))
+    text(font: code-font, size: 8.5pt, it))
 
   // 표: 세로 괘선·얼룩말 금지, navy 상하 굵은 룰
   set table(stroke: none, inset: (x: 3mm, y: 2.6mm), fill: none)

@@ -1,6 +1,7 @@
 // bookforge style: practical — 실용·활용서 (견본: NIA 핵심용어집 실측 기반)
 // This file is snapshotted into <book>/typeset/_style/ next to base.typ + meta.json.
 #import "base.typ": *
+#let code-font = ((name: "DejaVu Sans Mono", covers: "latin-in-cjk"), "Pretendard")
 
 #let meta = json("meta.json")
 
@@ -215,8 +216,8 @@
   set enum(indent: 0.5em)
   show raw.where(block: true): it => block(
     width: 100%, fill: luma(247), radius: 4pt, inset: 9pt, breakable: true,
-    text(size: 8pt, it))
-  show raw.where(block: false): it => box(fill: luma(243), radius: 2pt, inset: (x: 3pt, y: 1pt), text(size: 0.92em, it))
+    text(font: code-font, size: 8pt, it))
+  show raw.where(block: false): it => box(fill: luma(243), radius: 2pt, inset: (x: 3pt, y: 1pt), text(font: code-font, size: 0.92em, it))
   set table(stroke: none, inset: (x: 7pt, y: 6pt))
   show table: it => {
     set text(size: 8.7pt, font: t.sans-font)

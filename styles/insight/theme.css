@@ -22,7 +22,7 @@
 }
 
 /* 판면: 본문 narrow 106mm (좌27 / 우49). 폴리오·러닝 장식은 decorate.py 스탬핑 */
-@page { size: 182mm 257mm; margin: 43mm 49mm 24mm 27mm; }
+@page { size: 182mm 257mm; margin: 43mm 25mm 24mm 27mm; }
 @page full { margin: 0; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -52,13 +52,13 @@ b, strong { font-weight: 500; }
   font-weight: 500; font-size: 12pt; color: var(--ink-soft); }
 .cover-pub { position: absolute; top: 126mm; right: 21mm; text-align: right;
   font-weight: 700; font-size: 15pt; color: var(--ink); }
-.cover-circuit { position: absolute; bottom: 0; right: 0; width: 60%; height: 42%; }
+.cover-circuit { position: absolute; bottom: 0; right: 0; width: 60%; height: 42%;  overflow: hidden; }
 
 /* ---- 목차 ---- */
 .toc-page { page: full; position: relative;
   width: 182mm; height: 257mm;
   background: var(--paper); break-after: page; }
-.toc-sidebar { position: absolute; top: 0; left: 0; width: 40mm; height: 257mm; display: block; }
+.toc-sidebar { position: absolute; top: 0; left: 0; width: 40mm; height: 257mm; display: block; overflow: hidden; }
 .toc-body { position: absolute; left: 57mm; top: 41mm; right: 20mm; }
 .toc-word { font-family: var(--disp); font-weight: 800; font-size: 30pt; color: var(--ink); margin-bottom: 14mm; }
 .toc { list-style: none; }
@@ -70,7 +70,7 @@ b, strong { font-weight: 500; }
 
 /* ---- 장 도비라 (T-dobira): 여백 중심, 폴리오 없음(스탬핑에서 제외) ---- */
 .opener { break-before: page; break-after: page; position: relative;
-  min-height: 190mm; }
+  min-height: 120mm; }
 .pgmark { position: absolute; top: 0; left: 0; font-size: 1px; color: transparent; }
 .opener-num { font-family: var(--num); font-weight: 400; font-size: 27pt;
   font-variant-numeric: tabular-nums; color: var(--blue-600); margin-top: 4mm; }
@@ -80,6 +80,9 @@ b, strong { font-weight: 500; }
   margin-top: 12mm; max-width: 106mm; }
 
 /* ---- 본문 (narrow 1단, 문단 간격 0) ---- */
+/* 콘텐츠 박스는 130mm(와이드 측정) — 본문 텍스트만 106mm로 좁혀 narrow 리본 유지 */
+.chapter-body p, .chapter-body h2, .chapter-body h3, .chapter-body h4,
+.chapter-body ul, .chapter-body ol, .opener-title, .opener-summary { max-width: 106mm; }
 .chapter { counter-increment: ch; counter-reset: sec; }
 .chapter-body { text-align: justify; }
 .chapter-body p { margin: 0; }

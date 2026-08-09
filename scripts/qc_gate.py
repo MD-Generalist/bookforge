@@ -33,10 +33,10 @@ MM2PT = 72 / 25.4
 TAIL_HARD = {"essay": 0.35, "magazine": 0.35}          # default 0.45
 TAIL_WARN = {"practical": 0.70, "insight": 0.70, "academic": 0.70,
              "business": 0.65, "essay": 0.55, "magazine": 0.50}
-WARN_REPORT_ONLY = {"essay", "magazine"}               # 상용 표본 확보 전 보수 운용
+WARN_REPORT_ONLY = {"essay", "magazine", "insight"}    # 상용 꼬리 실측 표본 0인 스타일 — HARD만 강제
 MID_HARD = 0.75
-MID_ROLE_MIN = {"essay": 0.88}                         # default 0.90
-DOC_STATS_STYLES = {"practical", "insight", "academic"}
+MID_ROLE_MIN = {"essay": 0.88, "insight": 0.85}       # default 0.90 — insight는 130mm 통짜 블록+H2 24mm 이월 물리
+DOC_STATS_STYLES = {"practical", "academic"}  # 문서 통계는 실측 근거 있는 스타일만
 ROLE_CODES = {"PART_DIVIDER", "FULL_BLEED_PLATE", "EXEC_SUMMARY",
               "ESSAY_BREATH", "MAGAZINE_WHITESPACE", "TOC_TAIL"}
 
@@ -342,9 +342,12 @@ def main():
                 g7m["ok"] = False
                 fails.append(f"G7-MID: p{pg} reach {p['reach']} < {MID_HARD} (HARD)")
             elif p["reach"] < mid_role_min and not code:
-                g7m["underfull"].append({"page": pg, "reach": p["reach"]})
-                g7m["ok"] = False
-                fails.append(f"G7-MID: p{pg} reach {p['reach']} < {mid_role_min}, 사유 코드 없음")
+                if style in WARN_REPORT_ONLY:
+                    report["warns"].append(f"G7-MID: p{pg} reach {p['reach']} < {mid_role_min} (report-only)")
+                else:
+                    g7m["underfull"].append({"page": pg, "reach": p["reach"]})
+                    g7m["ok"] = False
+                    fails.append(f"G7-MID: p{pg} reach {p['reach']} < {mid_role_min}, 사유 코드 없음")
     report["gates"]["G7-TAIL"] = g7t
     report["gates"]["G7-MID"] = g7m
 
@@ -358,6 +361,13 @@ def main():
         if not ok:
             fails.append(f"G7-DOC: 꼬리 reach 중앙값 {med}/p10 {p10} < 0.80/0.55 — 원고 분량 설계 반환")
 
+    # 본문 크기 = 글자 수 가중 최빈값(행 수 기준이면 리스트·표 9pt가 본문 10.5pt를 이길 수 있다)
+    sizes = Counter()
+    for p in pages:
+        for l in p["_lines"]:
+            sizes[round(l["size"] * 2) / 2] += len(l["text"])
+    body_size = sizes.most_common(1)[0][0] if sizes else 10.0
+
     # ---- G8-STRETCH 공기 채움 ----
     g8 = {"stretched": [], "ok": True}
     for p in pages:
@@ -365,8 +375,12 @@ def main():
         if pg < first_ch or pg in structural or pg in tails or pg in role_by_page \
                 or pg in float_pushed:
             continue
-        # insight는 H2 위 여백 24mm(STYLE.md 정본)+와이드 콜아웃이 구조적 공기를 만든다 — 임계 완화
-        gap_thr = 0.28 if style == "insight" else 0.18
+        # insight는 H2 위 여백 24mm(STYLE.md 정본)+와이드 콜아웃이 구조적 공기를 만든다 — 임계 완화.
+        # 한 면에 섹션 전환이 2회 이상이면 여백이 배로 쌓이므로 디스플레이 행 수 비례 가산.
+        gap_thr = 0.18
+        if style == "insight":
+            heads = sum(1 for l in p["_lines"] if l["size"] >= 1.3 * body_size)
+            gap_thr = 0.28 + 0.10 * max(0, heads - 1)
         if p["gap"] > gap_thr and p["lines"] < 0.8 * N:
             g8["stretched"].append({"page": pg, "gap": p["gap"], "lines": p["lines"]})
         # 행송 편차는 WARN만 — 두 엔진 모두 페이지 단위로 행송을 벌릴 능력이 없다(실측).
@@ -381,12 +395,6 @@ def main():
         fails.append(f"G8-STRETCH: 공기 채움/행송 이탈 {len(g8['stretched'])}면, 첫 면 p{first['page']}")
 
     # ---- G9-KEEP 제목 고립·widow ----
-    # 본문 크기 = 글자 수 가중 최빈값(행 수 기준이면 리스트·표 9pt가 본문 10.5pt를 이길 수 있다)
-    sizes = Counter()
-    for p in pages:
-        for l in p["_lines"]:
-            sizes[round(l["size"] * 2) / 2] += len(l["text"])
-    body_size = sizes.most_common(1)[0][0] if sizes else 10.0
     g9 = {"violations": [], "ok": True}
     single_col = style in ("practical", "academic", "essay", "business")
     for i, p in enumerate(pages):
@@ -394,7 +402,7 @@ def main():
         if pg < first_ch or pg in structural or not p["_lines"]:
             continue
         last = p["_lines"][-1]
-        if last["size"] >= 1.15 * body_size and pg not in tails:
+        if last["size"] >= 1.3 * body_size and pg not in tails:  # 1.1~1.3 대역은 스탯 라벨·덱 오탐(폰트 판별은 백로그)
             g9["violations"].append(f"p{pg}: 면 끝 제목 고립('{last['text'][:20]}')")
         if single_col and i > 0 and pages[i - 1]["_lines"] and pg - 1 >= first_ch \
                 and pg - 1 not in ch_starts:

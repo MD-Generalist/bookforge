@@ -1,6 +1,7 @@
 // bookforge style: essay — 미니멀 에세이 (STYLE.md: 사륙판 128×188, 먹1도+포인트1색)
 #import "base.typ": default-tokens, keep-words, numpad, chapter-state
 #import "base.typ" as base
+#let code-font = ((name: "DejaVu Sans Mono", covers: "latin-in-cjk"), "Pretendard")
 
 #let meta = json("meta.json")
 

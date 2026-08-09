@@ -5,6 +5,7 @@
 //   brand, brand-light, ink, muted, paper: colors
 //   body-font, sans-font, display-font: str/array
 //   body-size, body-leading, heading2-size, heading3-size
+#let code-font = ((name: "DejaVu Sans Mono", covers: "latin-in-cjk"), "Pretendard")
 
 #let default-tokens = (
   trim: (w: 153mm, h: 225mm),
@@ -178,18 +179,25 @@
 
 #let colophon(meta, t) = {
   pagebreak(weak: true)
-  set text(size: 8pt, fill: t.muted)
-  v(1fr)
-  line(length: 30%, stroke: 0.5pt + t.muted)
-  v(6pt)
-  [#meta.title]
-  if "subtitle" in meta and meta.subtitle != none [ — #meta.subtitle]
-  linebreak()
-  if "author" in meta [지은이 #meta.author · ]
-  if "date" in meta [#meta.date 발행 · ]
-  [bookforge로 조판]
-  linebreak()
-  [본문 서체: #merged((:)).body-font.at(0) 외 · 이 책은 자동 조판 파이프라인으로 제작되었습니다.]
+  page(header: none, footer: none, {  // 판권면: 러닝헤드·쪽번호 생략(러닝 시스템 규약)
+    set text(size: 8pt, fill: t.muted)
+    set par(first-line-indent: 0em)
+    v(1fr)
+    line(length: 30%, stroke: 0.5pt + t.muted)
+    v(6pt)
+    text(size: 9.5pt, fill: t.ink, weight: "semibold", meta.title)
+    if "subtitle" in meta and meta.subtitle != none [ — #meta.subtitle]
+    linebreak()
+    if "author" in meta [지은이 #meta.author]
+    linebreak()
+    if "date" in meta [초판 1쇄 발행 #meta.date]
+    linebreak()
+    [펴낸곳 bookforge · 조판 bookforge 자동 조판 파이프라인]
+    linebreak()
+    [본문 서체 #merged((:)).body-font.at(0) · 표제 서체 #merged((:)).display-font.at(0)]
+    linebreak()
+    [이 책의 내용은 조사 시점 기준이며, 인용·수치는 본문 표기 출처를 따릅니다.]
+  })
 }
 
 // ---- table of contents ------------------------------------------------------
@@ -270,8 +278,8 @@
   set enum(indent: 0.5em)
   show raw.where(block: true): it => block(
     width: 100%, fill: luma(247), radius: 4pt, inset: 9pt, breakable: true,
-    text(size: 8pt, it))
-  show raw.where(block: false): it => box(fill: luma(243), radius: 2pt, inset: (x: 3pt, y: 1pt), text(size: 0.92em, it))
+    text(font: code-font, size: 8pt, it))
+  show raw.where(block: false): it => box(fill: luma(243), radius: 2pt, inset: (x: 3pt, y: 1pt), text(font: code-font, size: 0.92em, it))
   set table(stroke: none, inset: (x: 7pt, y: 6pt))
   show table: it => {
     set text(size: 8.7pt, font: t.sans-font)

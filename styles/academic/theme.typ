@@ -1,6 +1,7 @@
 // bookforge style: academic — 학술·논문형 (STYLE.md: 신국판 153×225, 1도+먹)
 #import "base.typ": default-tokens, keep-words, chapter-state
 #import "base.typ" as base
+#let code-font = ((name: "DejaVu Sans Mono", covers: "latin-in-cjk"), "Pretendard")
 
 #let meta = json("meta.json")
 
@@ -138,7 +139,7 @@
     }
     v(2mm)
   }
-  body
+  align(center, block(stroke: (bottom: 1pt + ink), inset: 0pt, body))  // booktabs bottomrule
   if source != none {
     v(1.5mm)
     align(center, text(font: TT.sans-font, size: 7.5pt, fill: muted, [자료: #source]))
@@ -165,15 +166,17 @@
 
 #let colophon(meta, t) = {
   pagebreak(weak: true)
-  set text(font: TT.display-font, size: 8.5pt, fill: ink)
-  set par(leading: 4.5pt, first-line-indent: 0em)
-  v(1fr)
-  meta.title
-  if meta.at("subtitle", default: none) != none [ — #meta.subtitle]
-  linebreak()
-  [#meta.at("date", default: "") 발행 · 지은이 #meta.at("author", default: "bookforge")]
-  linebreak()
-  [조판 bookforge · 본문 Noto Serif KR·Libertinus Serif · 표제 Pretendard]
+  page(header: none, footer: none, {  // 판권면: 러닝헤드·쪽번호 생략(러닝 시스템 규약)
+    set text(font: TT.display-font, size: 8.5pt, fill: ink)
+    set par(leading: 4.5pt, first-line-indent: 0em)
+    v(1fr)
+    meta.title
+    if meta.at("subtitle", default: none) != none [ — #meta.subtitle]
+    linebreak()
+    [#meta.at("date", default: "") 발행 · 지은이 #meta.at("author", default: "bookforge")]
+    linebreak()
+    [조판 bookforge · 본문 Noto Serif KR·Libertinus Serif · 표제 Pretendard]
+  })
 }
 
 // ---- 마스터 래퍼 -------------------------------------------------------------
@@ -191,16 +194,20 @@
         set text(font: t.sans-font, size: 8.5pt, weight: "medium", fill: ink)
         text(fill: accent, "제" + str(prev.len()) + "장")
         h(2em)
-        prev.last().body
+        box(width: 46%, clip: true, height: 1.3em, align(left + bottom, prev.last().body))
         h(1fr)
-        // 우측: 현재 절 러닝헤드 (없으면 책 제목)
-        let secs = query(heading.where(level: 2).before(here()))
+        // 우측: 현재 장 안에서 진행 중인 절만 (경계 오류 방지 — 이전 장 절 참조 금지,
+        // 현재 면에서 시작한 절 포함, 절이 없으면 항목 생략)
+        let ch-pg = prev.last().location().page()
+        let secs = query(heading.where(level: 2)).filter(s => {
+          let sp = s.location().page()
+          sp >= ch-pg and sp <= here().page()
+        })
         if secs.len() > 0 {
-          let sc = counter(heading).at(secs.last().location())
-          text(fill: muted, str(prev.len()) + "." + str(sc.at(1, default: 1)) + " ")
-          text(fill: muted, secs.last().body)
-        } else {
-          text(fill: muted, meta.at("title", default: ""))
+          box(width: 40%, clip: true, height: 1.3em, align(right + bottom, {
+            text(fill: muted, str(prev.len()) + "." + str(secs.len()) + " ")
+            text(fill: muted, secs.last().body)
+          }))
         }
         v(1.5mm)
         line(length: 100%, stroke: 0.4pt + rule-c)
@@ -246,16 +253,18 @@
   set enum(indent: 1em, spacing: 7.5pt)
   show raw.where(block: true): it => block(
     width: 100%, fill: luma(248), inset: 8pt, above: 5mm, below: 5mm,
-    text(size: 8.5pt, it))
+    text(font: code-font, size: 8.5pt, it))
 
   // 3선표(booktabs): 상하 1.0pt 먹, 헤더 아래 0.4pt. 캡션은 콘텐츠 [표] 계약(bf-tbl)만
   set table(stroke: none, inset: (x: 8pt, y: 5pt))
   show table: it => { set text(size: 9pt, font: t.sans-font); it }
+  // booktabs 3선: top 1.0 / 헤더 아래 0.4 / bottom 1.0 (bottom은 bf-tbl 래퍼가 긋는다)
   set table(stroke: (x, y) => (
     top: if y == 0 { 1pt + ink } else if y == 1 { 0.4pt + rule-c } else { none },
-    bottom: 1pt + ink,
+    bottom: none,
   ))
   show table.cell.where(y: 0): it => text(weight: "semibold", it)
+  show table.cell: set par(justify: false)  // 셀 양끝맞춤 파열 방지(왼끝맞춤)
   show link: it => text(fill: accent, it)
 
   if cover != none { cover }

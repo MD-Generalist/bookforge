@@ -60,7 +60,7 @@ P9 되감기      실패 시 P7→P6→P3→(PLAN만)P2 역순. REFIT은 P3에�
 |---|---|---|
 | 행수 하한 (전 스타일) | `lines < 6` | HARD FAIL — 사유 코드로도 구제 불가 |
 | reach HARD 하한 | practical/insight/academic/business **0.45** / essay/magazine **0.35** | FAIL |
-| reach WARN 하한 | practical/insight/academic **0.70** / business **0.65** / essay **0.55** / magazine **0.50** | 사유 코드 없으면 FAIL. essay/magazine은 리포트만(실측 표본 확보 전 보수 운용) |
+| reach WARN 하한 | practical/insight/academic **0.70** / business **0.65** / essay **0.55** / magazine **0.50** | 사유 코드 없으면 FAIL. **essay/magazine/insight는 리포트만**(해당 유형 상용 꼬리 실측 표본 0 — §9 부채. HARD 하한은 그대로 강제) |
 | 문서 통계 | practical/insight/academic만: 꼬리 reach 중앙값 ≥ 0.80, p10 ≥ 0.55 | FAIL → 원고 분량 설계 반환 |
 | 장 중간 면 | reach < 0.75 HARD / 0.75~0.90(essay 0.88)은 사유 코드 필수 | |
 
