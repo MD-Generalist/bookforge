@@ -32,8 +32,8 @@ def decorate(doc, ctx):
         page.insert_text(
             fitz.Point(177 * MM, 43 * MM), title,
             fontsize=7, fontfile=hanfont, fontname="F-han", rotate=270, color=MUTE)
-        if n not in opener_pages:
-            w = fitz.get_text_length(str(n), fontname="helv", fontsize=11.44)
-            page.insert_text(
-                fitz.Point(170 * MM - w, 243 * MM), str(n),
-                fontsize=11.44, fontfile=numfont, fontname="F-num", color=MUTE)
+        # 폴리오는 도비라에도 유지(STYLE 러닝 규약) — 표지·목차만 생략(위에서 continue)
+        w = fitz.get_text_length(str(n), fontname="helv", fontsize=11.44)
+        page.insert_text(
+            fitz.Point(170 * MM - w, 243 * MM), str(n),
+            fontsize=11.44, fontfile=numfont, fontname="F-num", color=MUTE)

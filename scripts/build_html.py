@@ -198,6 +198,9 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     for mk, abs_page in pages.items():
         html2 = html2.replace(f'<span class="tocpg" data-mk="{mk}">00</span>',
                               f'<span class="tocpg" data-mk="{mk}">{abs_page}</span>')
+    # pass 2에는 마커 불필요 — 잉크·텍스트 레이어 오염 방지를 위해 제거
+    # (.pgmark은 absolute 포지션이라 제거해도 리플로우 없음; 북마크는 pass 1 페이지맵 사용)
+    html2 = re.sub(r'<span class="pgmark">@@ch\d+@@</span>', "", html2)
     page2 = ts / "book-final.html"
     page2.write_text(html2, encoding="utf-8")
 

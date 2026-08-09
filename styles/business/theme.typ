@@ -115,7 +115,7 @@
 
 // ---- 키 스탯: accent 상단 룰 + Gmarket 숫자 ---------------------------------
 #let bf-stat(value, label) = {
-  block(breakable: false, width: 50mm, {
+  block(breakable: false, width: 50mm, above: 5mm, below: 5mm, {
     rect(width: 100%, height: 2pt, fill: accent)
     v(3mm)
     text(font: TT.stat-font, weight: "bold", size: 34pt, tracking: -0.03em,

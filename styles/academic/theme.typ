@@ -192,9 +192,14 @@
       let starts = query(heading.where(level: 1)).map(h => h.location().page())
       if prev.len() > 0 and not starts.contains(here().page()) {
         set text(font: t.sans-font, size: 8.5pt, weight: "medium", fill: ink)
+        // 폭 초과 시 좌측 클립 금지 — 번호는 항상 보존, 제목 꼬리만 말줄임
+        let trunc(s, n) = {
+          let cs = s.clusters()
+          if cs.len() > n { cs.slice(0, n).join("") + "…" } else { s }
+        }
         text(fill: accent, "제" + str(prev.len()) + "장")
         h(2em)
-        box(width: 46%, clip: true, height: 1.3em, align(left + bottom, prev.last().body))
+        trunc(bf-plain(prev.last().body), 18)
         h(1fr)
         // 우측: 현재 장 안에서 진행 중인 절만 (경계 오류 방지 — 이전 장 절 참조 금지,
         // 현재 면에서 시작한 절 포함, 절이 없으면 항목 생략)
@@ -204,10 +209,8 @@
           sp >= ch-pg and sp <= here().page()
         })
         if secs.len() > 0 {
-          box(width: 40%, clip: true, height: 1.3em, align(right + bottom, {
-            text(fill: muted, str(prev.len()) + "." + str(secs.len()) + " ")
-            text(fill: muted, secs.last().body)
-          }))
+          text(fill: muted, str(prev.len()) + "." + str(secs.len()) + " " +
+            trunc(bf-plain(secs.last().body), 14))
         }
         v(1.5mm)
         line(length: 100%, stroke: 0.4pt + rule-c)
@@ -264,7 +267,8 @@
     bottom: none,
   ))
   show table.cell.where(y: 0): it => text(weight: "semibold", it)
-  show table.cell: set par(justify: false)  // 셀 양끝맞춤 파열 방지(왼끝맞춤)
+  show table.cell: set par(justify: false)  // 셀 양끝맞춤 파열 방지
+  show table.cell: set align(left + horizon)  // 왼끝맞춤(가운데 정렬 금지)
   show link: it => text(fill: accent, it)
 
   if cover != none { cover }
