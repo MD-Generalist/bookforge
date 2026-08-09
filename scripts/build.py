@@ -38,7 +38,12 @@ def build_typst(book_dir: Path, book: dict, outline: dict, style_dir: Path):
 
     shutil.copy(SKILL / "templates" / "base.typ", style_snap / "base.typ")
     shutil.copy(style_dir / "theme.typ", style_snap / "theme.typ")
-    (style_snap / "meta.json").write_text(json.dumps(book, ensure_ascii=False), encoding="utf-8")
+    meta = dict(book)
+    for name in ("cover-art.png", "cover.png", "cover.jpg"):
+        if (book_dir / "assets" / name).exists():
+            meta["_cover_art"] = f"../../assets/{name}"
+            break
+    (style_snap / "meta.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
 
     includes = []
     for ch in outline["chapters"]:

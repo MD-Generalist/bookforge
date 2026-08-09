@@ -137,6 +137,18 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     if r.returncode != 0:
         sys.exit("HTML pass2 print failed:\n" + r.stderr)
 
+    # PDF outline(bookmarks): Chromium print emits none — stamp from markers
+    doc = fitz.open(out)
+    toc = []
+    for idx, ch in enumerate(outline["chapters"], 1):
+        mk = f"ch{idx:02d}"
+        if mk in pages:
+            toc.append([1, ch["title"], pages[mk]])
+    if toc:
+        doc.set_toc(toc)
+    doc.saveIncr()
+    doc.close()
+
     # optional theme post-decoration (running marks, folio) via PyMuPDF
     dec = style_dir / "decorate.py"
     if dec.exists():

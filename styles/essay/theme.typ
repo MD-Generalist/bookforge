@@ -40,11 +40,14 @@
       v(14mm)
       text(font: t.display-font, size: 11pt, fill: t.ink, meta.at("author", default: ""))
       v(1fr)
-      // 아트 존: assets/cover-art.png 가 있으면 좌기준선 정렬로 1점
-      place(bottom + left, dy: -32mm, {
-        let art = "../assets/cover-art.png"
-        // 아트 없으면 accent 원점 하나로 침묵을 지킨다
-        circle(radius: 1.6mm, fill: t.brand)
+      // 아트 존: 생성 아트 1점(무텍스트), 없으면 accent 원점으로 침묵을 지킨다
+      place(bottom + left, dy: -26mm, {
+        let art = meta.at("_cover_art", default: none)
+        if art != none {
+          image(art, width: 58mm)
+        } else {
+          circle(radius: 1.6mm, fill: t.brand)
+        }
       })
       place(bottom + left, dy: -14mm,
         text(font: t.sans-font, size: 8pt, weight: "medium", tracking: 0.08em,
