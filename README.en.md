@@ -33,7 +33,7 @@ Each style ships a design rulebook (`styles/*/STYLE.md`) distilled from measured
 ## Install
 
 ```bash
-git clone https://github.com/kimsh-1/bookforge.git
+git clone https://github.com/gongnyang/bookforge.git
 cd bookforge
 ln -sfn "$PWD" ~/.claude/skills/bookforge   # Claude Code
 ln -sfn "$PWD" ~/.codex/skills/bookforge    # Codex CLI

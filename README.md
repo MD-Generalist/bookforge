@@ -43,7 +43,7 @@
 ## 설치
 
 ```bash
-git clone https://github.com/kimsh-1/bookforge.git
+git clone https://github.com/gongnyang/bookforge.git
 cd bookforge
 
 # Claude Code + Codex 양쪽에 심링크 (둘 다 심링크 공식 지원)
