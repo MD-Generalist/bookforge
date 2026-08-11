@@ -1,13 +1,4 @@
-# build workspaces (book projects are created outside or under build/)
-build/
-draft/
-*.pdf.tmp
-
-# fetched (non-redistributable) fonts — bundled OFL fonts are tracked
-assets/fonts/fetched/
-
-# caches
 __pycache__/
-node_modules/
+*.pyc
 .DS_Store
 Thumbs.db

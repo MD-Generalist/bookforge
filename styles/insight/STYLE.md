@@ -197,7 +197,7 @@
 ## 레퍼런스 출처
 근거 등급을 3단으로 표시한다. **[실측]** = 이 작업에서 직접 계측 / **[출처]** = 공개 문서에서 확인 / **[하우스]** = 근거 없이 이 팩이 정한 값.
 
-- **[실측] 1차 견본** — `/mnt/d/PDF스킬/ex/ETRI+Insight+표준화동향+2019-01+인공지능.pdf`, PyMuPDF 스팬·드로잉 추출. 판면 182×257 mm, 컬럼 106/130 mm, 전 폰트 pt, 컬러 hex 전량, 괘선 두께(3.0 / 1.0 / 0.3 pt), 표 구조, 이미지 블리드 7형태, 러닝헤드·폴리오 좌표.
+- **[실측] 1차 견본** — ETRI Insight 『표준화동향 2019-01 인공지능』 공개 PDF, PyMuPDF 스팬·드로잉 추출. 판면 182×257 mm, 컬럼 106/130 mm, 전 폰트 pt, 컬러 hex 전량, 괘선 두께(3.0 / 1.0 / 0.3 pt), 표 구조, 이미지 블리드 7형태, 러닝헤드·폴리오 좌표.
 - **[실측] 폰트 메트릭** — fontTools로 로컬 바이너리 직접 검사.
   - Pretendard-Regular.otf: em 2048, cap 0.707 em, x-height 0.5303 em, 기본 숫자 비례(폭 편차 42.3%), `tnum` 균등폭 0.6143 em. GSUB에 `tnum`/`zero`/`case`/`frac`/`pnum` 보유, `onum`·`lnum` 없음. OFL(동봉 `LICENSE-Pretendard-OFL.txt`).
   - Barlow-Regular.ttf(`google/fonts` `ofl/barlow`): em 1000, cap 0.700 em, x-height 0.506 em, 기본 숫자 비례(폭 편차 61.4%), `tnum` 균등폭 0.527 em. `case`·`zero` **없음**. OFL-1.1(Copyright 2017 The Barlow Project Authors).

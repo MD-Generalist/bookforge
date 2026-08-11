@@ -99,6 +99,8 @@ def _isnum(s):
 
 
 def main():
+    if len(sys.argv) < 2:
+        sys.exit("usage: python3 scripts/qc_gate.py <book_dir> [--refit]")
     book_dir = Path(sys.argv[1]).resolve()
     refit = "--refit" in sys.argv[2:]
     book = json.loads((book_dir / "book.json").read_text(encoding="utf-8"))

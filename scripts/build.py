@@ -87,6 +87,8 @@ def build_html(book_dir: Path, book: dict, outline: dict, style_dir: Path):
     html_build(book_dir, book, outline, style_dir, SKILL)
 
 def main():
+    if len(sys.argv) < 2:
+        sys.exit("usage: python3 scripts/build.py <book_dir>")
     book_dir = Path(sys.argv[1]).resolve()
     book, outline, style_dir, tokens = load(book_dir)
     engine = tokens.get("engine", "typst")
