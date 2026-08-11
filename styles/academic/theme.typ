@@ -104,7 +104,11 @@
 #let bf-stat(value, label) = bf-callout(title: "수치")[#strong(value) — #label]
 
 #let bf-fig(path, caption: none, source: none, width: 100%) = {
-  block(breakable: false, above: 5mm, below: 5mm, {
+  // placement: bottom — 도해를 면 하단으로 부동시켜 본문이 면을 계속 채우게 한다.
+  // 인라인 블록이면 도해+후속 제목이 통째로 이월해 앞 면이 반백이 되고(G7-MID),
+  // top 부동이면 꼬리면 reach가 도해 높이에서 캡되어 G7-TAIL에 걸린다.
+  figure(placement: bottom, kind: image, supplement: none, numbering: none, gap: 0mm,
+    block(breakable: false, above: 5mm, below: 5mm, {
     align(center, image(path, width: width))
     context {
       fig-counter.step()
@@ -120,7 +124,7 @@
         })
       }
     }
-  })
+  }))
 }
 
 // 표: 콘텐츠가 [표] 캡션을 준 경우에만 번호 라벨. 캡션 없으면 표만 렌더.

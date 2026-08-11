@@ -24,6 +24,7 @@ def main():
     d = Path(a.book_dir).resolve()
     (d / "chapters").mkdir(parents=True, exist_ok=True)
     (d / "assets").mkdir(exist_ok=True)
+    (d / "diagrams").mkdir(exist_ok=True)  # AntV DSL 사이드카(fig-NN.json) — references/diagrams.md
 
     book = {"title": a.title, "subtitle": a.subtitle, "author": a.author,
             "style": a.style, "length": a.length, "images": "vector"}

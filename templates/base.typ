@@ -120,7 +120,10 @@
 // ---- figures ----------------------------------------------------------------
 #let bookfig(path, caption: none, source: none, width: 100%, t: (:)) = {
   let t = merged(t)
+  // placement: bottom — 인라인 배치는 도해 이월로 앞 면이 반백(G7-MID),
+  // top 부동은 꼬리면 reach가 도해 높이에서 캡(G7-TAIL)
   figure(
+    placement: bottom,
     image(path, width: width),
     caption: if caption != none {
       text(font: t.sans-font, size: 8.5pt, {

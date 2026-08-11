@@ -22,7 +22,7 @@ MD = MarkdownIt("commonmark", {"html": True, "typographer": True}) \
 
 CALLOUT_RE = re.compile(r"^:::\s*(info|tip|warn|quote|stat|pull)\s*(.*)$")
 
-def md_to_html(md: str) -> str:
+def md_to_html(md: str, book_dir: Path | None = None) -> str:
     """markdown subset -> html, with ::: callout directive support."""
     out, lines, buf = [], md.split("\n"), []
     def flush():
@@ -65,6 +65,24 @@ def md_to_html(md: str) -> str:
         if title:
             cap = f"{cap} · {title}" if cap else title
         c = f"<figcaption>{cap}</figcaption>" if cap else ""
+        # SVG 도해는 <img src> 대신 원문 인라인 — SVG-as-image 모드는 외부 @font-face를
+        # 차단해 도해 <text>가 폴백 폰트로 렌더되므로.
+        if book_dir and src.endswith(".svg") and src.startswith("../assets/"):
+            svg_path = book_dir / "assets" / src[len("../assets/"):]
+            if svg_path.exists():
+                svg = svg_path.read_text(encoding="utf-8")
+                svg = re.sub(r"^<!--bf:dsl=[^>]*-->\n?", "", svg)
+                svg = re.sub(r'(<svg\b[^>]*?)\s+style="[^"]*"', r"\1", svg, count=1)
+                svg = re.sub(r"<svg\b", '<svg style="width:100%;height:auto"', svg, count=1)
+                # 사이드카 bf.width=twothirds — 세로형 도해가 전폭으로 부풀어 면을
+                # 통째로 먹는 것을 막는다 (HTML 트랙은 float가 없어 폭이 유일한 레버)
+                fig_style = ""
+                sidecar = book_dir / "diagrams" / (Path(src).stem + ".json")
+                if sidecar.exists():
+                    bf = json.loads(sidecar.read_text(encoding="utf-8")).get("bf", {})
+                    if bf.get("width") == "twothirds":
+                        fig_style = ' style="width:66%;margin-left:auto;margin-right:auto"'
+                return f'<figure class="svgfig"{fig_style}>{svg}{c}</figure>'
         return f'<figure><img src="{src}" alt="{alt}">{c}</figure>'
     html = re.sub(
         r'<p><img src="(?P<src>[^"]+)" alt="(?P<alt>[^"]*)"(?: title="(?P<title>[^"]*)")?\s*/?></p>',
@@ -115,7 +133,7 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
             pm = re.search(r"^::: pull\n(.+)$", raw, re.M)
             if pm:
                 first_pull = pm.group(1).strip()
-        body_html = md_to_html(raw)
+        body_html = md_to_html(raw, book_dir)
         # 표 캡션 계약: 콘텐츠가 "[표] 제목 | 자료: 출처" 문단을 준 표만 라벨을 단다.
         # 자동 필러 라벨 금지 — 캡션 없는 표는 라벨 없이 그대로 렌더된다.
         tno = [0]

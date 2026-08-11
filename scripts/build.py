@@ -6,7 +6,7 @@ Reads  <book_dir>/book.json + outline.json + chapters/*.md
 Route  style -> engine (typst | html) from styles/<style>/tokens.json ("engine").
 Output <book_dir>/draft/book.pdf   (never writes final/ — that is qc_gate's job)
 """
-import json, shutil, subprocess, sys
+import json, os, shutil, subprocess, sys
 from pathlib import Path
 
 SKILL = Path(__file__).resolve().parent.parent
@@ -25,6 +25,28 @@ def load(book_dir: Path):
         die(f"unknown style: {style}")
     tokens = json.loads((style_dir / "tokens.json").read_text(encoding="utf-8"))
     return book, outline, style_dir, tokens
+
+def render_diagrams(book_dir: Path, book: dict):
+    """P1.5 도해 프리렌더: diagrams/fig-*.json -> assets/fig-*.svg (+labels.json).
+
+    images 정책(book.json)은 여기서 살아 있는 스위치가 된다 —
+    "none"이면 도해 존재 자체가 계약 위반, "vector"(기본)면 프리렌더 실행.
+    """
+    dg = book_dir / "diagrams"
+    if not dg.exists() or not sorted(dg.glob("fig-*.json")):
+        return
+    if book.get("images") == "none":
+        die('book.json images="none"인데 diagrams/에 도해 사이드카가 있음')
+    env = dict(os.environ)
+    env["NODE_PATH"] = subprocess.run(["npm", "root", "-g"], capture_output=True,
+                                      text=True).stdout.strip()
+    r = subprocess.run(["node", str(SKILL / "scripts" / "render_diagrams.mjs"),
+                        str(book_dir), "--style", book["style"]],
+                       capture_output=True, text=True, env=env)
+    if r.stdout.strip():
+        print(r.stdout.strip())
+    if r.returncode != 0:
+        die("diagram prerender:\n" + (r.stderr or r.stdout))
 
 def build_typst(book_dir: Path, book: dict, outline: dict, style_dir: Path):
     sys.path.insert(0, str(SKILL / "scripts"))
@@ -91,6 +113,7 @@ def main():
         sys.exit("usage: python3 scripts/build.py <book_dir>")
     book_dir = Path(sys.argv[1]).resolve()
     book, outline, style_dir, tokens = load(book_dir)
+    render_diagrams(book_dir, book)
     engine = tokens.get("engine", "typst")
     if engine == "typst":
         build_typst(book_dir, book, outline, style_dir)
