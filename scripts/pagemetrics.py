@@ -99,6 +99,7 @@ def analyze(pdf_path, frame_mm):
                 inter = fitz.Rect(r) & fitz.Rect(fl, ft, fr, fb)
                 if not inter.is_empty and inter.height > 2 and inter.width > 2:
                     objs.append((inter.y0, inter.y1))
+        vec_union = fitz.Rect()  # 비가구 벡터 드로잉 합집합 — SVG 도해 면적 (vecarea)
         for dr in page.get_drawings():
             r = dr["rect"]
             key = (round(r.x0), round(r.y0), round(r.x1), round(r.y1))
@@ -107,12 +108,29 @@ def analyze(pdf_path, frame_mm):
             inter = fitz.Rect(r) & fitz.Rect(fl, ft, fr, fb)
             if not inter.is_empty and inter.height > 2 and inter.width > 2:
                 objs.append((inter.y0, inter.y1))
+                vec_union |= inter
+        # Typst가 임베드한 SVG 도해는 Form XObject라 get_drawings에 잡히지 않는다 —
+        # bboxlog는 XObject 내부까지 내려가므로 path/shade 연산을 ink 세그먼트로 합류.
+        for typ, rb in page.get_bboxlog():
+            if "path" not in typ and typ != "fill-shade":
+                continue
+            rr = fitz.Rect(rb)
+            key = (round(rr.x0), round(rr.y0), round(rr.x1), round(rr.y1))
+            if key in fdraw:
+                continue
+            inter = rr & fitz.Rect(fl, ft, fr, fb)
+            if not inter.is_empty and inter.height > 2 and inter.width > 2:
+                objs.append((inter.y0, inter.y1))
+                vec_union |= inter
         imgarea = min(1.0, img_cover / pr.get_area())
+        vecarea = (min(1.0, vec_union.get_area() / pr.get_area())
+                   if not vec_union.is_empty else 0.0)
 
         content_bottoms = [l["y1"] for l in lines] + [b for (_, b) in objs]
         reach = max(0.0, min(1.0, (max(content_bottoms) - ft) / fh)) if content_bottoms else 0.0
         pages.append({"page": pno + 1, "lines": len(lines), "pitch": pitch,
-                      "imgarea": round(imgarea, 3), "reach": round(reach, 3),
+                      "imgarea": round(imgarea, 3), "vecarea": round(vecarea, 3),
+                      "reach": round(reach, 3),
                       "_lines": lines, "_objs": objs,
                       "frame": (fl, ft, fr, fb)})
 

@@ -4,6 +4,10 @@
 Usage: python3 qc_gate.py <book_dir> [--refit]
 Gates (pagination.md §7):
   G10 quote   : (렌더 전) ::: pull 인용·콜아웃 수치가 챕터 본문에 실재 — 날조 차단
+  G0  svg     : (렌더 전) 도해 SVG 소스 — foreignObject 잔존/텍스트 부재/외부참조/
+                단독문단 위반/사이드카 쌍 무결성/아이콘 탈락 차단
+  G13 figtext : (렌더 후) 도해 라벨(fig-*.labels.json)이 PDF 실텍스트에 존재 —
+                usvg의 조용한 텍스트 드롭 최종 포착
   G1  render  : draft/book.pdf exists; page count vs preset (PLAN=hard, --refit=WARN)
   G2  fonts   : every font fully embedded
   G3  overflow: no bbox escapes the page rect (tol 1.5pt)
@@ -98,6 +102,77 @@ def _isnum(s):
         return False
 
 
+IMG_REF_RE = re.compile(r'!\[[^\]]*\]\((\.\./assets/[^)"\s]+\.svg)(?:\s+"[^"]*")?\)')
+
+
+def g0_svg_check(book_dir, outline):
+    """렌더 전 도해 SVG 소스 검사 — Typst(usvg)는 foreignObject를 에러 없이 드롭하므로
+    조용한 텍스트 전멸을 빌드 전에 차단한다."""
+    problems = []
+    referenced = []
+    for ch in outline["chapters"]:
+        p = book_dir / "chapters" / ch["file"]
+        if not p.exists():
+            continue
+        paragraphs = re.split(r"\n\s*\n", p.read_text(encoding="utf-8"))
+        for para in paragraphs:
+            refs = IMG_REF_RE.findall(para)
+            if not refs:
+                continue
+            # md2typ 승격 조건: 이미지 단독 문단이 아니면 이미지가 조용히 증발한다
+            rest = IMG_REF_RE.sub("", para).strip()
+            if rest:
+                problems.append(f"{ch['file']}: SVG 이미지 문단에 다른 텍스트 혼합 — "
+                                f"단독 문단이어야 승격됨: '{para.strip()[:50]}…'")
+            referenced.extend(refs)
+    for ref in referenced:
+        name = ref[len("../assets/"):]
+        svg_path = book_dir / "assets" / name
+        if not svg_path.exists():
+            problems.append(f"G0: 참조된 {name} 부재 (프리렌더 미실행?)")
+            continue
+        svg = svg_path.read_text(encoding="utf-8")
+        if "<foreignObject" in svg:
+            problems.append(f"{name}: foreignObject 잔존 — Typst에서 텍스트 전멸")
+        if "xml-stylesheet" in svg or re.search(r'(?:href|src)="https?://', svg):
+            problems.append(f"{name}: 외부 참조(CDN 폰트/미인라인 자원) 잔존")
+        stem = name[:-len(".svg")]
+        sidecar = book_dir / "diagrams" / f"{stem}.json"
+        labels_path = book_dir / "assets" / f"{stem}.labels.json"
+        if sidecar.exists():
+            bf = json.loads(sidecar.read_text(encoding="utf-8")).get("bf", {})
+            if not labels_path.exists():
+                problems.append(f"{name}: labels.json 부재 — 프리렌더 산출물 불완전")
+            elif json.loads(labels_path.read_text(encoding="utf-8")) and "<text" not in svg:
+                problems.append(f"{name}: 라벨이 있는데 SVG에 <text> 0개")
+            if bf.get("icons") is True and "<symbol" not in svg:
+                problems.append(f"{name}: icons:true인데 <symbol> 0개 — 아이콘 조용한 탈락")
+        elif "<text" not in svg and "<foreignObject" not in svg:
+            # 수동 SVG(사이드카 없음)는 외부참조/foreignObject 검사만 — 텍스트 없는 순수 도형 허용
+            pass
+    return problems
+
+
+def g13_figtext_check(book_dir, outline, page_texts):
+    """렌더 후: 프리렌더 라벨(렌더된 줄 단위)이 PDF 실텍스트에 존재하는지 대조."""
+    problems = []
+    all_norm = norm("".join(page_texts))
+    referenced = set()
+    for ch in outline["chapters"]:
+        p = book_dir / "chapters" / ch["file"]
+        if p.exists():
+            referenced.update(IMG_REF_RE.findall(p.read_text(encoding="utf-8")))
+    for ref in sorted(referenced):
+        stem = ref[len("../assets/"):-len(".svg")]
+        labels_path = book_dir / "assets" / f"{stem}.labels.json"
+        if not labels_path.exists():
+            continue  # 수동 SVG — G13 비대상 (G0에서 소스 검사만)
+        for label in json.loads(labels_path.read_text(encoding="utf-8")):
+            if len(norm(label)) >= 2 and norm(label) not in all_norm:
+                problems.append(f"{stem}: 라벨 '{label[:30]}'이 PDF 텍스트에 없음")
+    return problems
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit("usage: python3 scripts/qc_gate.py <book_dir> [--refit]")
@@ -115,6 +190,12 @@ def main():
     report["gates"]["G10"] = {"problems": g10, "ok": not g10}
     if g10:
         finish(book_dir, report, ["G10: " + p for p in g10])
+
+    # ---- G0 (렌더 전 — 도해 SVG 소스: usvg의 조용한 드롭은 빌드보다 먼저 잡는다) ----
+    g0 = g0_svg_check(book_dir, outline)
+    report["gates"]["G0"] = {"problems": g0, "ok": not g0}
+    if g0:
+        finish(book_dir, report, ["G0: " + p for p in g0])
 
     pdf = book_dir / "draft" / "book.pdf"
 
@@ -190,6 +271,12 @@ def main():
     page_texts = [doc[i].get_text() for i in range(n)]
     doc.close()
 
+    # ---- G13 figtext (도해 라벨의 PDF 실텍스트 실재 — G11 anchor와 동일 패턴) ----
+    g13 = g13_figtext_check(book_dir, outline, page_texts)
+    report["gates"]["G13"] = {"problems": g13, "ok": not g13}
+    if g13:
+        fails.append("G13: " + "; ".join(g13[:3]) + (f" 외 {len(g13)-3}건" if len(g13) > 3 else ""))
+
     # ---- 밀도 전처리 (pagination.md §7) ----
     frame_mm = tokens.get("body_frame_mm")
     if not frame_mm:
@@ -202,7 +289,8 @@ def main():
     first_ch = ch_starts[0] if ch_starts else 1
     colophon_pages = {i + 1 for i, t in enumerate(page_texts)
                       if "bookforge" in t and "조판" in t and i + 1 >= (ch_starts[-1] if ch_starts else 1)}
-    fullbleed = {p["page"] for p in pages if p["imgarea"] >= 0.60}
+    fullbleed = {p["page"] for p in pages
+                 if p["imgarea"] >= 0.60 or p.get("vecarea", 0) >= 0.60}
     # float 밀림 면제(구조 파생): 다음 면 첫 블록(통짜 표·그림)이 이 면 잔여 공간보다 크면
     # 이 면의 미달은 결속 규칙의 정당한 대가다 — 중간면 판정에서 제외.
     float_pushed = set()
