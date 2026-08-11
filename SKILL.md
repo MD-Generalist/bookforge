@@ -14,16 +14,20 @@ description: Generate commercial-book-quality Korean ebook PDFs from a topic or 
 ```bash
 typst --version        # 0.14+ 필요 (Typst 트랙)
 python3 -c "import fitz, markdown_it"   # PyMuPDF + markdown-it-py (QC·변환)
-npx --no-install playwright --version   # HTML 트랙(insight·magazine)에만 필요
+npx --no-install playwright --version   # HTML 트랙(insight·magazine) + 도해 프리렌더에 필요
+# 도해(diagrams/)를 쓰는 책만: AntV Infographic SSR 의존성 (버전 고정 0.2.19)
+node -e "require('<SKILL>/node_modules/@antv/infographic/package.json')" 2>/dev/null \
+  || (cd <SKILL> && npm ci)
 ```
 
-셋 중 없는 것이 있으면 사용자에게 설치를 요청하고 중단한다. HTML 트랙 없이 Typst 4스타일만 쓸 거라면 playwright는 생략 가능.
+없는 것이 있으면 사용자에게 설치를 요청하고 중단한다. HTML 트랙·도해 없이 Typst 4스타일만 쓸 거라면 playwright와 npm ci는 생략 가능.
 
 ## 파이프라인 (체크리스트를 복사해 진행하며 체크)
 
 ```
 [ ] P0 계약: 모드·스타일·분량 확정 → 책 프로젝트 스캐폴드
 [ ] P1 콘텐츠: outline.json + chapters/ch-NN.md 완성
+[ ] P1.5 도해(선택): diagrams/fig-NN.json 작성 → build.py가 자동 프리렌더 (계약: references/diagrams.md)
 [ ] P2-3 빌드: build.py → draft/book.pdf
 [ ] P4 게이트: qc_gate.py PASS → final/ 생성 확인
 [ ] P5 시각 검수: contact_sheet.py → 표지·차례·도비라·본문 4면 이상 눈으로 확인
@@ -58,7 +62,8 @@ python3 <SKILL>/scripts/scaffold.py <book_dir> --style practical \
 
 - `# 장제목`(파일당 1개, outline의 title과 일치) / `##` 절 / `###` 소제목
 - 문단, `**볼드**`, 리스트, `> 인용`, GFM 표, ``` 코드블록
-- 이미지: `![캡션](assets/파일.png "출처: 어디")` — 파일을 `<book_dir>/assets/`에 먼저 넣는다
+- 이미지: `![캡션](../assets/파일.png "출처: 어디")` — 파일을 `<book_dir>/assets/`에 먼저 넣고, **반드시 `../assets/` 경로 + 이미지 단독 문단**으로 쓴다(텍스트가 섞이면 조판에서 조용히 증발)
+- 벡터 도해: `diagrams/fig-NN.json`(AntV DSL 사이드카)을 만들면 빌드가 `assets/fig-NN.svg`로 프리렌더한다. 본문 참조는 `![캡션](../assets/fig-NN.svg "출처: …")`. 작성 계약·팔레트·금지 사항은 [references/diagrams.md](references/diagrams.md)가 정본
 - 콜아웃(줄 단위 디렉티브):
 
 ```
@@ -82,7 +87,7 @@ python3 <SKILL>/scripts/build.py <book_dir>          # → draft/book.pdf
 python3 <SKILL>/scripts/qc_gate.py <book_dir>        # PASS 시에만 final/<slug>.pdf 생성
 ```
 
-게이트: G10 인용·수치 실재(렌더 전) / G1 렌더·분량범위 / G2 폰트 임베드 / G3 오버플로 0 / G4 목차·북마크 정합 / G7 밀도(백면·꼬리 채움·판면 드리프트) / G8 공기 채움 / G9 제목 고립·widow / G11 사유 코드 무결성 / G12 필러 백면. 기준 수치와 대응법은 [references/pagination.md](references/pagination.md)가 정본이다.
+게이트: G10 인용·수치 실재(렌더 전) / G0 도해 SVG 소스(렌더 전 — foreignObject·외부참조·단독문단·아이콘 탈락) / G1 렌더·분량범위 / G2 폰트 임베드 / G3 오버플로 0 / G4 목차·북마크 정합 / G7 밀도(백면·꼬리 채움·판면 드리프트) / G8 공기 채움 / G9 제목 고립·widow / G11 사유 코드 무결성 / G12 필러 백면 / G13 도해 라벨 PDF 실재. 기준 수치와 대응법은 [references/pagination.md](references/pagination.md)가 정본이다.
 
 실패 시 `gate-report.json`의 원인 항목만 고치고 재실행한다. **금지 대응**: 분량 미달을 부록·용어집 추가로 메우기, 절별 강제 개면, 빈 줄·행간 확대로 면 채우기 — 전부 게이트가 다시 잡는다. 올바른 대응: G7 꼬리 미달은 `refit.py`(자간 미세조정 자동 탐색) → 해 없으면 문단 1~2개 국소 증감 또는 `pageroles.json` 사유 코드(의도된 여백 선언, G11이 진위 검증). 재배치(원고 유지) 시에는 `qc_gate.py <dir> --refit`으로 분량범위를 WARN 강등. 같은 게이트 3회 연속 실패면 원인을 사용자에게 보고한다.
 
