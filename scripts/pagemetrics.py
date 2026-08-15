@@ -14,7 +14,10 @@
 from collections import Counter
 from statistics import median
 
-import fitz  # PyMuPDF
+try:  # PyMuPDF 1.24+ 신 모듈명, 구버전은 fitz만 제공
+    import pymupdf as fitz
+except ImportError:
+    import fitz
 
 MM2PT = 72 / 25.4
 

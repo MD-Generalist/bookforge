@@ -25,7 +25,10 @@ from collections import Counter
 from pathlib import Path
 from statistics import median
 
-import fitz  # PyMuPDF
+try:  # PyMuPDF 1.24+ 신 모듈명, 구버전은 fitz만 제공
+    import pymupdf as fitz
+except ImportError:
+    import fitz
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pagemetrics import analyze  # noqa: E402

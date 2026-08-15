@@ -8,7 +8,10 @@ STYLE.md 러닝 시스템: 시안 바(y 25.5mm, 좌 8mm·우 11mm) · 우측 세
 폴리오(Barlow Light 11.44pt, 우측 끝 x 170mm, baseline y 243mm).
 생략 규칙: 표지(1)·목차(2)는 전부 생략, 도비라는 폴리오만 생략.
 """
-import fitz
+try:  # PyMuPDF 1.24+ 신 모듈명, 구버전은 fitz만 제공
+    import pymupdf as fitz
+except ImportError:
+    import fitz
 
 MM = 72 / 25.4
 CYAN = (0x5E / 255, 0xC6 / 255, 0xDC / 255)

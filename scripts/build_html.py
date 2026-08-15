@@ -14,7 +14,10 @@ from html import escape as _esc
 from pathlib import Path
 from string import Template
 
-import fitz
+try:  # PyMuPDF 1.24+ 신 모듈명, 구버전은 fitz만 제공
+    import pymupdf as fitz
+except ImportError:
+    import fitz
 from markdown_it import MarkdownIt
 
 MD = MarkdownIt("commonmark", {"html": True, "typographer": True}) \

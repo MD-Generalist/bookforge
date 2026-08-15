@@ -8,7 +8,10 @@ Without --pages: renders every page. Also writes grid sheets sheet-N.png
 import argparse, sys
 from pathlib import Path
 
-import fitz
+try:  # PyMuPDF 1.24+ 신 모듈명, 구버전은 fitz만 제공
+    import pymupdf as fitz
+except ImportError:
+    import fitz
 
 def parse_pages(spec, n):
     if not spec:

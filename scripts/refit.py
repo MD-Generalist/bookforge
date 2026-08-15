@@ -47,7 +47,10 @@ def build(book_dir):
 
 
 def chapter_spans(pdf_path, n_pages):
-    import fitz
+    try:
+        import pymupdf as fitz
+    except ImportError:
+        import fitz
     doc = fitz.open(pdf_path)
     lvl1 = [(t.strip(), p) for (l, t, p) in doc.get_toc(simple=True) if l == 1]
     doc.close()
