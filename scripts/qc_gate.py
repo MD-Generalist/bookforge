@@ -147,7 +147,13 @@ def g0_svg_check(book_dir, outline):
         sidecar = book_dir / "diagrams" / f"{stem}.json"
         labels_path = book_dir / "assets" / f"{stem}.labels.json"
         if sidecar.exists():
-            bf = json.loads(sidecar.read_text(encoding="utf-8")).get("bf", {})
+            sc = json.loads(sidecar.read_text(encoding="utf-8"))
+            bf = sc.get("bf", {})
+            kind = sc.get("kind", "antv")
+            if kind not in ("antv", "authored"):
+                problems.append(f"{stem}.json: kind '{kind}'는 antv|authored만")
+            if kind == "authored" and not (book_dir / "diagrams" / f"{stem}.svg").exists():
+                problems.append(f"{stem}: kind=authored인데 diagrams/{stem}.svg 소스 부재")
             if not labels_path.exists():
                 problems.append(f"{name}: labels.json 부재 — 프리렌더 산출물 불완전")
             elif json.loads(labels_path.read_text(encoding="utf-8")) and "<text" not in svg:
@@ -357,8 +363,10 @@ def main():
             float_pushed.add(p["page"])
     body_last = max((p["page"] for p in pages
                      if p["lines"] > 0 and p["page"] not in colophon_pages), default=n)
-    tails = {p - 1 for p in ch_starts if p - 1 >= first_ch} | {body_last}
-    structural = (set(range(1, first_ch)) | set(ch_starts) | colophon_pages | fullbleed)
+    # 마지막 본문 면은 구조 파생 면제(pagination.md §7 — 책의 끝은 자연 꼬리)
+    tails = {p - 1 for p in ch_starts if p - 1 >= first_ch}
+    structural = (set(range(1, first_ch)) | set(ch_starts) | colophon_pages | fullbleed
+                  | {body_last})  # 마지막 본문 면 면제 (pagination.md §7)
 
     # ---- G11 pageroles.json ----
     roles_p = book_dir / "pageroles.json"
@@ -449,7 +457,8 @@ def main():
     tail_reaches = []
     for p in pages:
         pg = p["page"]
-        if pg < first_ch or pg in colophon_pages or pg in fullbleed or pg in ch_starts:
+        if (pg < first_ch or pg in colophon_pages or pg in fullbleed or pg in ch_starts
+                or pg == body_last):  # 마지막 본문 면 면제 (pagination.md §7)
             continue
         code = role_by_page.get(pg)
         if pg in tails:

@@ -20,9 +20,10 @@ npm root -g >/dev/null                                       # npm 자체
 node -e "require(require('child_process').execSync('npm root -g').toString().trim()+'/playwright')" \
   || npm i -g playwright                                     # 전역 playwright
 npx playwright install chromium                              # Chromium 바이너리 (없으면 pass1에서 죽는다)
-# 도해(diagrams/)를 쓰는 책만: AntV Infographic SSR 의존성 (버전 고정 0.2.19)
-node -e "require('<SKILL>/node_modules/@antv/infographic/package.json')" 2>/dev/null \
-  || (cd <SKILL> && npm ci)
+# 도해(diagrams/)를 쓰는 책: 렌더러는 커밋된 벤더 번들(vendor/antv-ssr.bundle.mjs)을
+# 쓴다 — npm ci 불필요, 레지스트리 소멸에도 재현. 번들 유실 시에만 복구:
+ls <SKILL>/vendor/antv-ssr.bundle.mjs \
+  || (cd <SKILL> && npm ci && node vendor/build-bundle.mjs)
 ```
 
 없는 것이 있으면 사용자에게 설치를 요청하고 중단한다. HTML 트랙·도해 없이 Typst 4스타일만 쓸 거라면 playwright·Chromium·npm ci는 생략 가능.
@@ -68,7 +69,7 @@ python3 <SKILL>/scripts/scaffold.py <book_dir> --style practical \
 - `# 장제목`(파일당 1개, outline의 title과 일치) / `##` 절 / `###` 소제목
 - 문단, `**볼드**`, 리스트, `> 인용`, GFM 표, ``` 코드블록
 - 이미지: `![캡션](../assets/파일.png "출처: 어디")` — 파일을 `<book_dir>/assets/`에 먼저 넣고, **반드시 `../assets/` 경로 + 이미지 단독 문단**으로 쓴다(텍스트가 섞이면 조판에서 조용히 증발)
-- 벡터 도해: `diagrams/fig-NN.json`(AntV DSL 사이드카)을 만들면 빌드가 `assets/fig-NN.svg`로 프리렌더한다. 본문 참조는 `![캡션](../assets/fig-NN.svg "출처: …")`. 작성 계약·팔레트·금지 사항은 [references/diagrams.md](references/diagrams.md)가 정본
+- 벡터 도해 2트랙: ① 요점 시각화는 `diagrams/fig-NN.json`(AntV DSL 사이드카) ② 기술도해(시퀀스·상태머신·ER·스위밍레인·간트 등)는 SVG를 직접 그려 `diagrams/fig-NN.svg` + 사이드카 `{"kind":"authored"}`. 빌드가 정규화해 `assets/fig-NN.svg`로 산출. 본문 참조는 `![캡션](../assets/fig-NN.svg "출처: …")`. 작성 계약·타입 라우팅·커넥터 규칙·복잡도 예산은 [references/diagrams.md](references/diagrams.md)가 정본
 - 콜아웃(줄 단위 디렉티브):
 
 ```

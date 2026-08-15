@@ -26,7 +26,63 @@ function harnessHtml(svg, fontDir) {
 ${fontFaceCss(fontDir)}
 html,body{margin:0;padding:0;background:#fff;}
 #stage foreignObject, #stage foreignObject * { font-family:'Pretendard' !important; }
+#stage svg text, #stage svg tspan { font-family:'Pretendard' !important; }
 </style></head><body><div id="stage">${svg}</div></body></html>`;
+}
+
+// authored SVG(에이전트가 직접 그린 네이티브 <text> 도해) 정규화 — antv 경로와 같은
+// 산출 계약 {svg, labels}를 지킨다: Pretendard·실측 font-size를 속성으로 베이크(독립
+// 파일화), 라벨 수집(G13 정본), 회전 금지, 텍스트 겹침 즉시 실패.
+export async function normalizeAuthoredSvg(page, rawSvg, fontDir) {
+  await page.setContent(harnessHtml(rawSvg, fontDir), { waitUntil: "networkidle" });
+  await page.evaluate(() => document.fonts.ready);
+  return page.evaluate(() => {
+    const svg = document.querySelector("#stage svg");
+    if (!svg) throw new Error("no <svg> in input");
+    if (svg.querySelector("foreignObject")) {
+      throw new Error("authored SVG에 foreignObject 금지 — 네이티브 <text>로 그릴 것");
+    }
+    const texts = [...svg.querySelectorAll("text")];
+    if (!texts.length) throw new Error("authored SVG에 <text> 0개 — 라벨 없는 도해는 수동 SVG 경로(사이드카 없이)로");
+    const labels = [];
+    const boxes = [];
+    texts.forEach((el, idx) => {
+      const m = el.getCTM();
+      // 회전·전단 성분 검사 (스케일 허용): b/c가 스케일 대비 유의하면 회전
+      if (m && (Math.abs(m.b) > 0.01 * Math.abs(m.a) || Math.abs(m.c) > 0.01 * Math.abs(m.d))) {
+        throw new Error(`회전 라벨 금지 — <text> #${idx + 1} '${el.textContent.slice(0, 15)}'`);
+      }
+      const cs = getComputedStyle(el);
+      el.setAttribute("font-family", "Pretendard");
+      if (!el.getAttribute("font-size")) {
+        el.setAttribute("font-size", parseFloat(cs.fontSize).toFixed(2));
+      }
+      const spans = [...el.querySelectorAll("tspan")];
+      const units = spans.length ? spans : [el];
+      for (const u of units) {
+        const t = u.textContent.replace(/\s+/g, " ").trim();
+        if (!t) continue;
+        labels.push(t);
+        const r = u.getBoundingClientRect();
+        boxes.push({ idx, text: t, left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+      }
+    });
+    // 텍스트 요소 간 겹침 감지 (fo2text와 동일 임계)
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i], b = boxes[j];
+        if (a.idx === b.idx) continue;
+        const ox = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        if (ox <= 0 || oy <= 0) continue;
+        const minH = Math.min(a.bottom - a.top, b.bottom - b.top);
+        if (oy > minH * 0.35 && ox > 2) {
+          throw new Error(`text overlap: '${a.text.slice(0, 15)}' ↔ '${b.text.slice(0, 15)}' — 라벨 축약·재배치 필요`);
+        }
+      }
+    }
+    return { svg: new XMLSerializer().serializeToString(svg), labels };
+  });
 }
 
 // page: 재사용되는 Playwright Page. 반환 { svg, labels }
@@ -144,8 +200,14 @@ export async function convertForeignObjectText(page, rawSvg, fontDir) {
 
 // 자기검증: 원본/변환 SVG를 같은 하네스에서 스크린샷 → 픽셀 상이율 반환.
 export async function pixelSelfCheck(browser, rawSvg, convertedSvg, fontDir, tmpPrefix) {
-  const { default: pixelmatch } = await import("pixelmatch");
-  const { PNG } = await import("pngjs");
+  // 1순위 벤더 번들(pixelmatch·pngjs 동봉), 폴백 node_modules
+  let pixelmatch, PNG;
+  try {
+    ({ pixelmatch, PNG } = await import(new URL("../vendor/antv-ssr.bundle.mjs", import.meta.url).href));
+  } catch {
+    ({ default: pixelmatch } = await import("pixelmatch"));
+    ({ PNG } = await import("pngjs"));
+  }
   const shots = [];
   for (const [markup, tag] of [[rawSvg, "orig"], [convertedSvg, "conv"]]) {
     const p = await browser.newPage({ viewport: { width: 1600, height: 1200 }, deviceScaleFactor: 2 });
