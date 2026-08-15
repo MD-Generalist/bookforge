@@ -332,7 +332,7 @@ for (const file of sidecars) {
   }
   // 실측 원장 사전 차단 — 8pt 하한에 도달 불가 판정 템플릿 (references/diagram-ledger.json)
   if (ledger.blocked_prefixes.some((p) => tplName.startsWith(p))) {
-    fail(`${name}: 템플릿 '${tplName}'은 실측 원장에서 차단(라벨이 ${ledger.floor_pt}pt 하한 도달 불가) — 대안: sequence-timeline-simple·sequence-column-vertical-arrow 등 원장 ok 템플릿`);
+    fail(`${name}: 템플릿 '${tplName}'은 실측 원장에서 차단(라벨이 ${ledger.floor_pt}pt 하한 도달 불가) — 대안: sequence-timeline-simple 등 원장 ok 템플릿`);
   }
   const wantIcons = bf.icons === true;
   if (wantIcons && !dg.iconsAllowed) fail(`${name}: 이 스타일(${style})은 icons 미허용`);

@@ -1,14 +1,49 @@
 {
-  "_doc": "AntV 템플릿 적합성 실측 원장 (2026-08-11 트랙A 파일럿). min_pt = 해당 판형 폭에서 렌더된 최소 글자 실측 pt. verdict blocked = 8pt 하한 도달 불가(라벨 축약으로 구제 안 됨) — render_diagrams가 사전 차단. 새 실측은 이 파일에 추가.",
+  "_doc": "AntV 템플릿 적합성 실측 원장 (2026-08-11 트랙A 파일럿). min_pt = 해당 판형 폭에서 렌더된 최소 글자 실측 pt. verdict blocked = 8pt 하한 도달 불가(라벨 축약으로 구제 안 됨) — render_diagrams가 사전 차단. 새 실측은 이 파일에 추가. [v2.0.1] sequence-column-vertical-arrow 항목 제거 — 벤더 카탈로그에 실존하지 않는 이름(원장 작성 시 오기, 실측치 귀속 불가). 세로 단계는 sequence-timeline-simple 사용.",
   "floor_pt": 8,
   "measurements": [
-    { "template": "sequence-ascending-steps", "width_mm": 106, "min_pt": 8.35, "verdict": "label-only", "note": "desc 넣으면 하한 미달 — 라벨만 허용" },
-    { "template": "sequence-timeline-simple", "width_mm": 106, "min_pt": 11.7, "verdict": "ok" },
-    { "template": "sequence-column-vertical-arrow", "width_mm": 106, "min_pt": 12.4, "verdict": "ok" },
-    { "template": "sequence-roadmap-vertical", "width_mm": 106, "min_pt": 4.7, "verdict": "blocked" },
-    { "template": "sequence-snake-steps", "width_mm": 106, "min_pt": 5.8, "verdict": "blocked" },
-    { "template": "list-row-horizontal-icon-arrow", "width_mm": 130, "min_pt": 11.2, "verdict": "ok" },
-    { "template": "list-grid", "width_mm": 130, "min_pt": 6.4, "verdict": "blocked", "note": "grid 계열 5.6~6.4pt — 전 계열 차단(프리픽스 매칭)" }
+    {
+      "template": "sequence-ascending-steps",
+      "width_mm": 106,
+      "min_pt": 8.35,
+      "verdict": "label-only",
+      "note": "desc 넣으면 하한 미달 — 라벨만 허용"
+    },
+    {
+      "template": "sequence-timeline-simple",
+      "width_mm": 106,
+      "min_pt": 11.7,
+      "verdict": "ok"
+    },
+    {
+      "template": "sequence-roadmap-vertical",
+      "width_mm": 106,
+      "min_pt": 4.7,
+      "verdict": "blocked"
+    },
+    {
+      "template": "sequence-snake-steps",
+      "width_mm": 106,
+      "min_pt": 5.8,
+      "verdict": "blocked"
+    },
+    {
+      "template": "list-row-horizontal-icon-arrow",
+      "width_mm": 130,
+      "min_pt": 11.2,
+      "verdict": "ok"
+    },
+    {
+      "template": "list-grid",
+      "width_mm": 130,
+      "min_pt": 6.4,
+      "verdict": "blocked",
+      "note": "grid 계열 5.6~6.4pt — 전 계열 차단(프리픽스 매칭)"
+    }
   ],
-  "blocked_prefixes": ["sequence-roadmap-vertical", "sequence-snake-steps", "list-grid"]
+  "blocked_prefixes": [
+    "sequence-roadmap-vertical",
+    "sequence-snake-steps",
+    "list-grid"
+  ]
 }
