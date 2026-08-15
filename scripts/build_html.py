@@ -25,7 +25,7 @@ MD = MarkdownIt("commonmark", {"html": True, "typographer": True}) \
 
 CALLOUT_RE = re.compile(r"^:::\s*(info|tip|warn|quote|stat|pull)\s*(.*)$")
 
-def md_to_html(md: str, book_dir: Path | None = None) -> str:
+def md_to_html(md: str, book_dir: Path | None = None, ch_idx: int | None = None) -> str:
     """markdown subset -> html, with ::: callout directive support."""
     out, lines, buf = [], md.split("\n"), []
     def flush():
@@ -62,11 +62,17 @@ def md_to_html(md: str, book_dir: Path | None = None) -> str:
     flush()
     html = "\n".join(out)
     # 이미지 문단 -> figure/figcaption (alt=캡션, title="출처: …")
+    # 그림 캡션 계약(STYLE 캡션 규약): 장별 자동 번호 `그림 n-m` 라벨을 앞에 단다
+    # (표 캡션 tbl-caption의 `표 n-m.`과 동일 문법 — 한 책 안에서 캡션 문법 통일).
+    fig_no = [0]
     def fig(m):
         src, alt, title = m.group("src"), m.group("alt") or "", m.group("title") or ""
         cap = alt
         if title:
             cap = f"{cap} · {title}" if cap else title
+        if cap and ch_idx is not None:
+            fig_no[0] += 1
+            cap = f'<span class="fig-label">그림 {ch_idx}-{fig_no[0]}</span> {cap}'
         c = f"<figcaption>{cap}</figcaption>" if cap else ""
         # SVG 도해는 <img src> 대신 원문 인라인 — SVG-as-image 모드는 외부 @font-face를
         # 차단해 도해 <text>가 폴백 폰트로 렌더되므로.
@@ -136,7 +142,27 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
             pm = re.search(r"^::: pull\n(.+)$", raw, re.M)
             if pm:
                 first_pull = pm.group(1).strip()
-        body_html = md_to_html(raw, book_dir)
+        # 목차 2레벨(STYLE 목차 문법): 절 제목(## …)을 수집 — 콜아웃(:::) 안 줄 제외
+        sec_titles = []
+        in_callout = False
+        for line in raw.split("\n"):
+            st = line.strip()
+            if not in_callout and CALLOUT_RE.match(st):
+                in_callout = True
+                continue
+            if in_callout:
+                if st == ":::":
+                    in_callout = False
+                continue
+            if st.startswith("## "):
+                sec_titles.append(st[3:].strip())
+        body_html = md_to_html(raw, book_dir, idx)
+        # 절 시작 페이지 마커: 각 <h2> 안에 pgmark 삽입 (2-pass에서 실페이지 회수)
+        sec_no = [0]
+        def mark_h2(_m):
+            sec_no[0] += 1
+            return f'<h2><span class="pgmark">@@{mk}s{sec_no[0]:02d}@@</span>'
+        body_html = re.sub(r"<h2>", mark_h2, body_html)
         # 표 캡션 계약: 콘텐츠가 "[표] 제목 | 자료: 출처" 문단을 준 표만 라벨을 단다.
         # 자동 필러 라벨 금지 — 캡션 없는 표는 라벨 없이 그대로 렌더된다.
         tno = [0]
@@ -180,6 +206,12 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
             f'<li data-sum="{_esc(tsum, quote=True)}"><span class="toc-title">{ch["title"]}</span>'
             f'<span class="toc-leader"></span>'
             f'<span class="tocpg" data-mk="{mk}">00</span></li>')
+        # 2레벨(절) 엔트리 — 색 위계(1레벨 cyan / 2레벨 teal)는 테마 CSS가 결정
+        for sidx, stitle in enumerate(sec_titles, 1):
+            toc_items.append(
+                f'<li class="toc-sec"><span class="toc-sec-title">{_esc(stitle)}</span>'
+                f'<span class="toc-leader"></span>'
+                f'<span class="tocpg" data-mk="{mk}s{sidx:02d}">00</span></li>')
 
     html = tpl.substitute(
         title=book.get("title", ""), subtitle=book.get("subtitle") or "",
@@ -210,7 +242,7 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     pages = {}
     for pno in range(doc.page_count):
         norm = re.sub(r"\s+", "", doc[pno].get_text())
-        for m in re.findall(r"@@(ch\d+)@@", norm):
+        for m in re.findall(r"@@(ch\d+(?:s\d+)?)@@", norm):
             pages.setdefault(m, pno + 1)
     doc.close()
 
@@ -223,7 +255,7 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
                               f'<span class="tocpg" data-mk="{mk}">{abs_page - folio_offset}</span>')
     # pass 2에는 마커 불필요 — 잉크·텍스트 레이어 오염 방지를 위해 제거
     # (.pgmark은 absolute 포지션이라 제거해도 리플로우 없음; 북마크는 pass 1 페이지맵 사용)
-    html2 = re.sub(r'<span class="pgmark">@@ch\d+@@</span>', "", html2)
+    html2 = re.sub(r'<span class="pgmark">@@ch\d+(?:s\d+)?@@</span>', "", html2)
     page2 = ts / "book-final.html"
     page2.write_text(html2, encoding="utf-8")
 

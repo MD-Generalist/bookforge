@@ -87,9 +87,6 @@ def analyze(pdf_path, frame_mm):
                               "size": round(max(sizes), 2) if sizes else 0.0,
                               "text": txt.strip()})
         lines.sort(key=lambda l: l["y0"])
-        diffs = [b["y0"] - a["y0"] for a, b in zip(lines, lines[1:]) if 5 < b["y0"] - a["y0"] < 40]
-        all_diffs.extend(diffs)
-        pitch = round(median(diffs), 2) if diffs else None
 
         objs = []          # (y0,y1) segments inside frame, non-furniture
         img_cover = 0.0    # page-area coverage for full-bleed detection
@@ -131,11 +128,25 @@ def analyze(pdf_path, frame_mm):
 
         content_bottoms = [l["y1"] for l in lines] + [b for (_, b) in objs]
         reach = max(0.0, min(1.0, (max(content_bottoms) - ft) / fh)) if content_bottoms else 0.0
-        pages.append({"page": pno + 1, "lines": len(lines), "pitch": pitch,
+        pages.append({"page": pno + 1, "lines": len(lines),
                       "imgarea": round(imgarea, 3), "vecarea": round(vecarea, 3),
                       "reach": round(reach, 3),
                       "_lines": lines, "_objs": objs,
                       "frame": (fl, ft, fr, fb)})
+
+    # 행송(pitch)은 "본문 급수 행"만으로 잰다 — SVG 도해 라벨·2단 블록·캡션의 촘촘한
+    # 행이 중앙값을 끌어내려 n_grid를 부풀리면 G8의 lines<0.8N 판정이 전 지면 오탐된다(실측).
+    size_w = Counter()
+    for p in pages:
+        for l in p["_lines"]:
+            size_w[round(l["size"] * 2) / 2] += len(l["text"])
+    body_size = size_w.most_common(1)[0][0] if size_w else 10.0
+    for p in pages:
+        body_lines = [l for l in p["_lines"] if abs(l["size"] - body_size) <= max(1.0, 0.1 * body_size)]
+        diffs = [b["y0"] - a["y0"] for a, b in zip(body_lines, body_lines[1:])
+                 if 5 < b["y0"] - a["y0"] < 40]
+        all_diffs.extend(diffs)
+        p["pitch"] = round(median(diffs), 2) if diffs else None
 
     book_pitch = round(median(all_diffs), 2) if all_diffs else None
     for p in pages:

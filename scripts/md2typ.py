@@ -44,20 +44,20 @@ def inline(tokens) -> str:
         elif ty == "strong_open":
             out.append("#strong[")
         elif ty == "strong_close":
-            out.append("]")
+            out.append("];")  # ';' terminates the code expr so a following '(' or '[' is not parsed as call args
         elif ty == "em_open":
             out.append("#emph[")
         elif ty == "em_close":
-            out.append("]")
+            out.append("];")
         elif ty == "s_open":
             out.append("#strike[")
         elif ty == "s_close":
-            out.append("]")
+            out.append("];")
         elif ty == "link_open":
             href = dict(t.attrs).get("href", "")
             out.append(f'#link("{content_escape(href)}")[')
         elif ty == "link_close":
-            out.append("]")
+            out.append("];")
         elif ty == "softbreak":
             out.append(" ")
         elif ty == "hardbreak":
@@ -207,7 +207,8 @@ def render_table(tokens, ctx, cap=None) -> str:
     for r in rows:
         r = r + [""] * (ncol - len(r))
         cells.extend(f"[{c}]" for c in r)
-    tbl = f"table(columns: {ncol}, " + ", ".join(cells) + ")"
+    # (1fr,)*n — 표 폭 = 판면 폭 100% 강제 (auto 컬럼은 내용 폭만큼만 차지해 우측이 빈다)
+    tbl = f"table(columns: (1fr,) * {ncol}, " + ", ".join(cells) + ")"
     if cap:
         title, source = cap
         args = [f"caption: [{esc(title)}]"]
@@ -216,7 +217,8 @@ def render_table(tokens, ctx, cap=None) -> str:
         return f"#bf-tbl({', '.join(args)}, {tbl})\n"
     return f"#bf-tbl({tbl})\n"
 
-CALLOUT_RE = re.compile(r"^:::\s*(info|tip|warn|quote|stat|pull)\s*(.*)$")
+# statrow는 stat보다 먼저 — 대안 순서가 뒤면 "::: statrow"가 stat(title="row")로 오탐된다
+CALLOUT_RE = re.compile(r"^:::\s*(info|tip|warn|quote|statrow|stat|pull|lead|cols)\s*(.*)$")
 
 def split_callouts(md: str):
     """Yield ('md', text) and ('callout', kind, title, body) segments."""
@@ -256,6 +258,18 @@ def convert_chapter(md_path: Path, out_path: Path, title: str, summary: str | No
                 value = ls[0] if ls else ""
                 label = ls[1] if len(ls) > 1 else ""
                 parts.append(f'#bf-stat("{content_escape(value)}", "{content_escape(label)}")\n')
+            elif kind == "statrow":
+                # 각 행 = "값 | 라벨" — T1 하단 키 스탯 스트립 (business 팩 전용)
+                cells = []
+                for l in body.strip().split("\n"):
+                    if not l.strip():
+                        continue
+                    value, _, label = l.partition("|")
+                    cells.append(f'("{content_escape(value.strip())}", "{content_escape(label.strip())}")')
+                parts.append(f'#bf-statrow({", ".join(cells)})\n')
+            elif kind in ("lead", "cols"):
+                inner = render_tokens(MD.parse(body), ctx).strip()
+                parts.append(f'#bf-{kind}[{inner}]\n')
             else:
                 if kind == "pull":  # 풀퀘트는 HTML 전용 — Typst 트랙에선 인용으로 강등
                     kind = "quote"

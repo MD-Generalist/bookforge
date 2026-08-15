@@ -12,11 +12,11 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { convertForeignObjectText, normalizeAuthoredSvg, pixelSelfCheck } from "./fo2text.mjs";
+import { convertForeignObjectText, fontFaceCss, normalizeAuthoredSvg, pixelSelfCheck } from "./fo2text.mjs";
 
 const SKILL = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FONT_DIR = path.join(SKILL, "assets", "fonts");
-const CONVERTER_VERSION = 3; // fo2text 알고리즘 변경 시 올려서 캐시 전체 무효화
+const CONVERTER_VERSION = 4; // fo2text/트림 알고리즘 변경 시 올려서 캐시 전체 무효화
 const PIXEL_TOLERANCE = 0.02;
 const MM2PT = 72 / 25.4;
 
@@ -101,8 +101,11 @@ function normHex(c) {
   if (/^#[0-9a-f]{6}$/.test(c)) return c;
   return null;
 }
-function alienColors(svg, palette) {
-  const allowed = new Set(palette.map((c) => normHex(c)));
+function alienColors(svg, palette, strict = false) {
+  // strict(authored 트랙): 허용색 = 스타일 팔레트 + paper(#ffffff)뿐 — 토큰 밖 색은
+  // 무채색이라도 빌드 실패 (STYLE 「금지 사항」 2번, 토큰 밖 색 금지).
+  // 비-strict(antv 트랙): 템플릿 산출 무채색 램프는 종전대로 허용.
+  const allowed = new Set([...palette.map((c) => normHex(c)), "#ffffff"]);
   const out = new Set();
   const check = (raw) => {
     const v = raw.trim().toLowerCase();
@@ -110,9 +113,9 @@ function alienColors(svg, palette) {
     const hex = normHex(v);
     if (!hex) { out.add(`${v}(해석불가)`); return; } // 정규화 불가 색 문자열도 위반 — 무검증 통과 금지
     if (allowed.has(hex)) return;
-    // 뉴트럴 허용: 무채색(채도 미미) 램프
+    // 뉴트럴 허용: 무채색(채도 미미) 램프 — antv 트랙 한정
     const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
-    if (Math.max(r, g, b) - Math.min(r, g, b) <= 16) return;
+    if (!strict && Math.max(r, g, b) - Math.min(r, g, b) <= 16) return;
     out.add(hex);
   };
   for (const m of svg.matchAll(/(?:fill|stroke)="([^"]+)"/gi)) check(m[1]);
@@ -180,6 +183,34 @@ function sortDefsSymbols(svg) {
       return ida < idb ? -1 : ida > idb ? 1 : 0;
     });
     return whole.replace(inner, rest.trim() ? rest + sorted.join("") : sorted.join(""));
+  });
+}
+
+// viewBox 트림 — SVG 내부의 빈 좌우/상하 패딩을 제거해, 지면에서 도해가 판면
+// 좌측 라인(27mm)에 정확히 물리고 폭이 명목 폭(130/86mm)과 일치하게 한다.
+// (내부 여백이 있으면 콘텐츠가 8~36mm 안쪽에서 시작해 본문 정렬축이 어긋난다.)
+// 반드시 pixelSelfCheck 이후에 적용할 것 — 트림은 원본과 프레이밍이 달라진다.
+async function trimViewBox(page, svg) {
+  const harness = `<!doctype html><html><head><meta charset="utf-8"><style>
+${fontFaceCss(FONT_DIR)}
+html,body{margin:0;padding:0;background:#fff;}
+#stage svg text, #stage svg tspan { font-family:'Pretendard' !important; }
+</style></head><body><div id="stage">${svg}</div></body></html>`;
+  await page.setContent(harness, { waitUntil: "networkidle" });
+  await page.evaluate(() => document.fonts.ready);
+  return page.evaluate(() => {
+    const el = document.querySelector("#stage svg");
+    if (!el) return null;
+    const bb = el.getBBox();
+    if (!bb || bb.width < 1 || bb.height < 1) return null;
+    // 패딩: 스트로크 폭·마커(getBBox 비포함)를 덮는 소여백
+    const pad = Math.max(2, 0.008 * Math.max(bb.width, bb.height));
+    el.setAttribute("viewBox",
+      `${(bb.x - pad).toFixed(2)} ${(bb.y - pad).toFixed(2)} ` +
+      `${(bb.width + 2 * pad).toFixed(2)} ${(bb.height + 2 * pad).toFixed(2)}`);
+    el.removeAttribute("width");
+    el.removeAttribute("height");
+    return new XMLSerializer().serializeToString(el);
   });
 }
 
@@ -271,16 +302,18 @@ for (const file of sidecars) {
       fail(`${name}: ${e.message.replace(/^.*Error: /s, "").split("\n")[0]}`);
     }
     if (!labelsA.length) fail(`${name}: 라벨 0개`);
-    const aliens = alienColors(normalized, palette);
+    const aliens = alienColors(normalized, palette, true);
     if (aliens.length) {
-      fail(`${name}: 팔레트 밖 유채색 ${aliens.join(", ")} — styles/${style} tokens.diagram.palette + 뉴트럴만 허용`);
+      fail(`${name}: 팔레트 밖 색 ${aliens.join(", ")} — authored SVG는 styles/${style} tokens.diagram.palette + #ffffff만 허용(토큰 밖 색 금지)`);
     }
-    const floorsA = fontFloorViolations(normalized, widthKey);
-    if (floorsA.length) fail(`${name}: 글자 크기 하한 위반 — ${floorsA.join("; ")} (bf.width=${widthKey})`);
     const checkA = await pixelSelfCheck(browser, rawAuthored, normalized, FONT_DIR, path.join(checkDir, name));
     if (checkA.ratio > PIXEL_TOLERANCE) {
       fail(`${name}: 정규화 자기검증 실패 — 픽셀 상이율 ${(checkA.ratio * 100).toFixed(2)}% (${checkDir}/${name}.diff.png)`);
     }
+    normalized = (await trimViewBox(page, normalized)) || normalized;
+    // 글자 하한은 트림 후 최종 좌표계 기준으로 검사 (트림은 실크기를 키우는 방향)
+    const floorsA = fontFloorViolations(normalized, widthKey);
+    if (floorsA.length) fail(`${name}: 글자 크기 하한 위반 — ${floorsA.join("; ")} (bf.width=${widthKey})`);
     writeFileSync(outSvgA, `<!--bf:authored=sha256:${hashA}-->\n${normalized}`);
     writeFileSync(outLabelsA, JSON.stringify(labelsA, null, 2));
     rendered++;
@@ -337,13 +370,15 @@ for (const file of sidecars) {
   let converted = sortDefsSymbols(convertedRaw);
 
   if ((converted.match(/<foreignObject/g) || []).length) fail(`${name}: foreignObject 잔존`);
-  const floors = fontFloorViolations(converted, widthKey);
-  if (floors.length) fail(`${name}: 도해 내 글자 크기 하한 위반 — ${floors.join("; ")} (bf.width=${widthKey} 기준)`);
 
   const check = await pixelSelfCheck(browser, raw, converted, FONT_DIR, path.join(checkDir, name));
   if (check.ratio > PIXEL_TOLERANCE) {
     fail(`${name}: 변환 자기검증 실패 — 픽셀 상이율 ${(check.ratio * 100).toFixed(2)}% > ${PIXEL_TOLERANCE * 100}% (${checkDir}/${name}.diff.png 확인)`);
   }
+  converted = (await trimViewBox(page, converted)) || converted;
+  // 글자 하한은 트림 후 최종 좌표계 기준으로 검사 (트림은 실크기를 키우는 방향)
+  const floors = fontFloorViolations(converted, widthKey);
+  if (floors.length) fail(`${name}: 도해 내 글자 크기 하한 위반 — ${floors.join("; ")} (bf.width=${widthKey} 기준)`);
 
   writeFileSync(outSvg, `<!--bf:dsl=sha256:${hash}-->\n${converted}`);
   writeFileSync(outLabels, JSON.stringify(labels, null, 2));

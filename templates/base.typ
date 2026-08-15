@@ -98,6 +98,8 @@
     fill: bg, radius: 4pt, inset: (x: 11pt, y: 10pt),
     stroke: (left: 2.5pt + bar),
     {
+      // 박스 내부는 본문 격자(문단 간 1행 공백)를 따르지 않는다 — 밀착 리듬
+      set par(spacing: 0.8em, first-line-indent: 0em)
       if title != none {
         text(font: t.sans-font, weight: "semibold", size: 9pt, fill: bar, title)
         v(4pt)
@@ -120,18 +122,24 @@
 // ---- figures ----------------------------------------------------------------
 #let bookfig(path, caption: none, source: none, width: 100%, t: (:)) = {
   let t = merged(t)
-  // placement: bottom — 인라인 배치는 도해 이월로 앞 면이 반백(G7-MID),
-  // top 부동은 꼬리면 reach가 도해 높이에서 캡(G7-TAIL)
+  // placement: auto — 본문에서 가까운 상/하단으로 부동. bottom 고정은 도해가
+  // 단독면으로 떨어질 때 상단 마진 아래가 통째로 비는 구멍을 만든다(시각 판정 C).
+  // 인라인 배치는 도해 이월로 앞 면이 반백(G7-MID)이라 부동 자체는 유지.
   figure(
-    placement: bottom,
+    placement: auto,
     image(path, width: width),
     caption: if caption != none {
-      text(font: t.sans-font, size: 8.5pt, {
+      // 캡션·표·그림 규약: 그림 번호 없음, "▲ " + Light 7.5pt, 출처는 다음 줄 "출처 : <이름>"
+      text(font: t.sans-font, size: 7.5pt, weight: "light", fill: t.ink, {
+        [▲ ]
         caption
-        if source != none { text(fill: t.muted)[ · 출처: #source] }
+        if source != none {
+          linebreak()
+          text(size: 7pt, fill: t.muted)[출처 : #source]
+        }
       })
     } else { none },
-    supplement: [그림],
+    numbering: none,
   )
 }
 

@@ -66,21 +66,30 @@
     set par(justify: false, first-line-indent: 0em)
     block(width: 100%, height: 40%, clip: true, cover-pattern(200mm, 112mm))
     place(top + left, dx: 20mm, dy: 20mm, rect(width: 24mm, height: 4mm, fill: accent))
-    block(width: 100%, inset: (x: 20mm), {
+    // 시리즈 라벨: 제목 블록 위 6mm
+    place(top + left, dx: 20mm, dy: 114mm,
+      text(fill: navy-300, font: TT.display-font, size: 8pt, tracking: 0.06em,
+        upper(meta.at("series", default: "BOOKFORGE INSIGHT REPORT"))))
+    // 제목 블록 상단 = 판면 상단(28mm) + 96mm = 페이지 상단 124mm 고정 (STYLE 표지 문법)
+    place(top + left, dx: 20mm, dy: 124mm, block(width: 160mm, {
       set text(fill: white, font: TT.display-font)
-      v(14mm)  // 제목 블록 ≈ 상단 96mm 지점
-      text(size: 8pt, tracking: 0.06em, fill: navy-300,
-        upper(meta.at("series", default: "BOOKFORGE INSIGHT REPORT")))
-      v(6mm)
-      text(size: 34pt, weight: "extrabold", tracking: -0.025em, keep-words(meta.title))
+      context {
+        // 48pt ExtraBold 기본, 3행(3×52pt) 초과 시에만 하향
+        let title-at(sz) = text(size: sz, weight: "extrabold", tracking: -0.025em,
+          keep-words(meta.title))
+        let sz = 48pt
+        while sz > 30pt and measure(block(width: 160mm, title-at(sz))).height > 3 * 52pt {
+          sz = sz - 4pt
+        }
+        title-at(sz)
+      }
       if meta.at("subtitle", default: none) != none {
         v(6mm)
-        text(size: 15pt, weight: "regular", fill: navy-100, keep-words(meta.subtitle))
+        text(size: 16pt, weight: "regular", fill: navy-100, keep-words(meta.subtitle))
       }
       v(12mm)
       line(length: 100%, stroke: 0.6pt + navy-500.transparentize(40%))
-      v(1fr)
-    })
+    }))
     place(bottom + left, dx: 20mm, dy: -18mm, {
       set text(size: 8pt, fill: navy-100, font: TT.sans-font)
       [#meta.at("author", default: "bookforge") · #meta.at("date", default: "") · #meta.at("series_no", default: "REPORT 01")]
@@ -88,15 +97,18 @@
   })
 }
 
-// ---- 도비라: navy 풀블리드 + 96pt 장번호 + accent 룰 --------------------------
+// ---- 도비라: navy 풀블리드 + 96pt 장번호 + accent 룰 + 하단 절 목록 ----------
 #let biz-opener(n, title, summary, t) = {
   full-bleed(t, block(fill: navy-900, width: 100%, height: 100%, inset: (x: 20mm, y: 28mm), {
     set text(fill: white, font: t.display-font)
     set par(justify: false, first-line-indent: 0em)
-    v(10mm)
-    text(size: 76pt, weight: "extrabold", tracking: -0.03em, fill: navy-300, numpad(n))
+    // 표지 계통 벡터 패턴: 우측 하단 60% 영역, 30% 불투명도 (STYLE 도비라 문법)
+    place(bottom + right, dx: 20mm, dy: 28mm,
+      block(width: 120mm, height: 168mm, clip: true, cover-pattern(120mm, 168mm)))
     v(6mm)
-    text(size: 27pt, weight: "extrabold", tracking: -0.02em, keep-words(title))
+    text(size: 96pt, weight: "extrabold", tracking: -0.03em, fill: navy-300, numpad(n))
+    v(6mm)
+    text(size: 30pt, weight: "extrabold", tracking: -0.02em, keep-words(title))
     v(12mm)
     rect(width: 40mm, height: 3pt, fill: accent)
     if summary != none {
@@ -105,26 +117,112 @@
       set par(leading: 0.7em, justify: false)
       block(width: 82%, summary)
     }
+    // 하단 좌측: 해당 장 수록 절 목록 8pt/+6% navy-300
+    context {
+      let h1s = query(heading.where(level: 1).after(here()))
+      let secs = query(heading.where(level: 2).after(here()))
+      if h1s.len() > 0 {
+        let lim = h1s.first().location().page()
+        secs = secs.filter(h => h.location().page() < lim)
+      }
+      if secs.len() > 0 {
+        place(bottom + left, {
+          set text(font: t.sans-font, size: 8pt, tracking: 0.06em, fill: navy-300)
+          set par(leading: 0.5em, spacing: 0.5em)
+          stack(dir: ttb, spacing: 2.8mm, ..secs.map(h => h.body))
+        })
+      }
+    }
   }))
 }
 
 #let biz-tbl = counter("biz-tbl")
-#let bf-chapter(title, summary: none) = {
-  biz-tbl.update(0)
-  base.chapter(title, summary: summary, t: TT, opener: biz-opener)
+#let biz-fig = counter("biz-fig")
+
+// T1 — Executive Summary: 도비라 없이 라벨 + 결론 액션 타이틀(22pt)로 여는 지면.
+// 장 카운터(chapter-state)를 건드리지 않아 본장 번호·표/그림 채번이 밀리지 않는다.
+#let bf-exec-open(title, summary) = {
+  pagebreak(weak: true)
+  hide(block(height: 0pt, heading(level: 1, outlined: true, bookmarked: true, title)))
+  v(-1.2em)
+  block({
+    set par(justify: false, first-line-indent: 0em)
+    // 라벨: accent — 대비 하한(4.5:1) 때문에 10.5pt Bold(대형 텍스트 3:1 대역)로 조판
+    text(font: TT.sans-font, size: 10.5pt, tracking: 0.06em, weight: "bold", fill: accent, title)
+    if summary != none {
+      v(4mm)
+      text(font: TT.display-font, size: 22pt, weight: "bold", tracking: -0.015em,
+        fill: navy-900, keep-words(summary))
+    }
+    v(3mm)
+    line(length: 100%, stroke: 0.8pt + navy-700)
+  })
+  v(4mm)
 }
 
-// ---- 키 스탯: accent 상단 룰 + Gmarket 숫자 ---------------------------------
-#let bf-stat(value, label) = {
-  block(breakable: false, width: 50mm, above: 5mm, below: 5mm, {
-    rect(width: 100%, height: 2pt, fill: accent)
-    v(3mm)
-    text(font: TT.stat-font, weight: "bold", size: 34pt, tracking: -0.03em,
-      fill: navy-900, value)
-    v(2mm)
-    text(font: TT.sans-font, size: 9pt, fill: ink-60, label)
-  })
+#let bf-chapter(title, summary: none) = {
+  if lower(title).contains("executive summary") {
+    bf-exec-open(title, summary)
+  } else {
+    biz-tbl.update(0)
+    biz-fig.update(0)
+    base.chapter(title, summary: summary, t: TT, opener: biz-opener)
+  }
 }
+
+// ---- 키 스탯: accent 상단 룰 + Gmarket 숫자 40pt (STYLE 타입 스케일) ----------
+// 주의: 본문 par spacing(1em)은 급수에 비례해 커진다 — 40pt 문단이 그대로 상속하면
+// 룰과 숫자 사이 20mm대 공기가 생긴다(실측). 블록 내부는 스페이싱을 0으로 재설정.
+#let bf-stat-cell(value, label, width: 100%) = {
+  set par(spacing: 0em, leading: 0.35em, justify: false, first-line-indent: 0em)
+  set block(spacing: 0em)
+  rect(width: width, height: 2pt, fill: accent)
+  v(2.5mm)
+  block(text(font: TT.stat-font, weight: "bold", size: 40pt, tracking: -0.03em,
+    fill: navy-900, top-edge: "cap-height", bottom-edge: "baseline", value))
+  v(2.5mm)
+  block(width: width, text(font: TT.sans-font, size: 9pt, fill: ink-60, label))
+}
+
+#let bf-stat(value, label) = {
+  block(breakable: false, width: 50mm, above: 5mm, below: 5mm,
+    bf-stat-cell(value, label))
+}
+
+// ---- Exec Summary 리드문 13/21pt ---------------------------------------------
+#let bf-lead(body) = block(width: 100%, above: 4mm, below: 5mm, {
+  set text(size: 13pt, fill: ink)
+  set par(leading: 0.62em, spacing: 1.0em, justify: true, first-line-indent: 0em)
+  body
+})
+
+// ---- 2단(3+3 컬럼) 배치 — Exec Summary 키 메시지용 (2단 본문 9.5/15.5) -------
+// columns()는 무한 플로우에서 남은 지면 전체를 차지한다(실측 — 뒤따르는 스탯
+// 스트립이 다음 면으로 밀림). 단일 컬럼 실측 높이의 절반 + 여유로 높이를 고정.
+#let bf-cols(body) = {
+  let styled = {
+    set text(size: 9.5pt)
+    set par(leading: 0.63em, spacing: 0.9em)
+    body
+  }
+  block(width: 100%, above: 4mm, below: 4mm, layout(size => context {
+    let col-w = (size.width - 5mm) / 2
+    let h-full = measure(block(width: col-w, styled)).height
+    let h = h-full / 2 + 30pt  // 헤딩 keep 경계의 불균형 분할 여유
+    block(width: 100%, height: h, columns(2, gutter: 5mm, styled))
+  }))
+}
+
+// ---- 키 스탯 3연 스트립 (T1 하단, paper-alt 바탕) ----------------------------
+// items: "값 | 라벨" 행들의 배열
+// T1 하단 고정 스트립 — 흐름이 아니라 지면 하단에 앉힌다 (STYLE T1 "하단 고정 스트립")
+#let bf-statrow(..items) = place(bottom + left,
+  block(breakable: false, width: 100%, fill: paper-alt, inset: 6mm,
+    // align: top — place(bottom)의 정렬 컨텍스트가 셀에 상속되면 설명이 2행인 셀만
+    // 숫자가 위로 밀려 3연 숫자 기준선이 어긋난다(실측 9.5pt). 셀 상단 정렬로
+    // 룰·숫자 기준선을 통일하고, 행 수 차이는 라벨 아래쪽으로만 흡수한다.
+    grid(columns: (1fr,) * items.pos().len(), column-gutter: 6mm, align: top,
+      ..items.pos().map(it => bf-stat-cell(it.at(0), it.at(1))))))
 
 // ---- 콜아웃: 인사이트 박스 / 인용 박스 / alert ------------------------------
 #let bf-callout(kind: "info", title: none, body) = {
@@ -151,10 +249,19 @@
   }
 }
 
+// 그림: 표와 동일한 장-순번 채번 — [그림 2-1] 9pt Bold navy-700 + 제목 11pt SemiBold
 #let bf-fig(path, caption: none, source: none, width: 100%) = {
   block(breakable: false, {
     if caption != none {
-      text(font: TT.sans-font, size: 11pt, weight: "semibold", fill: ink, caption)
+      context {
+        biz-fig.step()
+        let n = chapter-state.get().num
+        let m = biz-fig.get().first() + 1
+        text(font: TT.sans-font, size: 9pt, weight: "bold", fill: navy-700,
+          "[그림 " + str(n) + "-" + str(m) + "]")
+        h(0.5em)
+        text(font: TT.sans-font, size: 11pt, weight: "semibold", fill: ink, caption)
+      }
       v(2.5mm)
     }
     image(path, width: width)
@@ -207,25 +314,37 @@
   set page(
     width: t.trim.w, height: t.trim.h,
     margin: (top: t.margin.top, bottom: t.margin.bottom, left: t.margin.left, right: t.margin.right),
+    // 러닝헤드 하단(헤어라인) = 판면 상단 위 6mm → 텍스트 베이스라인 ≈ 8mm (STYLE 러닝 시스템)
+    header-ascent: 6mm,
     header: context {
       let prev = query(heading.where(level: 1).before(here()))
       if prev.len() > 0 {
         set text(font: t.sans-font, size: 8pt, tracking: 0.06em, fill: ink-60)
+        let n = chapter-state.get().num
+        if n > 0 { numpad(n); h(0.6em) }  // 좌측 = {장번호} {장 제목}
         prev.last().body
         h(1fr)
         meta.at("title", default: "")
-        v(2mm)
+        v(1.2mm)  // 베이스라인(판면 -8mm)과 헤어라인(-6mm) 간격 2mm — 디센트 0.6mm 감안
         line(length: 100%, stroke: 0.4pt + rule-c)
       }
     },
-    footer: context align(right,
-      text(font: t.sans-font, size: 9pt, weight: "medium", fill: navy-700,
-        str(counter(page).get().first()))),
+    footer: context {
+      // H1이 실린 면(도비라·Exec Summary 첫 면)은 쪽번호 미표기 (러닝 시스템 규약)
+      let pg = here().page()
+      let h1-here = query(heading.where(level: 1)).filter(h => h.location().page() == pg)
+      if h1-here.len() == 0 {
+        align(right, text(font: t.sans-font, size: 9pt, weight: "medium", fill: navy-700,
+          str(counter(page).get().first())))
+      }
+    },
     background: context {
-      // 섹션 탭: 현재 장 번호 기준 세로 바
+      // 섹션 탭: 재단선 안쪽 8mm(x0=186mm), 도비라·ES 면에는 그리지 않는다(유령 탭 방지)
       let n = chapter-state.get().num
-      if n > 0 {
-        place(top + right, dx: -2mm, dy: 28mm + (n - 1) * 26mm,
+      let pg = here().page()
+      let h1-here = query(heading.where(level: 1)).filter(h => h.location().page() == pg)
+      if n > 0 and h1-here.len() == 0 {
+        place(top + right, dx: -8mm, dy: 28mm + (n - 1) * 26mm,
           rect(width: 6mm, height: 24mm, fill: navy-500, {
             align(center + horizon, text(font: t.sans-font, size: 8pt, weight: "bold",
               fill: white, numpad(n)))
@@ -342,7 +461,9 @@
     let toc-head = {
       set par(spacing: 0em)
       set block(spacing: 0em)
-      text(font: t.sans-font, size: 8pt, tracking: 0.06em, weight: "bold", fill: rgb("#AF5C2A"), "CONTENTS")
+      // 라벨색은 토큰만 사용 — accent(#C2662E)는 8pt에서 배경 대비 4.5:1 미달(G14-C)이라
+      // 그림/표 라벨과 같은 navy-700을 쓴다 (임의 중간색 #AF5C2A 제거)
+      text(font: t.sans-font, size: 8pt, tracking: 0.06em, weight: "bold", fill: navy-700, "CONTENTS")
       v(3mm)
       text(font: t.display-font, size: 20pt, weight: "extrabold", tracking: -0.02em,
         fill: navy-900, toc-title)
@@ -389,13 +510,19 @@
             entries.push(last)
           }
         }
-        // 1장이 Executive Summary면 번호 없는 별도 행으로
+        // 1장이 Executive Summary면 번호 없는 별도 행으로 — 뒤 장들은 01부터 다시 채번
+        // (본문 도비라·표/그림 번호는 chapter-state 기준이라 ES를 세지 않는다)
         if entries.len() > 0 {
           let head-title = lower(plain-text(entries.first().title))
           if head-title.contains("executive summary") or head-title.contains("요약") {
             let first = entries.first()
             first.num = none
             entries.at(0) = first
+            for i in range(1, entries.len()) {
+              let e = entries.at(i)
+              e.num = e.num - 1
+              entries.at(i) = e
+            }
           }
         }
 

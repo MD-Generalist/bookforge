@@ -52,6 +52,8 @@ def main():
             sheet.clear_with(255)
             for i, px in enumerate(pixes):
                 x, y = (i % 4) * cw, (i // 4) * chh
+                # Pixmap.copy는 '대응 좌표'로 복사한다 — 원점을 타일 위치로 옮겨야 격자에 들어간다
+                px.set_origin(x, y)
                 sheet.copy(px, fitz.IRect(x, y, x + px.width, y + px.height))
             sheet.save(out / f"sheet-{si+1}.png")
     print(f"OK {len(pages)} pages -> {out}")

@@ -67,7 +67,7 @@ def g10_quote_check(book_dir, outline):
         if not p.exists():
             continue
         raw = p.read_text(encoding="utf-8")
-        callouts = re.findall(r"^:::\s*(pull|stat|quote|info|tip|warn)[^\n]*\n(.*?)^:::\s*$",
+        callouts = re.findall(r"^:::\s*(pull|statrow|stat|quote|info|tip|warn)[^\n]*\n(.*?)^:::\s*$",
                               raw, re.S | re.M)
         body = re.sub(r"^:::.*?^:::\s*$", "", raw, flags=re.S | re.M)
         nbody = norm(body)
@@ -81,7 +81,7 @@ def g10_quote_check(book_dir, outline):
                 for f in frags:
                     if norm(f) not in nbody:
                         problems.append(f"{ch['file']}: pull 인용이 본문에 없음 — '{f.strip()[:40]}'")
-            if kind == "stat":
+            if kind in ("stat", "statrow"):
                 for tok in re.findall(r"\d[\d,.]*", ctext.replace(",", "")):
                     if len(tok) < 2:  # 한 자리 토큰(5G·3nm류)은 오탐 — 검사 제외
                         continue
@@ -110,6 +110,68 @@ def _isnum(s):
 
 
 IMG_REF_RE = re.compile(r'!\[[^\]]*\]\((\.\./assets/[^)"\s]+\.svg)(?:\s+"[^"]*")?\)')
+
+# ---- G15 지면 리듬 (스타일별 실측 근거 있는 곳만 강제) ----
+# PARA: 단락 최대 행수 (business STYLE.md T2 "단락 최대 8행") — 렌더 전 md 추정 검사
+# RHYTHM: 시각 요소 없는 연속 본문 면 상한 (T2 "면당 시각 요소 1~2개"의 최소 방어선)
+G15_PARA_CFG = {"business": {"max_lines": 8, "cpl": 36, "tol": 0.6}}
+G15_DROUGHT_MAX = {"business": 3}
+
+
+def _eff_chars(s):
+    """행 길이 추정용 유효 글자수 — CJK 전각 1.0, 그 외 0.55."""
+    return sum(1.0 if ord(c) > 0x2E7F else 0.55 for c in s)
+
+
+def g15_para_check(book_dir, outline, style):
+    cfg = G15_PARA_CFG.get(style)
+    if not cfg:
+        return []
+    problems = []
+    for ch in outline["chapters"]:
+        p = book_dir / "chapters" / ch["file"]
+        if not p.exists():
+            continue
+        raw = re.sub(r"^:::.*?^:::\s*$", "", p.read_text(encoding="utf-8"), flags=re.S | re.M)
+        for para in re.split(r"\n\s*\n", raw):
+            para = para.strip()
+            if not para or para[0] in "#!|>-+`[":
+                continue  # 제목·이미지·표·인용·리스트·펜스는 비대상
+            if re.match(r"\d+\.\s", para):
+                continue  # 순번 리스트
+            est = _eff_chars(para.replace("\n", "")) / cfg["cpl"]
+            if est > cfg["max_lines"] + cfg["tol"]:
+                problems.append(f"{ch['file']}: 단락 추정 {est:.1f}행 > {cfg['max_lines']}행 "
+                                f"— '{para[:28]}…' 분할 필요")
+    return problems
+
+
+def g15_drought_check(pages, page_texts, first_ch, structural, style):
+    """시각 요소(도해·표·박스·키 스탯 디스플레이) 없는 연속 본문 면 상한."""
+    limit = G15_DROUGHT_MAX.get(style)
+    if not limit:
+        return []
+    problems, run = [], []
+    for p in pages:
+        pg = p["page"]
+        if pg < first_ch or pg in structural:
+            if len(run) > limit:
+                problems.append(f"연속 순텍스트 본문 {len(run)}면 {run} > {limit}면")
+            run = []
+            continue
+        txt = page_texts[pg - 1]
+        visual = (p["imgarea"] >= 0.02 or p.get("vecarea", 0) >= 0.02
+                  or any(l["size"] >= 20 for l in p["_lines"])
+                  or "<표" in txt or "[그림" in txt)
+        if visual:
+            if len(run) > limit:
+                problems.append(f"연속 순텍스트 본문 {len(run)}면 {run} > {limit}면")
+            run = []
+        else:
+            run.append(pg)
+    if len(run) > limit:
+        problems.append(f"연속 순텍스트 본문 {len(run)}면 {run} > {limit}면")
+    return problems
 
 
 def g0_svg_check(book_dir, outline):
@@ -209,6 +271,12 @@ def main():
     report["gates"]["G0"] = {"problems": g0, "ok": not g0}
     if g0:
         finish(book_dir, report, ["G0: " + p for p in g0])
+
+    # ---- G15-PARA (렌더 전 — 단락 8행 초과는 원고 문제, 빌드보다 먼저 잡는다) ----
+    g15p = g15_para_check(book_dir, outline, style)
+    report["gates"]["G15-PARA"] = {"problems": g15p, "ok": not g15p}
+    if g15p:
+        finish(book_dir, report, ["G15-PARA: " + p for p in g15p])
 
     pdf = book_dir / "draft" / "book.pdf"
 
@@ -374,6 +442,12 @@ def main():
     structural = (set(range(1, first_ch)) | set(ch_starts) | colophon_pages | fullbleed
                   | {body_last})  # 마지막 본문 면 면제 (pagination.md §7)
 
+    # ---- G15-RHYTHM 시각 요소 없는 연속 본문 면 (스타일별 상한) ----
+    g15r = g15_drought_check(pages, page_texts, first_ch, structural, style)
+    report["gates"]["G15-RHYTHM"] = {"problems": g15r, "ok": not g15r}
+    if g15r:
+        fails.append("G15-RHYTHM: " + "; ".join(g15r[:3]))
+
     # ---- G11 pageroles.json ----
     roles_p = book_dir / "pageroles.json"
     roles = []
@@ -531,6 +605,12 @@ def main():
         if style == "insight":
             heads = sum(1 for l in p["_lines"] if l["size"] >= 1.3 * body_size)
             gap_thr = 0.28 + 0.10 * max(0, heads - 1)
+        elif style == "business":
+            # 액션 타이틀(16pt + 전폭 룰 + 전후 v1.8/1.1em)과 키 스탯 디스플레이가
+            # 면당 ~10mm(≈0.045)의 구조적 공기를 만든다(실측 — p13 홀 스캔). 디스플레이
+            # 행 수에 비례해 가산, 디스플레이 없는 순본문 면은 0.18 그대로.
+            heads = sum(1 for l in p["_lines"] if l["size"] >= 1.3 * body_size)
+            gap_thr = 0.18 + 0.05 * heads
         if p["gap"] > gap_thr and p["lines"] < 0.8 * N:
             g8["stretched"].append({"page": pg, "gap": p["gap"], "lines": p["lines"]})
         # 행송 편차는 WARN만 — 두 엔진 모두 페이지 단위로 행송을 벌릴 능력이 없다(실측).

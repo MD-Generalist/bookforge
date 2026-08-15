@@ -17,13 +17,16 @@
   body-font: ((name: "Pretendard", covers: regex("[A-Za-z0-9%]")), "Noto Serif KR"),
   sans-font: ("Pretendard",),
   display-font: ("Pretendard",),
-  body-size: 9.8pt,       // 명조 9.8pt / 행송 19pt (KoPub바탕PL 9.8/19 실측 대체 — STYLE.md)
-  body-leading: 0.865em,  // pitch 18.28pt = 판면 187mm(530pt) ÷ 정수 29행 — 153×225 재산정 (행간비 1.87)
-  heading2-size: 14pt,
-  heading3-size: 10.5pt,
+  body-size: 9.8pt,       // 명조 9.8pt / 행송 18.28pt (KoPub바탕PL 9.8/19 실측 대체 — STYLE.md)
+  // pitch 18.28pt = 판면 187mm(530pt) ÷ 정수 29행. Typst leading은 글리프 높이를 뺀
+  // 잔여 간격이라 환산 필요: 실측 0.865em→15.62pt 기준 역산 1.137em ≈ 18.28pt.
+  body-leading: 1.137em,
+  heading2-size: 11.3pt,  // STYLE 폰트 스택: 소제목 Bold 11.3pt / brand
+  heading3-size: 9.5pt,   // 하위 소제목 SemiBold 9.5pt (지면 위계 5단 상한 준수)
 )
 
 #let TT = theme-tokens
+#let grid-pitch = 18.28pt  // 기준선 격자 1행 — 소제목·블록 여백은 이 배수로 스냅
 
 // ---- STYLE.md 컬러 토큰 (brand 계열만 주제색 교체, 나머지는 고정) -----------
 #let c-brand = TT.brand
@@ -32,28 +35,57 @@
 #let c-high = rgb("#BDD756")            // highlight   — 브랜드 색면 위 라벨 (고정)
 #let c-rule = rgb("#D9DCDE")            // rule        — 점 리더·괘선 (고정)
 
-// ---- cover: vector typography, solid brand ground + light rules ------------
+// ---- cover: STYLE 「표지 문법」 자산 0컷 대안(견본1형) --------------------------
+// 파스텔 단색 배경 + 리본 배너 부제(높이 8mm, 좌우 화살 꼬리) + 중앙 정렬 주제목
+// (주제목 중 한 단어만 brand 색 1.6배) + 하단 중앙 발행처 락업.
 #let make-cover(meta) = {
   let t = TT
-  page(margin: 0mm, header: none, footer: none, fill: t.brand, {
+  let title-size = 78pt                  // STYLE: 표지 주제목 Black 78pt / 자간 −4%
+  let words = meta.title.split(" ")
+  let emph = words.last()                // brand 1.6배 확대 대상 = 표제 마지막 단어(핵심어)
+  let head = words.slice(0, words.len() - 1).join(" ")
+  let band-h = 8mm
+  let band-w = 96mm
+  let band-y = 56mm
+  page(margin: 0mm, header: none, footer: none, fill: c-pale, {
     set par(justify: false, first-line-indent: 0em)
-    block(width: 100%, height: 100%, inset: (x: 18mm, y: 22mm), {
-      set text(fill: white, font: t.display-font)
-      // series capsule: 백색 필 + 브랜드색 글자
-      box(fill: white, radius: 20pt, inset: (x: 10pt, y: 5pt),
-        text(size: 8.5pt, tracking: 0.12em, weight: "bold", fill: t.brand,
-          meta.at("series", default: "BOOKFORGE LIBRARY")))
-      v(12%)
-      text(size: 54pt, weight: "black", tracking: -0.015em, keep-words(meta.title))
-      if meta.at("subtitle", default: none) != none {
-        v(10mm)
-        rect(width: 26mm, height: 2.2mm, fill: white.transparentize(30%))
-        v(6mm)
-        text(size: 13.5pt, weight: "medium", fill: white.transparentize(12%), keep-words(meta.subtitle))
-      }
-      v(1fr)
-      align(right, text(size: 10.5pt, weight: "semibold", fill: white,
-        meta.at("publisher", default: meta.at("author", default: "bookforge"))))
+    set text(font: t.display-font, fill: t.ink)
+    // 리본 꼬리(좌우 화살, 밴드 뒤로 살짝 내려 접힘 표현)
+    place(top + left, dx: 153mm / 2 - band-w / 2 - 6mm, dy: band-y + 1.6mm,
+      polygon(fill: c-deep, (0mm, 0mm), (8mm, 0mm), (8mm, band-h), (0mm, band-h), (2.6mm, band-h / 2)))
+    place(top + left, dx: 153mm / 2 + band-w / 2 - 2mm, dy: band-y + 1.6mm,
+      polygon(fill: c-deep, (0mm, 0mm), (8mm, 0mm), (5.4mm, band-h / 2), (8mm, band-h), (0mm, band-h)))
+    // 리본 본체 + 부제
+    place(top + center, dy: band-y,
+      box(width: band-w, height: band-h, fill: c-brand,
+        align(center + horizon,
+          text(size: 12.5pt, weight: "bold", fill: white, tracking: 0.02em,
+            meta.at("subtitle", default: meta.title)))))
+    // 주제목 — 중앙 정렬, 마지막 단어만 brand 1.6배 (행 충돌 방지: stack으로 명시 간격)
+    place(top + center, dy: band-y + band-h + 14mm,
+      stack(dir: ttb, spacing: 9mm,
+        ..if head != "" {
+          (align(center, text(size: title-size, weight: "black", tracking: -0.04em,
+            keep-words(head))),)
+        } else { () },
+        align(center, text(size: title-size * 1.6, weight: "black", tracking: -0.04em,
+          fill: c-brand, emph))))
+    // 저자
+    if "author" in meta {
+      place(top + center, dy: 178mm,
+        text(size: 10pt, {
+          text(weight: "bold", meta.author)
+          text(weight: "regular", " 지음")
+        }))
+    }
+    // 발행처 락업 — 하단 중앙
+    place(bottom + center, dy: -12mm, {
+      align(center, {
+        rect(width: 12mm, height: 0.8pt, fill: c-brand)
+        v(2.4mm, weak: true)
+        text(size: 9pt, weight: "semibold", tracking: 0.14em,
+          upper(meta.at("publisher", default: meta.at("author", default: "bookforge"))))
+      })
     })
   })
 }
@@ -100,7 +132,14 @@
   par(hanging-indent: toc-chip-w + 3mm, leading: 0.55em, justify: false, spacing: 0pt, {
     box(width: toc-chip-w, height: 4.7mm, fill: c-pale, radius: 1mm, baseline: 1.1mm,
       align(center + horizon, text(font: TT.sans-font, size: 6.9pt, weight: "bold",
-        fill: c-deep, tracking: 0.02em, number-width: "tabular", "CH│" + numpad(n))))
+        fill: c-deep, tracking: 0.02em, number-width: "tabular", {
+          // 구분자는 도형 rect — '│'(U+2502)는 Pretendard 미커버라 4번째 서체가 폴백 임베드됨
+          "CH"
+          h(1.4pt)
+          box(baseline: 12%, rect(width: 0.6pt, height: 6.4pt, fill: c-deep.transparentize(35%)))
+          h(1.4pt)
+          numpad(n)
+        })))
     h(3mm)
     text(font: TT.sans-font, size: 9.5pt, weight: "regular", fill: t.ink, hd.body)
     toc-leader(2mm)
@@ -217,21 +256,26 @@
   )
   set text(font: t.body-font, size: t.body-size, fill: t.ink, lang: "ko", region: "KR")
   set text(costs: (orphan: 100%, widow: 100%, runt: 200%))
-  set par(justify: true, leading: t.body-leading, spacing: 1.15em, first-line-indent: (amount: 1em, all: false))
+  // STYLE B-1: 첫 줄 들여쓰기 없음, 단락 간격은 격자 1행으로 대체 —
+  // spacing = leading + pitch ⇒ 문단 사이 기준선 거리 = 정확히 2행(격자 유지)
+  set par(justify: true, leading: t.body-leading, spacing: t.body-leading + grid-pitch)
 
+  // 소제목(md ##) = STYLE 「소제목 H3」: Bold 11.3pt / brand, 위 2행·아래 1행 격자 스냅
+  // (아래 여백은 다음 행 어센트 ~6pt를 빼야 실측 간격이 정확히 1행 = 18.28pt가 된다)
   show heading.where(level: 2): it => {
-    v(1.6em, weak: true)
-    block(sticky: true, text(font: t.sans-font, size: t.heading2-size, weight: "bold", fill: t.ink, it.body))
-    v(0.7em, weak: true)
+    v(2 * grid-pitch, weak: true)
+    block(sticky: true, text(font: t.sans-font, size: t.heading2-size, weight: "bold",
+      fill: t.brand, tracking: -0.02em, it.body))
+    v(grid-pitch - 6pt, weak: true)
   }
   show heading.where(level: 3): it => {
-    v(1.2em, weak: true)
+    v(1 * grid-pitch, weak: true)
     block(sticky: true, {
       box(baseline: -0.12em, circle(radius: 2.2pt, fill: t.brand))
       h(6pt)
-      text(font: t.sans-font, size: t.heading3-size, weight: "semibold", fill: t.ink, it.body)
+      text(font: t.sans-font, size: t.heading3-size, weight: "semibold", fill: c-deep, it.body)
     })
-    v(0.5em, weak: true)
+    v(0.5 * grid-pitch, weak: true)
   }
   set heading(numbering: none)
 
@@ -248,15 +292,21 @@
     width: 100%, fill: luma(247), radius: 4pt, inset: 9pt, breakable: true,
     text(font: code-font, size: 8pt, it))
   show raw.where(block: false): it => box(fill: luma(243), radius: 2pt, inset: (x: 3pt, y: 1pt), text(font: code-font, size: 0.92em, it))
-  set table(stroke: none, inset: (x: 7pt, y: 6pt))
+  // STYLE 표 규약: 세로 괘선 없음, 헤더 = brand-pale 필 + 하단 brand 0.5pt + brand-deep 글자,
+  // 본문행 하단 0.3pt rule. 표 폭 = 판면 폭(md2typ이 (1fr,)*n 컬럼으로 강제).
+  set table(
+    stroke: (x, y) => if y == 0 { (bottom: 0.5pt + c-brand) } else { (bottom: 0.3pt + c-rule) },
+    inset: (x: 7pt, y: 5pt),
+  )
   show table: it => {
-    set text(size: 8.7pt, font: t.sans-font)
+    set text(size: 8.4pt, font: t.sans-font)
     it
   }
-  show table.cell.where(y: 0): it => text(weight: "semibold", fill: white, it)
-  set table(fill: (x, y) => if y == 0 { t.brand } else if calc.odd(y) { t.brand-light.transparentize(45%) } else { none })
+  show table.cell.where(y: 0): it => text(weight: "bold", fill: c-deep, it)
+  set table(fill: (x, y) => if y == 0 { c-pale } else { none })
   show figure.where(kind: table): set figure.caption(position: top)
-  show figure.caption: it => text(font: t.sans-font, size: 8.5pt, fill: t.muted, it)
+  // 그림 캡션: 1컷 좌측 정렬 (급수·색은 bookfig가 지정 — ▲ + Light 7.5pt / ink)
+  show figure.caption: it => block(width: 100%, align(left, it))
   show link: it => text(fill: t.brand, it)
 
   if cover != none { cover }
