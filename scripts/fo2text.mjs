@@ -47,23 +47,34 @@ export async function normalizeAuthoredSvg(page, rawSvg, fontDir) {
     const labels = [];
     const boxes = [];
     texts.forEach((el, idx) => {
+      const cs = getComputedStyle(el);
+      // 가시성 가드: 인쇄에 실재하지 않는 숨김 텍스트는 라벨 수집·검사 대상에서 제외
+      // (antv 트랙 convertForeignObjectText의 0크기 스킵과 같은 기준).
+      if (cs.display === "none" || cs.visibility === "hidden") return;
       const m = el.getCTM();
       // 회전·전단 성분 검사 (스케일 허용): b/c가 스케일 대비 유의하면 회전
       if (m && (Math.abs(m.b) > 0.01 * Math.abs(m.a) || Math.abs(m.c) > 0.01 * Math.abs(m.d))) {
         throw new Error(`회전 라벨 금지 — <text> #${idx + 1} '${el.textContent.slice(0, 15)}'`);
       }
-      const cs = getComputedStyle(el);
       el.setAttribute("font-family", "Pretendard");
       if (!el.getAttribute("font-size")) {
         el.setAttribute("font-size", parseFloat(cs.fontSize).toFixed(2));
       }
-      const spans = [...el.querySelectorAll("tspan")];
-      const units = spans.length ? spans : [el];
-      for (const u of units) {
-        const t = u.textContent.replace(/\s+/g, " ").trim();
+      // <text> 하위 '모든' 텍스트 노드를 단위로 순회 — tspan에 감싸이지 않은 형제
+      // 텍스트 노드(<text>Label: <tspan>42</tspan></text>의 'Label: ')도 라벨 수집(G13
+      // 정본)과 겹침 bbox 검사에 포함한다.
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode())) {
+        const t = node.textContent.replace(/\s+/g, " ").trim();
         if (!t) continue;
+        const pcs = node.parentElement === el ? cs : getComputedStyle(node.parentElement);
+        if (pcs.display === "none" || pcs.visibility === "hidden") continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const r = range.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) continue; // 0크기 스킵 (antv 트랙과 동일)
         labels.push(t);
-        const r = u.getBoundingClientRect();
         boxes.push({ idx, text: t, left: r.left, right: r.right, top: r.top, bottom: r.bottom });
       }
     });

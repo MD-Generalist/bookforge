@@ -7,7 +7,6 @@
 
 #let navy-900 = rgb("#0A1E38")
 #let navy-700 = rgb("#123A63")
-#let navy-500 = rgb("#2E7CB8")
 #let navy-300 = rgb("#7FB2D9")  // 다크(navy) 배경 전용 — 흰 바탕 금지(대비 2.26)
 #let navy-500 = rgb("#3378AD")  // 흰 바탕용 중간톤 (4.74:1)
 #let navy-100 = rgb("#D8E4EF")

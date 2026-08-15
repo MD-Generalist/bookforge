@@ -222,17 +222,23 @@ def main():
     in_range = lo <= n <= hi
     # trim_mm(tokens) ↔ PDF 물리 크기 대조 — 테마 하드코딩이 tokens와 어긋나면 즉시 검출
     trim = tokens.get("trim_mm")
+    trim_ok = True
     if trim:
         pr = doc[0].rect
         w_mm, h_mm = pr.width * 25.4 / 72, pr.height * 25.4 / 72
-        if abs(w_mm - trim[0]) > 0.5 or abs(h_mm - trim[1]) > 0.5:
+        trim_ok = abs(w_mm - trim[0]) <= 0.5 and abs(h_mm - trim[1]) <= 0.5
+        if not trim_ok:
             fails.append(f"G1: 판형 불일치 — PDF {w_mm:.1f}×{h_mm:.1f}mm vs tokens trim_mm {trim} "
                          "(테마 하드코딩과 tokens가 갈라짐)")
         g1["trim_mm_measured"] = [round(w_mm, 1), round(h_mm, 1)]
+        g1["trim_mm_expected"] = list(trim)
+    g1["trim_ok"] = trim_ok
     # INV-1(pagination.md): 목표 쪽수는 조판의 입력이 아니다 — 산출물 쪽수는 기본
     # WARN. 하드 FAIL은 --strict-pages 명시 opt-in에서만 (강제 채움/개면 유인 차단).
+    # ok는 이 게이트가 fails에 넣은 모든 사유(판형 포함)를 반영해야 진단이 안 갈라진다.
     strict_pages = "--strict-pages" in sys.argv[2:]
-    g1.update({"pages": n, "range": [lo, hi], "ok": in_range or not strict_pages,
+    g1.update({"pages": n, "range": [lo, hi],
+               "ok": trim_ok and (in_range or not strict_pages),
                "strict": strict_pages})
     report["gates"]["G1"] = g1
     if not in_range:

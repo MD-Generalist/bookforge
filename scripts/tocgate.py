@@ -222,8 +222,15 @@ def g14b_key_color(doc, titles, ch_starts, brand_hex=None, tol=36):
 
 
 def g14c_contrast(doc, zoom=2.0):
-    """전 면 유채색 텍스트 스팬의 배경 대비. (면, 색, 대비, 하한) 위반 목록."""
-    problems, skipped = [], 0
+    """전 면 유채색 텍스트 스팬의 배경 대비. (면, 색, 대비, 하한) 위반 목록.
+
+    반환: (problems, info) — info = {"skipped_unstable": 배경 추정 불가 스킵 수,
+    "skipped_dedup": 동일 (스타일, 양자화 배경) 재검 생략 수}. 중복제거 키에는
+    양자화한 배경색이 포함된다 — 같은 스타일 스팬이라도 표 얼룩무늬 행·콜아웃
+    박스처럼 배경이 다르면 별건으로 재검사한다(배경 무시 dedup의 침묵 누락 방지).
+    """
+    problems = []
+    skipped_unstable, skipped_dedup = 0, 0
     for pno in range(1, doc.page_count):  # 표지 제외(아트 배경)
         page = doc[pno]
         # 검사 대상 = 근흑(近黑) 잉크가 아닌 모든 텍스트 — 유채색 + 회색(뮤트 캡션류).
@@ -240,11 +247,9 @@ def g14c_contrast(doc, zoom=2.0):
             size = s["size"]
             bold = "Bold" in s.get("font", "") or "Black" in s.get("font", "")
             floor = 3.0 if (size >= 14 or (size >= 10.5 and bold)) else 4.5
-            key = (rgb, round(size, 1), floor)
-            if key in seen:
-                continue
             x0, y0, x1, y1 = (int(v * zoom) for v in s["bbox"])
             # 배경 추정: bbox 바깥 2~5px 링의 최빈색
+            # (dedup 키에 배경이 들어가므로 링 스캔은 dedup보다 먼저 수행해야 한다)
             ring = {}
             for (rx0, ry0, rx1, ry1) in (
                     (x0 - 5, y0 - 5, x1 + 5, y0 - 2), (x0 - 5, y1 + 2, x1 + 5, y1 + 5),
@@ -256,12 +261,19 @@ def g14c_contrast(doc, zoom=2.0):
                         px = (buf[o], buf[o + 1], buf[o + 2])
                         ring[px] = ring.get(px, 0) + 1
             if not ring:
-                skipped += 1
+                skipped_unstable += 1
                 continue
             total = sum(ring.values())
             bg, cnt = max(ring.items(), key=lambda kv: kv[1])
             if cnt / total < 0.55:  # 배경 불균일(이미지·그라데이션) — 판정 불가
-                skipped += 1
+                skipped_unstable += 1
+                continue
+            # 중복제거 키 = 스타일 + 양자화 배경(16단계 버킷) — 같은 (색,크기,하한)
+            # 스팬이라도 배경 계열이 다르면 재검사. 버킷 내 잔차는 대비에 유의미한
+            # 차이를 만들지 않는다.
+            key = (rgb, round(size, 1), floor, tuple(c // 16 for c in bg))
+            if key in seen:
+                skipped_dedup += 1
                 continue
             seen.add(key)
             c = contrast(rgb, bg)
@@ -270,7 +282,7 @@ def g14c_contrast(doc, zoom=2.0):
                     f"p{pno + 1}: #{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x} {size:.1f}pt "
                     f"'{s['text'].strip()[:14]}' 대비 {c:.2f} < {floor} "
                     f"(배경 #{bg[0]:02x}{bg[1]:02x}{bg[2]:02x})")
-    return problems, skipped
+    return problems, {"skipped_unstable": skipped_unstable, "skipped_dedup": skipped_dedup}
 
 
 def run(doc, outline, ch_starts, book, tokens):
@@ -278,9 +290,10 @@ def run(doc, outline, ch_starts, book, tokens):
     a_problems, pairs = g14a_toc_numbers(doc, titles, ch_starts)
     brand = book.get("brand") or tokens.get("brand_default")
     b_problems = g14b_key_color(doc, titles, ch_starts, brand)
-    c_problems, c_skipped = g14c_contrast(doc)
+    c_problems, c_info = g14c_contrast(doc)
     return {
         "A": {"problems": a_problems, "pairs": pairs, "ok": not a_problems},
         "B": {"problems": b_problems, "ok": not b_problems},
-        "C": {"problems": c_problems, "skipped": c_skipped, "ok": not c_problems},
+        "C": {"problems": c_problems, "skipped": c_info["skipped_unstable"],
+              "dedup_skipped": c_info["skipped_dedup"], "ok": not c_problems},
     }

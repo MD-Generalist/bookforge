@@ -14,7 +14,7 @@
 
 :root {
   --paper: #FFFFFF; --paper-tint: #F4F1EC;
-  --ink: #111111; --ink-soft: #5A5A5A; --ink-faint: #727272;
+  --ink: #111111; --ink-soft: #5A5A5A; --ink-faint: #6a6a6a;
   --rule: #D8D4CC;
   --key: $key_color; --key-tint: $key_tint; --key-ink: #FFFFFF;
   --serif: "Noto Serif KR", serif;
@@ -148,7 +148,7 @@ body {
   display: flex; flex-direction: column; justify-content: space-between; }
 .colophon .backquote { font-family: var(--display); font-weight: 700; font-size: 22pt;
   line-height: 1.3; color: var(--ink); width: 120mm; margin-top: 60mm; }
-.colophon p { font-size: 6.5pt; line-height: 1.6; color: #6a6a6a; letter-spacing: 0.08em; } /* paper-tint 배경 위 4.5:1 */
+.colophon p { font-size: 6.5pt; line-height: 1.6; color: var(--ink-faint); letter-spacing: 0.08em; } /* paper-tint 배경 위 4.5:1(4.80:1) */
 
 /* 표 캡션 계약([표] 제목 | 자료: 출처) 렌더 */
 .tablewrap { break-inside: avoid; margin: 5.4mm 0; }

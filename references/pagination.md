@@ -121,7 +121,7 @@ P9 되감기      실패 시 P7→P6→P3→(PLAN만)P2 역순. REFIT은 P3에�
 | G2-FONTS | 전 폰트 완전 임베드 + **Type3 글리프 0**(CFF .otf → Chromium Type3 폴백은 임베드 실패로 판정) | HARD |
 | G3-OVERFLOW | 텍스트·이미지 bbox가 재단 밖(tol 1.5pt) | HARD |
 | G4-TOC | PDF 북마크 ↔ 장 시작 면 정합(HTML 트랙은 스탬핑 후 대조) | HARD |
-| G7-FRAME | tokens 판면 vs PDF 역산 판면 차이 > 6pt [보정: 라운딩·float 오탐 흡수 — 구 3pt에서 상향] | HARD — 이후 판정 전부 무효, 중단 |
+| G7-FRAME | tokens 판면 vs PDF 역산 판면 차이 > 6pt [보정: 라운딩·float 오탐 흡수 — 구 3pt에서 상향] | HARD — fails 누적, 최종 일괄 FAIL(중단 아님) |
 | G7-BLANK (구 G5 흡수) | `ink < 0.03` — 면제·코드 없으면 | HARD. `to:"odd"` 필러 면 포함 |
 | G7-TAIL / G7-MID / G7-DOC | §4 밴드 | §4 |
 | G8-STRETCH | `gap > 0.18` AND `lines < 0.8N`, 또는 면 행송 편차 > 3% | FAIL — **억지 채움 본체 게이트**(1fr·과대 간격·행송 확대) |
@@ -133,7 +133,9 @@ P9 되감기      실패 시 P7→P6→P3→(PLAN만)P2 역순. REFIT은 P3에�
 | G12-PARITY | 장 시작 직전 빈 짝수 면(recto 맞춤)·스프레드 패딩 | HARD — 단면 전자책에 인쇄 관습 이식 금지 |
 | G14-TOC | A: 인쇄 목차 쪽번호 = 장 시작 폴리오(본문 1쪽부터, 오프셋 자기일관) / B: 목차 유채색 hue가 도비라·브랜드 계열(Δ≤36°) / C: 근흑 외 텍스트의 배경 대비(대형 3:1·그 외 4.5:1, 픽스맵 배경 추정) | HARD — 뮤테이션 스위트(tests/mutations/)로 감도 고정 |
 
-**순서**: G10 → G0(렌더 전) → G1~G4 → G13 → G14 → G7-FRAME → G7-BLANK → G12 → G11 → G7-TAIL/MID → G8 → G9 → G7-DOC → G6(시각). 앞 단계 FAIL이면 뒤는 판정하지 않는다.
+**순서(qc_gate.py 실물)**: G10 → G0(렌더 전) → G1 → G2 → G3 → G4 → G13 → G14 → G11 → G7-FRAME → G7-BLANK/G12 → G7-TAIL/MID → G7-DOC → G8 → G9.
+
+**중단 지점은 4곳뿐**: G10 실패, G0 실패, `draft/book.pdf` 부재(G1의 일부), `styles/<style>/tokens.json`에 `body_frame_mm` 없음(qc_gate.py 326행, G7 밀도 전처리 직전) — 이 넷만 그 자리에서 즉시 `finish()`로 종료하고 뒤 게이트를 아예 실행하지 않는다. 그 외 모든 게이트(G1 판형·G2~G4·G13·G14·G11·G7-FRAME·G7-BLANK/G12·G7-TAIL/MID·G7-DOC·G8·G9)는 실패해도 `fails` 리스트에 누적만 하고 그대로 다음 게이트를 계속 판정하며, 전 게이트를 다 돈 뒤 `fails`가 하나라도 있으면 그때 일괄 `finish()`로 FAIL 처리한다(중간에 끊기지 않음). G6(시각 판정)은 이 스크립트에 없다 — qc_gate.py의 게이트 집합이 아니다.
 
 **사유 코드 채널**: `<book_dir>/pageroles.json` — 1차 렌더 후 사람/에이전트가 작성. 각 항목 `{page, code, why(필수), anchor(그 면 실재 문자열)}`. **코드 6종**: `PART_DIVIDER`(텍스트 ≤3행) / `FULL_BLEED_PLATE`(imgarea ≥ 0.60) / `EXEC_SUMMARY`(business, ink 0.35~0.70, 폰트·여백 축소 금지) / `ESSAY_BREATH`(essay 꼬리, lines ≥ 6, 장당 1회) / `MAGAZINE_WHITESPACE`(진입점 존재 시) / `TOC_TAIL`(목차 직후 1면). 각 코드는 기계 선행조건 미충족 시 코드 자체가 FAIL(도장 방지). **폐기**(단면에서 재현 시 오히려 FAIL): RECTO_ADJUST·SIGNATURE_PAD·ENDPAPER·PART_DIVIDER_VERSO.
 

@@ -74,7 +74,7 @@
 | `--paper-tint` | `#F4F1EC` | 사이드바·박스 바탕(뉴트럴 크림) |
 | `--ink` | `#111111` | 본문·헤드라인 |
 | `--ink-soft` | `#5A5A5A` | 캡션·데크·folio |
-| `--ink-faint` | `#8C8C8C` | 크레딧·보조 정보 |
+| `--ink-faint` | `#6a6a6a` | 크레딧·보조 정보 — theme.css 실물, paper-tint 배경 위 4.80:1 |
 | `--rule` | `#D8D4CC` | 괘선 기본 0.5 pt |
 | `--key` | 이슈별 교체 | 액센트 1색 |
 | `--key-tint` | `--key` 8 % 틴트 | 콜아웃 배경 |
