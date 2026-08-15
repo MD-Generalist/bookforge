@@ -12,11 +12,13 @@
   brand-light: rgb(meta.at("brand_light", default: "#e8f0fa")),
   ink: rgb("#20242a"),
   muted: rgb("#6b7480"),
-  body-font: ("Pretendard",),
+  // 정체성: 서술(읽는 글)은 명조, 조작·라벨·수치(하는 글)는 고딕 — STYLE.md §정체성.
+  // 본문 내 숫자·라틴은 Pretendard(고딕)로 분리해 "수치는 고딕" 계약을 문장 안에서도 지킨다.
+  body-font: ((name: "Pretendard", covers: regex("[A-Za-z0-9%]")), "Noto Serif KR"),
   sans-font: ("Pretendard",),
   display-font: ("Pretendard",),
-  body-size: 9.5pt,
-  body-leading: 0.88em,
+  body-size: 9.8pt,       // 명조 9.8pt / 행송 19pt (KoPub바탕PL 9.8/19 실측 대체 — STYLE.md)
+  body-leading: 0.865em,  // pitch 18.28pt = 판면 187mm(530pt) ÷ 정수 29행 — 153×225 재산정 (행간비 1.87)
   heading2-size: 14pt,
   heading3-size: 10.5pt,
 )
@@ -76,111 +78,63 @@
   }))
 }
 
-// ---- TOC: 파트 목차 1쪽 (STYLE.md「목차 문법」+ 2단 변형) --------------------
-// 헤더 밴드 56mm(우하단 r12mm) → PART 배지 23×46mm(x 27, y 41.6) → 파트 제목
-// → 장(H1) 행 20pt `[필 라벨][제목][점 리더][쪽번호]`
-// → 절(H2) 행 16pt `[4mm 들여쓰기][제목][점 리더][쪽번호]`
-// 항목이 판면 1단에 안 들어가면 판면 폭 2단(거터 11.8mm, 단 경계 0.3pt brand 룰)
-#let toc-band-h = 56mm
-#let toc-badge-x = 27mm
-#let toc-badge-y = 41.6mm
-#let toc-badge-w = 23mm
-#let toc-badge-h = 46mm
-#let toc-col-x = toc-badge-x + toc-badge-w + 6mm   // 배지 오른쪽 6mm
-#let toc-row-h = 20pt        // 장 행
-#let toc-sub-h = 16pt        // 절 행 (2단 변형 행간)
-#let toc-gutter = 11.8mm     // 단 거터
-#let toc-list-y = 91mm       // 배지 하단(87.6mm) 아래에서 목록 시작
+// ---- TOC (STYLE.md「목차 문법」— v2 재설계) ---------------------------------
+// 헤더 밴드 42mm(우하단 r12mm, CONTENTS 백색 라벨 + 차례 표제) → 장·절 목록.
+// 파트 배지는 단일 파트 책에서 허구가 되므로 제거 — 파트 구조가 실재하는 원고가
+// 생기면 그때 파트 계층으로 복원한다 (구판의 "PART 01 + 책 제목 재출력" 결함 수리).
+// 행 계약: 급수 고정(장 9.5 / 절 8.5pt) — 자동 축소 금지. 넘치는 제목은 행잉
+// 인덴트로 줄바꿈하고 리더·쪽번호는 마지막 줄 끝에 앉는다(상업 목차 관행).
+// 한 행 안의 칩·제목·쪽번호는 같은 문단 흐름 = 단일 기준선.
+#let toc-band-h = 42mm
+#let toc-list-y = toc-band-h + 12mm
+#let toc-gutter = 11.8mm     // 2단 변형 거터
 #let toc-chip-w = 11.5mm
-
-#let toc-part-badge(num) = block(
-  width: toc-badge-w, height: toc-badge-h,
-  fill: c-brand, radius: 3mm, stroke: none, inset: 0pt,
-  {
-    set align(center)
-    set par(leading: 0em, spacing: 0em)
-    v(8.2mm)
-    text(font: TT.sans-font, size: 20pt, weight: "bold", tracking: 0.03em,
-      fill: c-high, "PART")
-    v(5.0mm)
-    line(length: 16mm, stroke: 0.6pt + white)
-    v(4.4mm)
-    text(font: TT.display-font, size: 46pt, weight: "black", tracking: -0.045em,
-      fill: white, num)
-  })
-
-// 한 행 = 한 줄 계약: 단 폭을 넘치는 제목만 그 행에서 축소(잘라내기·줄바꿈 금지)
-#let toc-fit(body, avail, size, weight, fill) = context {
-  let f = TT.sans-font
-  let m = measure(text(font: f, size: size, weight: weight, body))
-  let s = if m.width > avail and m.width > 0pt { size * (avail / m.width) } else { size }
-  text(font: f, size: s, weight: weight, fill: fill, body)
-}
 
 // 점 리더 — 0.5pt 원점, 간격 2pt, rule
 #let toc-leader(pad) = box(width: 1fr, inset: (x: pad),
   repeat(gap: 2pt, box(baseline: -0.85pt,
     circle(radius: 0.33pt, fill: c-rule, stroke: none))))
 
-#let toc-pageno(loc, w, size, fill) = box(width: w, align(right,
-  text(font: TT.sans-font, size: size, weight: "medium", fill: fill,
-    number-width: "tabular", str(counter(page).at(loc).first()))))
-
-// 장(H1) 행 — 필 라벨 + 제목 + 리더 + 쪽번호
-#let toc-ch-row(n, hd, cw, t) = block(
-  width: 100%, height: toc-row-h, above: 0pt, below: 0pt, spacing: 0pt, breakable: false,
-  align(horizon, link(hd.location(), {
-    box(width: toc-chip-w, height: 4.7mm, fill: c-pale, radius: 1mm, baseline: 1.35mm,
+// 장(H1) 항목 — [CH│NN 칩] 제목 … 쪽번호 (한 문단 = 한 기준선, 랩 허용)
+#let toc-ch-row(n, hd, t) = link(hd.location(),
+  par(hanging-indent: toc-chip-w + 3mm, leading: 0.55em, justify: false, spacing: 0pt, {
+    box(width: toc-chip-w, height: 4.7mm, fill: c-pale, radius: 1mm, baseline: 1.1mm,
       align(center + horizon, text(font: TT.sans-font, size: 6.9pt, weight: "bold",
         fill: c-deep, tracking: 0.02em, number-width: "tabular", "CH│" + numpad(n))))
     h(3mm)
-    toc-fit(hd.body, cw - toc-chip-w - 3mm - 2mm - 9mm, 9.5pt, "regular", t.ink)
+    text(font: TT.sans-font, size: 9.5pt, weight: "regular", fill: t.ink, hd.body)
     toc-leader(2mm)
-    toc-pageno(hd.location(), 9mm, 10pt, t.ink)
-  })))
+    box(text(font: TT.sans-font, size: 9.5pt, weight: "medium", fill: t.ink,
+      number-width: "tabular", str(counter(page).at(hd.location()).first())))
+  }))
 
-// 절(H2) 행 — 필 라벨 없이 4mm 들여쓰기 + 제목 + 리더 + 쪽번호
-#let toc-sub-row(hd, cw, t) = block(
-  width: 100%, height: toc-sub-h, above: 0pt, below: 0pt, spacing: 0pt, breakable: false,
-  align(horizon, link(hd.location(), {
-    h(4mm)
-    toc-fit(hd.body, cw - 4mm - 1.3mm - 5.6mm, 8.5pt, "light", t.ink)
+// 절(H2) 항목 — 들여쓰기 + 제목 … 쪽번호
+#let toc-sub-row(hd, t) = link(hd.location(),
+  par(hanging-indent: toc-chip-w + 3mm + 2mm, leading: 0.55em, justify: false, spacing: 0pt, {
+    h(toc-chip-w + 3mm)
+    text(font: TT.sans-font, size: 8.5pt, weight: "light", fill: t.ink, hd.body)
     toc-leader(1.3mm)
-    toc-pageno(hd.location(), 5.6mm, 8.5pt, t.muted)
-  })))
+    box(text(font: TT.sans-font, size: 8.5pt, weight: "light", fill: t.muted,
+      number-width: "tabular", str(counter(page).at(hd.location()).first())))
+  }))
 
 #let practical-toc(meta, t, title: "차례") = {
-  let col-w = t.trim.w - t.margin.right - toc-col-x
   let list-w = t.trim.w - t.margin.left - t.margin.right
   let cw = (list-w - toc-gutter) / 2
   page(header: none, footer: none, margin: 0mm, fill: t.paper, {
     set par(justify: false, first-line-indent: 0em)
 
-    // ① 헤더 밴드 — 풀블리드, 우하단 모서리만 r12mm
+    // ① 헤더 밴드 — 풀블리드, 우하단 모서리만 r12mm. 라벨은 백색(브랜드 위 대비 보장).
     place(top + left, rect(width: t.trim.w, height: toc-band-h, fill: c-brand,
       stroke: none, radius: (bottom-right: 12mm)))
-    place(top + left, dx: toc-badge-x, dy: 21.0mm,
+    place(top + left, dx: t.margin.left + 10mm, dy: 15.0mm,
       text(font: TT.sans-font, size: 8pt, weight: "bold", tracking: 0.26em,
-        fill: c-high, "CONTENTS"))
-    place(top + left, dx: toc-badge-x, dy: 25.9mm,
+        fill: white.transparentize(18%), "CONTENTS"))
+    place(top + left, dx: t.margin.left + 10mm, dy: 20.2mm,
       text(font: TT.display-font, size: 23pt, weight: "black", tracking: -0.03em,
         fill: white, title))
 
-    // ② PART 배지
-    place(top + left, dx: toc-badge-x, dy: toc-badge-y, toc-part-badge("01"))
-
-    // ③ 파트 제목 — 밴드 아래(배지는 밴드에서 내려온 탭)
-    place(top + left, dx: toc-col-x, dy: toc-band-h + 3.4mm, block(width: col-w, {
-      text(font: TT.display-font, size: 20.9pt, weight: "bold", tracking: -0.03em,
-        fill: t.ink, keep-words(meta.title))
-      if meta.at("subtitle", default: none) != none {
-        v(2.2mm)
-        text(font: TT.sans-font, size: 8.5pt, weight: "regular", fill: t.muted,
-          keep-words(meta.subtitle))
-      }
-    }))
-
-    // ④ 항목 — 장(H1) + 그에 속한 절(H2)을 한 그룹으로, 판면 폭에 배치
+    // ② 항목 — 장(H1) + 그에 속한 절(H2)을 한 그룹으로
     context {
       let groups = ()
       for hd in query(heading).filter(hd => hd.level <= 2) {
@@ -192,22 +146,23 @@
         }
       }
       if groups.len() == 0 { return }
-      let gh = groups.map(g => toc-row-h + g.subs.len() * toc-sub-h)
-      let total = gh.fold(0pt, (a, b) => a + b)
+
+      let group-block(i, w) = block(
+        breakable: false, width: w, above: 0pt, below: 3.2mm, spacing: 0pt, {
+          show link: it => text(fill: t.ink, it)   // 목차 글자에 별색 금지
+          toc-ch-row(i + 1, groups.at(i).ch, t)
+          for s in groups.at(i).subs { v(1.4mm); toc-sub-row(s, t) }
+        })
+
+      // 실측 균형 분할 — 랩으로 행 높이가 가변이므로 measure로 실제 높이를 잰다
+      let gh = groups.enumerate().map(((i, g)) => measure(group-block(i, cw)).height + 3.2mm)
+      let total-1col = groups.enumerate().map(((i, g)) =>
+        measure(group-block(i, list-w)).height + 3.2mm).fold(0pt, (a, b) => a + b)
       let avail = t.trim.h - t.margin.bottom - toc-list-y
 
-      let draw(idxs, w) = {
-        show link: it => text(fill: t.ink, it)     // 목차 글자에 별색 금지
-        for i in idxs {
-          block(breakable: false, above: 0pt, below: 0pt, spacing: 0pt, {
-            toc-ch-row(i + 1, groups.at(i).ch, w, t)
-            for s in groups.at(i).subs { toc-sub-row(s, w, t) }
-          })
-        }
-      }
-
-      if total > avail and groups.len() > 1 {
-        // 2단 변형 — 그룹 단위 균형 분할
+      if total-1col > avail and groups.len() > 1 {
+        // 2단 변형 — 그룹 단위 균형 분할 (실측 높이 기준)
+        let total = gh.fold(0pt, (a, b) => a + b)
         let k = 1
         let bd = none
         let cum = 0pt
@@ -219,15 +174,14 @@
         let h1 = gh.slice(0, k).fold(0pt, (a, b) => a + b)
         let h2 = gh.slice(k).fold(0pt, (a, b) => a + b)
         place(top + left, dx: t.margin.left, dy: toc-list-y,
-          block(width: cw, draw(range(0, k), cw)))
+          block(width: cw, for i in range(0, k) { group-block(i, cw) }))
         place(top + left, dx: t.margin.left + cw + toc-gutter, dy: toc-list-y,
-          block(width: cw, draw(range(k, groups.len()), cw)))
-        // 단 경계 세로 룰 — 0.3pt brand
+          block(width: cw, for i in range(k, groups.len()) { group-block(i, cw) }))
         place(top + left, dx: t.margin.left + cw + toc-gutter / 2, dy: toc-list-y,
           line(angle: 90deg, length: calc.max(h1, h2), stroke: 0.3pt + c-brand))
       } else {
         place(top + left, dx: t.margin.left, dy: toc-list-y,
-          block(width: list-w, draw(range(0, groups.len()), list-w)))
+          block(width: list-w, for i in range(0, groups.len()) { group-block(i, list-w) }))
       }
     }
   })
@@ -243,20 +197,23 @@
     width: t.trim.w, height: t.trim.h,
     margin: (top: t.margin.top, bottom: t.margin.bottom, left: t.margin.left, right: t.margin.right),
     fill: t.paper,
+    // 러닝 시스템 = 러닝푸터만 (STYLE.md §러닝 — 기본 판형에서 러닝헤드는 쓰지 않는다).
+    // 좌 = 유닛 라벨(CH NN · 장제목) muted / 우 = 쪽번호 Bold brand, 우측(바깥) 정렬.
     footer: context {
       let pn = counter(page).get().first()
-      align(center, text(font: t.sans-font, size: 8pt, fill: t.muted, str(pn)))
-    },
-    header: context {
-      let sel = heading.where(level: 1)
-      let prev = query(sel.before(here()))
+      let prev = query(heading.where(level: 1).before(here()))
+      set text(font: t.sans-font, size: 7.5pt, fill: t.muted, tracking: 0.04em)
       if prev.len() > 0 {
-        set text(font: t.sans-font, size: 7.5pt, fill: t.muted, tracking: 0.06em)
+        // heading numbering이 none이라 counter는 0 — 실재 헤딩 수로 서수 산출
+        let idx = prev.len()
+        text(weight: "semibold", fill: t.brand, "CH " + numpad(idx))
+        h(2mm)
         prev.last().body
-        h(1fr)
-        text(fill: t.brand, meta.at("title", default: ""))
       }
+      h(1fr)
+      text(size: 8pt, weight: "bold", fill: t.brand, number-width: "tabular", str(pn))
     },
+    header: none,
   )
   set text(font: t.body-font, size: t.body-size, fill: t.ink, lang: "ko", region: "KR")
   set text(costs: (orphan: 100%, widow: 100%, runt: 200%))
@@ -282,8 +239,11 @@
     inset: (left: 1.2em, y: 0.3em),
     stroke: (left: 2pt + t.brand.transparentize(50%)),
     text(fill: t.ink.transparentize(15%), it.body))
+  // "하는 글"(조작 절차·항목)은 고딕 — 서술 명조와 서체로 역할 분리 (STYLE.md §정체성)
   set list(marker: ([•], [–]), indent: 0.5em)
   set enum(indent: 0.5em)
+  show list: set text(font: t.sans-font, size: 9.2pt)
+  show enum: set text(font: t.sans-font, size: 9.2pt)
   show raw.where(block: true): it => block(
     width: 100%, fill: luma(247), radius: 4pt, inset: 9pt, breakable: true,
     text(font: code-font, size: 8pt, it))
