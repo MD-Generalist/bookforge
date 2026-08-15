@@ -16,7 +16,9 @@
   margin: (top: 26mm, bottom: 34.9mm, left: 25mm, right: 22mm),
   brand: accent, brand-light: accent-tint,
   ink: ink, muted: muted, paper: white,
-  body-font: ("Libertinus Serif", "Noto Serif KR"),
+  // Libertinus는 라틴 영숫자만 — covers 없이 1순위로 두면 한국어 문장의
+  // 공백·쉼표·마침표까지 라틴 세리프로 빠진다 (code-font와 동일 클래스 버그)
+  body-font: ((name: "Libertinus Serif", covers: regex("[A-Za-z0-9]")), "Noto Serif KR"),
   sans-font: ("Pretendard",),
   display-font: ("Pretendard",),
   body-size: 10pt,

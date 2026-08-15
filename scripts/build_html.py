@@ -214,11 +214,13 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
             pages.setdefault(m, pno + 1)
     doc.close()
 
-    # magazine convention: absolute page numbers, cover = page 1
+    # 목차 쪽번호는 폴리오 기준(본문 1쪽부터 — book-anatomy.md C9). 앞부속(표지·목차)
+    # 오프셋 = 첫 장 시작 절대페이지 - 1. 지면 폴리오는 decorate.py가 같은 오프셋으로 찍는다.
+    folio_offset = min(pages.values()) - 1 if pages else 0
     html2 = html
     for mk, abs_page in pages.items():
         html2 = html2.replace(f'<span class="tocpg" data-mk="{mk}">00</span>',
-                              f'<span class="tocpg" data-mk="{mk}">{abs_page}</span>')
+                              f'<span class="tocpg" data-mk="{mk}">{abs_page - folio_offset}</span>')
     # pass 2에는 마커 불필요 — 잉크·텍스트 레이어 오염 방지를 위해 제거
     # (.pgmark은 absolute 포지션이라 제거해도 리플로우 없음; 북마크는 pass 1 페이지맵 사용)
     html2 = re.sub(r'<span class="pgmark">@@ch\d+@@</span>', "", html2)

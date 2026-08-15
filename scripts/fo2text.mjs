@@ -8,10 +8,10 @@
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const PRETENDARD_WEIGHTS = {
-  "Pretendard-Regular.otf": 400,
-  "Pretendard-Medium.otf": 500,
-  "Pretendard-SemiBold.otf": 600,
-  "Pretendard-Bold.otf": 700,
+  "Pretendard-Regular.ttf": 400,
+  "Pretendard-Medium.ttf": 500,
+  "Pretendard-SemiBold.ttf": 600,
+  "Pretendard-Bold.ttf": 700,
 };
 
 export function fontFaceCss(fontDir) {

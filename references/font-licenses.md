@@ -13,8 +13,14 @@
 | **Paperlogy** | SIL OFL 1.1 | 허용 | 허용 | **동봉 가능** |
 | **Gmarket Sans** | SIL OFL 1.1 | 허용 (fsType=4) | 허용 | **동봉 가능** |
 | **나눔고딕 / 나눔명조** | SIL OFL 1.1 | 허용 | 허용 | **동봉 가능** |
+| **Libertinus Serif** (Typst 내장) | SIL OFL 1.1 | 허용 | 미동봉(Typst 배포에 포함) | academic 라틴 영숫자에 임베드됨 |
+| **DejaVu Sans Mono** (Typst 내장) | Bitstream Vera 파생(자유 사용·재배포 허용) | 허용 | 미동봉(Typst 배포에 포함) | 코드 폰트 라틴 영숫자에 임베드됨 |
 
 `fsType`은 폰트 `OS/2` 테이블의 임베드 허용 비트. 8 = Editable embedding, 4 = Preview & Print embedding. **둘 다 PDF 출력·열람용 임베드에는 문제가 없다.**
+
+**Typst 내장 폰트 주의**: Libertinus·DejaVu는 assets/fonts가 아니라 **Typst 바이너리에 내장**된 서체로, `--ignore-system-fonts`로도 배제되지 않는다. Typst 버전이 바뀌면 내장 세트가 바뀔 수 있으므로 Typst는 **0.14.x 계열로 고정**한다(SKILL.md 실행 전 점검).
+
+**TTF 전환 기록(v2, 2026-08-16)**: Chromium print-to-PDF가 CFF(.otf)를 서브셋하지 못해 Type3 글리프로 폴백(텍스트 추출·검색 불능, G2 무효)하는 문제로 동봉 폰트를 전량 TrueType으로 전환했다. Pretendard·Noto Serif KR은 **RFN(Reserved Font Name) 미선언** → `scripts/convert_fonts.py`(fontTools cu2qu, 오차 1/2048em)로 변환한 Modified Version을 OFL 조건(라이선스·저작권 고지 유지) 하에 동봉. **Gmarket Sans는 RFN 선언**("Gmarket Sans Font") → 변환판 재배포 불가, 공식 배포처의 TTF판(GmarketSansTTF*.ttf, 내부 패밀리명 "Gmarket Sans TTF")을 동봉하고 테마 @font-face에서 별칭으로 소비한다.
 
 ---
 

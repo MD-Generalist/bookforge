@@ -8,7 +8,8 @@
 #let navy-900 = rgb("#0A1E38")
 #let navy-700 = rgb("#123A63")
 #let navy-500 = rgb("#2E7CB8")
-#let navy-300 = rgb("#7FB2D9")
+#let navy-300 = rgb("#7FB2D9")  // 다크(navy) 배경 전용 — 흰 바탕 금지(대비 2.26)
+#let navy-500 = rgb("#3378AD")  // 흰 바탕용 중간톤 (4.74:1)
 #let navy-100 = rgb("#D8E4EF")
 #let teal-600 = rgb("#0E6E62")
 #let accent   = rgb(meta.at("brand", default: "#C2662E"))
@@ -38,7 +39,8 @@
   ink: ink, muted: ink-60, paper: white,
   body-font: ("Pretendard",), sans-font: ("Pretendard",),
   display-font: ("Pretendard",),
-  stat-font: ("Gmarket Sans",),
+  // 공식 TTF판의 내부 패밀리명은 "Gmarket Sans TTF" (OTF판 "Gmarket Sans"와 다름)
+  stat-font: ("Gmarket Sans TTF", "Gmarket Sans"),
   quote-font: ("Noto Serif KR",),
   body-size: 10.5pt, body-leading: 0.62em,
 )
@@ -314,7 +316,7 @@
               rect(width: 12mm, height: 2pt, fill: accent)
             } else {
               text(font: t.display-font, size: num-size, weight: "extrabold",
-                tracking: -0.02em, fill: navy-300, numpad(e.num))
+                tracking: -0.02em, fill: navy-500, numpad(e.num))
             }
           },
           {
@@ -341,7 +343,7 @@
     let toc-head = {
       set par(spacing: 0em)
       set block(spacing: 0em)
-      text(font: t.sans-font, size: 8pt, tracking: 0.06em, weight: "bold", fill: accent, "CONTENTS")
+      text(font: t.sans-font, size: 8pt, tracking: 0.06em, weight: "bold", fill: rgb("#AF5C2A"), "CONTENTS")
       v(3mm)
       text(font: t.display-font, size: 20pt, weight: "extrabold", tracking: -0.02em,
         fill: navy-900, toc-title)

@@ -6,7 +6,7 @@
 
 ## 0. 불변식
 
-- **INV-1 목표 쪽수는 조판의 입력이 아니다.** 분량 프리셋(`length_pages`)은 원고 단계에서 총 행수(∑S)로 판정하고, 조판 산출물 쪽수에는 하드 게이트를 걸지 않는다(REFIT 모드에서 WARN). 쪽수를 맞추려는 강제 개면·기계 부록·채움 요소는 전부 금지.
+- **INV-1 목표 쪽수는 조판의 입력이 아니다.** 분량 프리셋(`length_pages`)은 원고 단계에서 총 행수(∑S)로 판정하고, 조판 산출물 쪽수는 **기본 WARN**(qc_gate G1 — 하드 FAIL은 `--strict-pages` 명시 opt-in에서만). 쪽수를 맞추려는 강제 개면·기계 부록·채움 요소는 전부 금지.
 - **INV-2 기본값은 꽉 참(flushbottom).** 판면 격자 행수 N에 대해 일반 본문 면은 N행. 미달 면은 사유가 있어야 한다.
 - **INV-3 비움은 이름을 가진다.** 미달 면은 ①구조 파생 면제 ②`pageroles.json` 사유 코드 중 하나로만 정당화된다. 둘 다 아니면 FAIL.
 - **INV-4 본문 행송은 상수다.** 페이지 단위 행송 조정(feathering) 금지. 세로 여유는 탄성 슬롯(표제 전후·블록 간격)과 문단 단위 미세조정으로만 흡수.
@@ -22,7 +22,7 @@ P2 구조 수술   [PLAN만] q밴드(§8)로 절 병합/분할 확정 — 아직
 P3 리듬 슬롯   전면 이미지는 4슬롯(오프너·서사 전환 H2·연속텍스트 해소·클로저)에만 (magazine/insight/business)
 P4 초벌 조판   H1만 개면, H2는 조건부(§3). 레버 전부 기준값
 P5 측정        analyze(pdf): 판면 역산·가구 제거 → 면별 reach/ink/lines/gap/imgarea (§7 전처리)
-P6 레버 적용   실패 장만 L0→L7 격자 재조판(전수 탐색 후 최소개입 해 선택). 해 없음 → 모드별 분기(§2)
+P6 레버 적용   실패 장만 L0→L6 격자 재조판(전수 탐색 후 최소개입 해 선택). 해 없음 → 모드별 분기(§2)
 P7 잔여 받치기 면별 잔여 r → 받치기 표(§6)로 요소 라우팅. 재료 실재 검사(G10) 통과분만
 P8 게이트      G7~G12 판정 (§7)
 P9 되감기      실패 시 P7→P6→P3→(PLAN만)P2 역순. REFIT은 P3에서 멈추고 사람 승인 요청
@@ -62,7 +62,7 @@ P9 되감기      실패 시 P7→P6→P3→(PLAN만)P2 역순. REFIT은 P3에�
 | reach HARD 하한 | practical/insight/academic/business **0.45** / essay/magazine **0.35** | FAIL |
 | reach WARN 하한 | practical/insight/academic **0.70** / business **0.65** / essay **0.55** / magazine **0.50** | 사유 코드 없으면 FAIL. **essay/magazine/insight는 리포트만**(해당 유형 상용 꼬리 실측 표본 0 — §9 부채. HARD 하한은 그대로 강제) |
 | 문서 통계 | practical/insight/academic만: 꼬리 reach 중앙값 ≥ 0.80, p10 ≥ 0.55 | FAIL → 원고 분량 설계 반환 |
-| 장 중간 면 | reach < 0.75 HARD / 0.75~0.90(essay 0.88)은 사유 코드 필수 | |
+| 장 중간 면 | reach < 0.75 HARD / 0.75~0.90(essay 0.88 · insight 0.85 — 130mm 통짜 블록+H2 24mm 이월 물리 [보정]) 사유 코드 필수 | |
 
 근거 [실측]: 상업본 287유닛 중 채움률 0.31 미만 0건, 실용서 p10=0.735. "3~4줄 면"(0.12~0.17)은 상업 단행본에 존재하지 않는 상태다. 에세이는 실측 표본 0 → 비율 임계를 HARD로 쓰지 않는다.
 
@@ -117,18 +117,23 @@ P9 되감기      실패 시 P7→P6→P3→(PLAN만)P2 역순. REFIT은 P3에�
 
 | 게이트 | 조건 | 판정 |
 |---|---|---|
-| G7-FRAME | tokens 판면 vs PDF 역산 판면 차이 > 3pt | HARD — 이후 판정 전부 무효, 중단 |
+| G1-RENDER | draft/book.pdf 실재 + 판형=tokens `trim_mm` ±0.5mm. 쪽수 범위는 WARN(INV-1, `--strict-pages`만 HARD) | 부재·판형 불일치 HARD |
+| G2-FONTS | 전 폰트 완전 임베드 + **Type3 글리프 0**(CFF .otf → Chromium Type3 폴백은 임베드 실패로 판정) | HARD |
+| G3-OVERFLOW | 텍스트·이미지 bbox가 재단 밖(tol 1.5pt) | HARD |
+| G4-TOC | PDF 북마크 ↔ 장 시작 면 정합(HTML 트랙은 스탬핑 후 대조) | HARD |
+| G7-FRAME | tokens 판면 vs PDF 역산 판면 차이 > 6pt [보정: 라운딩·float 오탐 흡수 — 구 3pt에서 상향] | HARD — 이후 판정 전부 무효, 중단 |
 | G7-BLANK (구 G5 흡수) | `ink < 0.03` — 면제·코드 없으면 | HARD. `to:"odd"` 필러 면 포함 |
 | G7-TAIL / G7-MID / G7-DOC | §4 밴드 | §4 |
 | G8-STRETCH | `gap > 0.18` AND `lines < 0.8N`, 또는 면 행송 편차 > 3% | FAIL — **억지 채움 본체 게이트**(1fr·과대 간격·행송 확대) |
-| G9-KEEP | 면 끝 제목 고립(마지막 행 span ≥ 1.15×본문 크기) / widow(면 첫 행 short & 앞 면 끝 full) / 캡션·도판 면 분리 | FAIL. orphan·runt는 WARN |
+| G9-KEEP | 면 끝 제목 고립(마지막 행 span ≥ 1.3×본문 크기 [보정: 리스트 볼드행 오탐 — 구 1.15에서 상향]) / widow(면 첫 행 short & 앞 면 끝 full) / 캡션·도판 면 분리 | FAIL. orphan·runt는 WARN |
 | G10-QUOTE | **렌더 전 md 검사**: 콜아웃(quote/stat)의 12자 이상 분절·수치 토큰이 같은 챕터 본문에 실재(공백·인용부호·콤마 정규화, `약/가량/내외` 수식 시 ±5% 근사 허용) | HARD — 날조는 예외 없음 |
 | G0-SVG | **렌더 전 도해 검사**: 참조 SVG의 foreignObject 잔존(usvg 조용한 텍스트 전멸)·외부 참조(CDN 폰트/원격 자원)·이미지 문단 텍스트 혼합(md2typ 승격 실패→증발)·사이드카 쌍 무결성·icons:true인데 symbol 0 | HARD — 계약은 [diagrams.md](diagrams.md) |
 | G13-FIGTEXT | **렌더 후**: 프리렌더 라벨(`assets/fig-*.labels.json`, 렌더 줄 단위)이 PDF 실텍스트에 존재 — G4/G11 anchor와 동일 정규화 대조 | FAIL — 조용한 드롭 최종 포착 |
 | G11-ROLES | pageroles.json 무결성: 코드 화이트리스트 / 기계 선행조건 / anchor 실재 / why 필수 / 예산 ≤ max(3, 8%) | HARD. anchor 불일치 = stale |
 | G12-PARITY | 장 시작 직전 빈 짝수 면(recto 맞춤)·스프레드 패딩 | HARD — 단면 전자책에 인쇄 관습 이식 금지 |
+| G14-TOC | A: 인쇄 목차 쪽번호 = 장 시작 폴리오(본문 1쪽부터, 오프셋 자기일관) / B: 목차 유채색 hue가 도비라·브랜드 계열(Δ≤36°) / C: 근흑 외 텍스트의 배경 대비(대형 3:1·그 외 4.5:1, 픽스맵 배경 추정) | HARD — 뮤테이션 스위트(tests/mutations/)로 감도 고정 |
 
-**순서**: G10 → G0(렌더 전) → G1~G4 → G13 → G7-FRAME → G7-BLANK → G12 → G11 → G7-TAIL/MID → G8 → G9 → G7-DOC → G6(시각). 앞 단계 FAIL이면 뒤는 판정하지 않는다.
+**순서**: G10 → G0(렌더 전) → G1~G4 → G13 → G14 → G7-FRAME → G7-BLANK → G12 → G11 → G7-TAIL/MID → G8 → G9 → G7-DOC → G6(시각). 앞 단계 FAIL이면 뒤는 판정하지 않는다.
 
 **사유 코드 채널**: `<book_dir>/pageroles.json` — 1차 렌더 후 사람/에이전트가 작성. 각 항목 `{page, code, why(필수), anchor(그 면 실재 문자열)}`. **코드 6종**: `PART_DIVIDER`(텍스트 ≤3행) / `FULL_BLEED_PLATE`(imgarea ≥ 0.60) / `EXEC_SUMMARY`(business, ink 0.35~0.70, 폰트·여백 축소 금지) / `ESSAY_BREATH`(essay 꼬리, lines ≥ 6, 장당 1회) / `MAGAZINE_WHITESPACE`(진입점 존재 시) / `TOC_TAIL`(목차 직후 1면). 각 코드는 기계 선행조건 미충족 시 코드 자체가 FAIL(도장 방지). **폐기**(단면에서 재현 시 오히려 FAIL): RECTO_ADJUST·SIGNATURE_PAD·ENDPAPER·PART_DIVIDER_VERSO.
 

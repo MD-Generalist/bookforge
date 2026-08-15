@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """bookforge QC gate — the ONLY path from draft/ to final/.
 
-Usage: python3 qc_gate.py <book_dir> [--refit]
+Usage: python3 qc_gate.py <book_dir> [--strict-pages]
 Gates (pagination.md §7):
   G10 quote   : (렌더 전) ::: pull 인용·콜아웃 수치가 챕터 본문에 실재 — 날조 차단
   G0  svg     : (렌더 전) 도해 SVG 소스 — foreignObject 잔존/텍스트 부재/외부참조/
                 단독문단 위반/사이드카 쌍 무결성/아이콘 탈락 차단
   G13 figtext : (렌더 후) 도해 라벨(fig-*.labels.json)이 PDF 실텍스트에 존재 —
                 usvg의 조용한 텍스트 드롭 최종 포착
-  G1  render  : draft/book.pdf exists; page count vs preset (PLAN=hard, --refit=WARN)
+  G1  render  : draft/book.pdf exists; trim=tokens.trim_mm; page count WARN
+                (INV-1 — hard only with --strict-pages)
   G2  fonts   : every font fully embedded
   G3  overflow: no bbox escapes the page rect (tol 1.5pt)
   G4  toc     : bookmarks match chapter start pages
@@ -17,6 +18,8 @@ Gates (pagination.md §7):
   G9  keep    : 면 끝 제목 고립 / widow (단일단 스타일)
   G11 roles   : pageroles.json 무결성(코드·선행조건·anchor·예산)
   G12 parity  : 장 시작 직전 필러 백면 (단면 전자책에 인쇄 관습 금지)
+  G14 toc     : (tocgate.py) A 인쇄 목차 쪽번호↔폴리오 자기일관 / B 목차↔도비라
+                색상(hue) 정합 / C 텍스트 배경 대비 WCAG 하한(대형 3:1, 그 외 4.5:1)
 Writes <book_dir>/gate-report.json. On PASS copies draft/book.pdf -> final/<slug>.pdf.
 Exit 0 = PASS, 1 = FAIL. (G6 visual judgement is the agent's job on the contact sheet.)
 """
@@ -45,7 +48,8 @@ MID_HARD = 0.75
 MID_ROLE_MIN = {"essay": 0.88, "insight": 0.85}       # default 0.90 — insight는 130mm 통짜 블록+H2 24mm 이월 물리
 DOC_STATS_STYLES = {"practical", "academic"}  # 문서 통계는 실측 근거 있는 스타일만
 ROLE_CODES = {"PART_DIVIDER", "FULL_BLEED_PLATE", "EXEC_SUMMARY",
-              "ESSAY_BREATH", "MAGAZINE_WHITESPACE", "TOC_TAIL"}
+              "ESSAY_BREATH", "MAGAZINE_WHITESPACE", "TOC_TAIL",
+              "CH_CLOSE_APPROVED"}  # 꼬리 미달 최종 에스컬레이션 (pagination.md §4)
 
 
 def norm(s):
@@ -178,14 +182,14 @@ def g13_figtext_check(book_dir, outline, page_texts):
 
 def main():
     if len(sys.argv) < 2:
-        sys.exit("usage: python3 scripts/qc_gate.py <book_dir> [--refit]")
+        sys.exit("usage: python3 scripts/qc_gate.py <book_dir> [--strict-pages]")
     book_dir = Path(sys.argv[1]).resolve()
-    refit = "--refit" in sys.argv[2:]
     book = json.loads((book_dir / "book.json").read_text(encoding="utf-8"))
     outline = json.loads((book_dir / "outline.json").read_text(encoding="utf-8"))
     style = book["style"]
     tokens = json.loads((SKILL / "styles" / style / "tokens.json").read_text(encoding="utf-8"))
-    report = {"gates": {}, "warns": [], "pass": False}
+    # metrics는 조기 실패에서도 항상 존재 (소비자가 키 존재를 가정할 수 있게)
+    report = {"gates": {}, "warns": [], "pass": False, "metrics": {}}
     fails = []
 
     # ---- G10 (렌더 전 — 날조는 빌드보다 먼저 잡는다) ----
@@ -210,29 +214,53 @@ def main():
     n = doc.page_count
     lo, hi = tokens.get("length_pages", {}).get(book.get("length", "short"), [10, 400])
     in_range = lo <= n <= hi
-    g1.update({"pages": n, "range": [lo, hi], "ok": in_range or refit, "refit": refit})
+    # trim_mm(tokens) ↔ PDF 물리 크기 대조 — 테마 하드코딩이 tokens와 어긋나면 즉시 검출
+    trim = tokens.get("trim_mm")
+    if trim:
+        pr = doc[0].rect
+        w_mm, h_mm = pr.width * 25.4 / 72, pr.height * 25.4 / 72
+        if abs(w_mm - trim[0]) > 0.5 or abs(h_mm - trim[1]) > 0.5:
+            fails.append(f"G1: 판형 불일치 — PDF {w_mm:.1f}×{h_mm:.1f}mm vs tokens trim_mm {trim} "
+                         "(테마 하드코딩과 tokens가 갈라짐)")
+        g1["trim_mm_measured"] = [round(w_mm, 1), round(h_mm, 1)]
+    # INV-1(pagination.md): 목표 쪽수는 조판의 입력이 아니다 — 산출물 쪽수는 기본
+    # WARN. 하드 FAIL은 --strict-pages 명시 opt-in에서만 (강제 채움/개면 유인 차단).
+    strict_pages = "--strict-pages" in sys.argv[2:]
+    g1.update({"pages": n, "range": [lo, hi], "ok": in_range or not strict_pages,
+               "strict": strict_pages})
     report["gates"]["G1"] = g1
     if not in_range:
         msg = f"G1: page count {n} outside [{lo},{hi}]"
-        if refit:
-            report["warns"].append(msg + " (refit: WARN — 쪽수는 조판을 압박하지 않는다)")
-        else:
+        if strict_pages:
             fails.append(msg)
+        else:
+            report["warns"].append(msg + " (WARN — 쪽수는 조판을 압박하지 않는다, INV-1)")
 
     # ---- G2 font embedding ----
+    # Type3 = Chromium이 CFF(.otf)를 서브셋 못해 글리프를 페이지별 벡터로 그린 것.
+    # "임베드된 폰트"가 아니라 텍스트 추출·검색·접근성이 깨진 상태이므로 FAIL.
+    # 대응: 폰트를 TrueType으로(scripts/convert_fonts.py), .otf를 @font-face에 쓰지 말 것.
     not_embedded = set()
+    type3_pages = []
     for pno in range(n):
         for f in doc.get_page_fonts(pno, full=True):
             xref, ext, ftype, basefont = f[0], f[1], f[2], f[3]
             if ftype == "Type3":
+                type3_pages.append(pno + 1)
                 continue
             if ext in ("n/a", ""):
                 extracted = doc.extract_font(xref)
                 if not extracted or not extracted[-1]:
                     not_embedded.add(basefont)
-    report["gates"]["G2"] = {"not_embedded": sorted(not_embedded), "ok": not not_embedded}
+    type3_pages = sorted(set(type3_pages))
+    report["gates"]["G2"] = {"not_embedded": sorted(not_embedded),
+                             "type3_pages": type3_pages,
+                             "ok": not not_embedded and not type3_pages}
     if not_embedded:
         fails.append(f"G2: fonts not embedded: {sorted(not_embedded)}")
+    if type3_pages:
+        fails.append(f"G2: Type3 글리프 페이지 {type3_pages[:8]}{'…' if len(type3_pages) > 8 else ''} "
+                     f"— CFF(.otf) @font-face가 원인, TTF로 교체할 것 (convert_fonts.py)")
 
     # ---- G3 overflow ----
     overflows = []
@@ -290,6 +318,18 @@ def main():
 
     ch_starts = sorted({p for (_, p) in lvl1 if 1 <= p <= n})
     first_ch = ch_starts[0] if ch_starts else 1
+
+    # ---- G14 목차·디자인 정합 (tocgate.py) ----
+    from tocgate import run as g14_run
+    g14_doc = fitz.open(pdf)  # 본 doc은 page_texts 추출 후 닫혔음
+    g14 = g14_run(g14_doc, outline, ch_starts, book, tokens)
+    g14_doc.close()
+    report["gates"]["G14-A"] = g14["A"]
+    report["gates"]["G14-B"] = g14["B"]
+    report["gates"]["G14-C"] = g14["C"]
+    for axis in ("A", "B", "C"):
+        for p in g14[axis]["problems"]:
+            fails.append(f"G14-{axis}: {p}")
     colophon_pages = {i + 1 for i, t in enumerate(page_texts)
                       if "bookforge" in t and "조판" in t and i + 1 >= (ch_starts[-1] if ch_starts else 1)}
     fullbleed = {p["page"] for p in pages
@@ -357,6 +397,9 @@ def main():
                 g11["problems"].append(f"p{pg}: MAGAZINE_WHITESPACE는 magazine 한정")
             if code == "TOC_TAIL" and pg >= first_ch:
                 g11["problems"].append(f"p{pg}: TOC_TAIL은 본문 시작 전 한정")
+            if code == "CH_CLOSE_APPROVED" and pg not in tails:
+                g11["problems"].append(f"p{pg}: CH_CLOSE_APPROVED는 장 끝 면 한정 "
+                                       "(레버 소진 후 최종 에스컬레이션)")
             if anchor:
                 if norm(anchor) not in norm(page_texts[pg - 1]):
                     g11["problems"].append(f"p{pg}: anchor 불일치(stale — 리빌드로 면 밀림 의심)")
@@ -391,7 +434,6 @@ def main():
         else:
             blanks.append(pg)
     report["gates"]["G7-BLANK"] = {"blank_pages": blanks, "ok": not blanks}
-    report["gates"]["G5"] = report["gates"]["G7-BLANK"]  # 하위 호환 별칭
     report["gates"]["G12"] = {"parity_filler": parity, "ok": not parity}
     if blanks:
         fails.append(f"G7-BLANK: 의도 없는 백면 {blanks}")
@@ -538,6 +580,12 @@ def main():
 
 def finish(book_dir, report, fails):
     report["fails"] = fails
+    # FAIL이면 이전 회차의 final/을 무효화한다 — 게이트를 통과하지 못한 시점의
+    # 스테일 PDF가 final/에 남아 "완료"로 오판되는 것을 차단 (SKILL.md의 final 계약).
+    stale = book_dir / "final" / f"{book_dir.name}.pdf"
+    if stale.exists():
+        stale.unlink()
+        print(f"FAIL -> 스테일 final 제거: {stale}", file=sys.stderr)
     (book_dir / "gate-report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     for w in report.get("warns", []):

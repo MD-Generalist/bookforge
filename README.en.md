@@ -40,7 +40,7 @@ ln -sfn "$PWD" ~/.codex/skills/bookforge    # Codex CLI
 ln -sfn "$PWD" ~/.agents/skills/bookforge   # shared agents dir
 ```
 
-Requirements (self-checked by the skill): **Typst 0.14+**, **Python 3 + PyMuPDF + markdown-it-py**, and **Playwright Chromium** for the two HTML-engine styles only. Five OFL fonts are bundled ([notice](assets/fonts/LICENSES.md)) — everything renders out of the box.
+Requirements (self-checked by the skill): **Typst 0.14.x**, **Python 3 + PyMuPDF + markdown-it-py** (`pip install pymupdf markdown-it-py`), and — for the two HTML-engine styles only — a **global Playwright + Chromium** (`npm i -g playwright && npx playwright install chromium`; the build resolves playwright from `npm root -g`). Books using vector diagrams additionally need `npm ci` inside the skill folder once. Five OFL fonts are bundled ([notice](assets/fonts/LICENSES.md)) — everything renders out of the box.
 
 ## Use
 

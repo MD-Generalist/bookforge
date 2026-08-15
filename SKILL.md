@@ -12,15 +12,20 @@ description: Generate commercial-book-quality Korean ebook PDFs from a topic or 
 ## 실행 전 점검
 
 ```bash
-typst --version        # 0.14+ 필요 (Typst 트랙)
-python3 -c "import fitz, markdown_it"   # PyMuPDF + markdown-it-py (QC·변환)
-npx --no-install playwright --version   # HTML 트랙(insight·magazine) + 도해 프리렌더에 필요
+typst --version        # 0.14.x 필요 (Typst 트랙 — 내장 폰트가 버전에 묶이므로 0.14 계열 고정)
+python3 -c "import pymupdf, markdown_it"   # PyMuPDF + markdown-it-py (QC·변환)
+# HTML 트랙(insight·magazine) + 도해 프리렌더: 전역 playwright + Chromium 실물이 전제다.
+# (스크립트가 `npm root -g`에서 playwright를 해석한다 — 프로젝트 로컬 설치로는 안 잡힌다)
+npm root -g >/dev/null                                       # npm 자체
+node -e "require(require('child_process').execSync('npm root -g').toString().trim()+'/playwright')" \
+  || npm i -g playwright                                     # 전역 playwright
+npx playwright install chromium                              # Chromium 바이너리 (없으면 pass1에서 죽는다)
 # 도해(diagrams/)를 쓰는 책만: AntV Infographic SSR 의존성 (버전 고정 0.2.19)
 node -e "require('<SKILL>/node_modules/@antv/infographic/package.json')" 2>/dev/null \
   || (cd <SKILL> && npm ci)
 ```
 
-없는 것이 있으면 사용자에게 설치를 요청하고 중단한다. HTML 트랙·도해 없이 Typst 4스타일만 쓸 거라면 playwright와 npm ci는 생략 가능.
+없는 것이 있으면 사용자에게 설치를 요청하고 중단한다. HTML 트랙·도해 없이 Typst 4스타일만 쓸 거라면 playwright·Chromium·npm ci는 생략 가능.
 
 ## 파이프라인 (체크리스트를 복사해 진행하며 체크)
 
@@ -54,7 +59,7 @@ python3 <SKILL>/scripts/scaffold.py <book_dir> --style practical \
   --title "제목" --subtitle "부제" --length short --author "저자" --date "2026-08"
 ```
 
-`--length`: short(30~60쪽)/standard(80~150)/long. `--brand "#hex"`로 브랜드색 교체 가능. book.json의 `images`는 이미지 정책(vector=벡터만·generated=생성 아트 포함·none)이다.
+`--length`: short/standard/long — **쪽수 범위의 정본은 각 스타일 `tokens.json`의 `length_pages`**(short는 스타일별 22~70쪽 대역, INV-1에 따라 산출물 쪽수는 WARN만). `--brand "#hex"`로 브랜드색 교체, `--images vector|generated|none`으로 이미지 정책(벡터만·생성 아트 포함·없음) 지정.
 
 ## P1 — 콘텐츠 계약
 
@@ -78,7 +83,7 @@ python3 <SKILL>/scripts/scaffold.py <book_dir> --style practical \
 
 표지·도비라용 생성 아트를 쓸 경우 [references/art-policy.md](references/art-policy.md)를 읽고 따른다(무텍스트 원칙).
 
-완료 기준: outline의 모든 장 파일이 존재하고, 각 파일 첫 줄이 `# {title}`이며, 분량 프리셋에 맞는 총 글자수(short 기준 본문 1.2만~2.2만 자)를 갖춘다.
+완료 기준: outline의 모든 장 파일이 존재하고, 각 파일 첫 줄이 `# {title}`이며, 분량 프리셋에 맞는 총 글자수(short 기준 본문 1.0만~2.1만 자 = 장 5~7개 × 2,000~3,000자 — modes/topic.md와 동일 기준)를 갖춘다. 각 장의 `toc_line`(목차 전용 완결 카피 한 줄)을 채운다 — 없으면 summary 앞 40자가 잘려 실린다.
 
 ## P2-4 — 빌드와 게이트
 
@@ -87,9 +92,9 @@ python3 <SKILL>/scripts/build.py <book_dir>          # → draft/book.pdf
 python3 <SKILL>/scripts/qc_gate.py <book_dir>        # PASS 시에만 final/<slug>.pdf 생성
 ```
 
-게이트: G10 인용·수치 실재(렌더 전) / G0 도해 SVG 소스(렌더 전 — foreignObject·외부참조·단독문단·아이콘 탈락) / G1 렌더·분량범위 / G2 폰트 임베드 / G3 오버플로 0 / G4 목차·북마크 정합 / G7 밀도(백면·꼬리 채움·판면 드리프트) / G8 공기 채움 / G9 제목 고립·widow / G11 사유 코드 무결성 / G12 필러 백면 / G13 도해 라벨 PDF 실재. 기준 수치와 대응법은 [references/pagination.md](references/pagination.md)가 정본이다.
+게이트: G10 인용·수치 실재(렌더 전) / G0 도해 SVG 소스(렌더 전 — foreignObject·외부참조·단독문단·아이콘 탈락) / G1 렌더·판형(tokens `trim_mm` 대조)·분량범위(WARN — `--strict-pages`만 HARD) / G2 폰트 임베드+Type3 0 / G3 오버플로 0 / G4 목차·북마크 정합 / G7 밀도(백면·꼬리 채움·판면 드리프트) / G8 공기 채움 / G9 제목 고립·widow / G11 사유 코드 무결성 / G12 필러 백면 / G13 도해 라벨 PDF 실재 / G14 목차·디자인 정합(인쇄 목차 쪽번호↔폴리오·목차↔도비라 색 계열·텍스트 대비 하한). 기준 수치와 대응법은 [references/pagination.md](references/pagination.md)가 정본이다.
 
-실패 시 `gate-report.json`의 원인 항목만 고치고 재실행한다. **금지 대응**: 분량 미달을 부록·용어집 추가로 메우기, 절별 강제 개면, 빈 줄·행간 확대로 면 채우기 — 전부 게이트가 다시 잡는다. 올바른 대응: G7 꼬리 미달은 `refit.py`(자간 미세조정 자동 탐색) → 해 없으면 문단 1~2개 국소 증감 또는 `pageroles.json` 사유 코드(의도된 여백 선언, G11이 진위 검증). 재배치(원고 유지) 시에는 `qc_gate.py <dir> --refit`으로 분량범위를 WARN 강등. 같은 게이트 3회 연속 실패면 원인을 사용자에게 보고한다.
+실패 시 `gate-report.json`의 원인 항목만 고치고 재실행한다. **금지 대응**: 분량 미달을 부록·용어집 추가로 메우기, 절별 강제 개면, 빈 줄·행간 확대로 면 채우기 — 전부 게이트가 다시 잡는다. 올바른 대응: G7 꼬리 미달은 `python3 <SKILL>/scripts/refit.py <book_dir>`(자간 미세조정 자동 탐색) → 해 없으면 문단 1~2개 국소 증감 또는 `pageroles.json` 사유 코드(의도된 여백 선언, G11이 진위 검증). 같은 게이트 3회 연속 실패면 원인을 사용자에게 보고한다.
 
 ## P5 — 시각 검수 (필수, 생략 금지)
 

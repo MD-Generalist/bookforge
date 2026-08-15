@@ -113,6 +113,12 @@ def main():
         sys.exit("usage: python3 scripts/build.py <book_dir>")
     book_dir = Path(sys.argv[1]).resolve()
     book, outline, style_dir, tokens = load(book_dir)
+    # 재빌드 시작 = 이전 final/ 무효화. final/은 이번 산출물이 게이트를 통과한
+    # 뒤에만 다시 생긴다 (qc_gate FAIL 경로의 제거와 이중 방어).
+    stale = book_dir / "final" / f"{book_dir.name}.pdf"
+    if stale.exists():
+        stale.unlink()
+        print(f"재빌드: 이전 final 무효화 -> {stale}")
     render_diagrams(book_dir, book)
     engine = tokens.get("engine", "typst")
     if engine == "typst":

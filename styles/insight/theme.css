@@ -1,9 +1,9 @@
 /* bookforge insight — 182x257mm B5 변형, ETRI Insight 실측 준거 (STYLE.md) */
 
-@font-face { font-family: "Pretendard"; src: url("$fonts_dir/Pretendard-Light.otf"); font-weight: 300; }
-@font-face { font-family: "Pretendard"; src: url("$fonts_dir/Pretendard-Medium.otf"); font-weight: 500; }
-@font-face { font-family: "Pretendard"; src: url("$fonts_dir/Pretendard-Bold.otf"); font-weight: 700; }
-@font-face { font-family: "Pretendard"; src: url("$fonts_dir/Pretendard-ExtraBold.otf"); font-weight: 800; }
+@font-face { font-family: "Pretendard"; src: url("$fonts_dir/Pretendard-Light.ttf"); font-weight: 300; }
+@font-face { font-family: "Pretendard"; src: url("$fonts_dir/Pretendard-Medium.ttf"); font-weight: 500; }
+@font-face { font-family: "Pretendard"; src: url("$fonts_dir/Pretendard-Bold.ttf"); font-weight: 700; }
+@font-face { font-family: "Pretendard"; src: url("$fonts_dir/Pretendard-ExtraBold.ttf"); font-weight: 800; }
 @font-face { font-family: "Paperlogy"; src: url("$fonts_dir/Paperlogy-8ExtraBold.ttf"); font-weight: 800; }
 @font-face { font-family: "Barlow"; src: url("$fonts_dir/Barlow-Light.ttf"); font-weight: 300; }
 @font-face { font-family: "Barlow"; src: url("$fonts_dir/Barlow-Regular.ttf"); font-weight: 400; }
@@ -12,9 +12,9 @@
 
 :root {
   --blue-800: #14577d; --blue-600: $key_color; --blue-toc: #2a6f9e; --blue-toc-hi: #3d84b5;
-  --cyan-500: #29a8c8; --cyan-400: #5ec6dc; --teal-600: #2a7f8a;
+  --cyan-500: #269cb9; --cyan-400: #5ec6dc; --teal-600: #2a7f8a;
   --tint: #ecf8fe;
-  --ink: #1c2126; --ink-soft: #4a5158; --ink-mute: #8a939b;
+  --ink: #1c2126; --ink-soft: #4a5158; --ink-mute: #6d747a;
   --rule: #d3dce2; --paper: #ffffff;
   --han: "Pretendard", sans-serif;
   --disp: "Paperlogy", "Pretendard", sans-serif;
@@ -114,7 +114,7 @@ b, strong { font-weight: 500; }
 /* 표: 와이드 측정 130mm, 세로 괘선 없음 */
 .chapter-body table { width: 130mm; max-width: none; border-collapse: collapse;
   font-size: 8.95pt; margin: 8mm 0; break-inside: avoid; }
-.chapter-body th { background: #679bc7; color: #fff; font-weight: 500;
+.chapter-body th { background: var(--blue-600); color: #fff; font-weight: 500; /* 4.5:1 하한 — 밝은 틴트 헤더는 백색 라벨과 미달 */
   padding: 2.2mm 3mm; text-align: left; }
 .chapter-body tr:nth-child(odd) td { background: var(--tint); }
 .chapter-body td { border-bottom: 0.3pt solid var(--rule); padding: 2.2mm 3mm;

@@ -56,7 +56,8 @@ ln -sfn "$PWD" ~/.agents/skills/bookforge
 
 - **Typst 0.14+** — `practical`·`academic`·`essay`·`business`
 - **Python 3 + PyMuPDF + markdown-it-py** — 변환·QC 게이트 (`pip install pymupdf markdown-it-py`)
-- **Playwright(Chromium)** — `insight`·`magazine`만 (`npm i -g playwright && npx playwright install chromium`)
+- **Playwright(Chromium)** — `insight`·`magazine`만 (`npm i -g playwright && npx playwright install chromium` — 빌드는 **전역** `npm root -g`에서 playwright를 해석하므로 프로젝트 로컬 설치로는 안 잡힌다)
+- **도해(diagrams/)를 쓰는 책만** — 스킬 폴더에서 1회 `npm ci` (AntV Infographic SSR 0.2.19 고정)
 
 폰트는 OFL 5종(Pretendard·Noto Serif KR·Paperlogy·Gmarket Sans·Barlow)이 레포에 동봉되어 바로 렌더됩니다 — [라이선스 고지](assets/fonts/LICENSES.md).
 

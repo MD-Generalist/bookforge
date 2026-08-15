@@ -7,7 +7,7 @@
 | 파일 | 역할 |
 |---|---|
 | `STYLE.md` | 디자인 규칙서(수치 포함). 집필 톤·지면 문법의 단일 진실 원천 |
-| `tokens.json` | `engine`(typst\|html), `trim_mm`, `length_pages`, `brand_default`, `fonts`, `identity` |
+| `tokens.json` | `engine`(typst\|html), `trim_mm`(G1이 PDF 실측과 ±0.5mm 대조 — 테마 하드코딩과 어긋나면 FAIL), `length_pages`, `brand_default`, `fonts`(스타일이 실제 쓰는 동봉 패밀리 목록), `body_frame_mm`(pagemetrics 판면 정본), `diagram`(팔레트·minFontPt·widths) |
 | `theme.typ` | (typst 엔진) 테마 구현 |
 | `theme.html` + `theme.css` | (html 엔진) 페이지 골격 + 인쇄 스타일시트 |
 | `decorate.py` | (html 엔진, 선택) 렌더 후 PyMuPDF 러닝 장식 스탬핑 |
@@ -18,13 +18,13 @@
 
 `meta`(= `json("meta.json")`) · `theme-tokens` · `TT` · `book(meta:, tokens:, cover:, toc:, body)` · `make-cover(meta)` · `colophon(meta, t)` · `bf-chapter(title, summary:)` · `bf-callout(kind:, title:, body)` · `bf-stat(value, label)` · `bf-fig(path, caption:, source:, width:)`
 
-base의 `book()`을 그대로 쓰거나(практical처럼 토큰만 교체), 완전히 대체할 수 있다(essay·business·academic처럼). base가 제공하는 부품: `default-tokens`, `keep-words`(제목 어절 단위 줄바꿈 우회 — Typst는 keep-all 미지원), `full-bleed`, `chapter-state`, `numpad`.
+base의 `book()`을 그대로 쓰거나(practical처럼 토큰만 교체), 완전히 대체할 수 있다(essay·business·academic처럼). base가 제공하는 부품: `default-tokens`, `keep-words`(제목 어절 단위 줄바꿈 우회 — Typst는 keep-all 미지원), `full-bleed`, `chapter-state`, `numpad`.
 
 주의: 문단 간격을 0으로 쓰는 스타일은 `list/enum spacing`과 블록 above/below를 반드시 명시하라 — 기본값 상속 시 줄겹침이 난다.
 
 ## HTML 테마 계약
 
-`theme.html`은 python `string.Template` — `$title $subtitle $author $date $brand $cover_art $toc $body $css` 플레이스홀더. `$` 문자를 리터럴로 쓰려면 `$$`.
+`theme.html`은 python `string.Template` — `$title $subtitle $author $date $brand $cover_art $toc $body $css` + `$tocmap`(magazine 목차 이미지 맵) `$backquote`(뒤표지 인용) 플레이스홀더. `$` 문자를 리터럴로 쓰려면 `$$`. css 쪽 플레이스홀더는 `$fonts_dir $key_color $key_tint`.
 
 `theme.css`엔 `$fonts_dir`(폰트 폴더 file:// URI), `$key_color`, `$key_tint`가 주입된다. 규칙:
 

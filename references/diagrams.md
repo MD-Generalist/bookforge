@@ -64,13 +64,15 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
 | 정보 구조 | 템플릿 계열 |
 |---|---|
 | 병렬 요점 | `list-column-*` `list-grid-*` |
-| 순서·단계 | `sequence-ascending-steps` `sequence-timeline-*` `sequence-roadmap-vertical-*` |
+| 순서·단계 | `sequence-timeline-simple`(106mm 실측 11.7pt) `sequence-column-vertical-arrow`(12.4pt) — `sequence-ascending-steps`는 desc 없이 라벨만(8.35pt 경계) |
 | 비교·SWOT | `compare-binary-*` `compare-swot` |
 | 계층·트리 | `hierarchy-tree-*` `hierarchy-mindmap-*` |
 | 수치 추이 | `chart-line-plain-text` `chart-bar-plain-text` (본문 실재 수치만) |
 
-판형이 좁은 스타일(essay 78mm)은 가로형 템플릿(`list-row-*`, 가로 타임라인)을 피하고
-세로형(`list-column-*`, `sequence-roadmap-vertical-*`)을 쓴다.
+판형이 좁은 스타일(essay 78mm)은 가로형 템플릿(`list-row-*`, 가로 타임라인)을 피한다.
+**106mm 실측에서 이미 불가 판정된 템플릿**(라벨이 8pt 하한 미달): `sequence-roadmap-vertical-*`
+4.7pt · `sequence-snake-steps` 5.8pt · `list-grid-*` 계열 5.6~6.4pt(130mm 기준) — 더 좁은
+판형에서는 당연히 더 불가. 세로 단계는 `sequence-column-vertical-arrow`를 쓴다.
 
 ## 캐시와 오프라인
 
