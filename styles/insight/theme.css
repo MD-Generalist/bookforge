@@ -14,7 +14,8 @@
   --blue-800: #14577d; --blue-600: $key_color; --blue-toc: #2a6f9e; --blue-toc-hi: #3d84b5;
   --cyan-500: #269cb9; --cyan-400: #5ec6dc; --teal-600: #2a7f8a;
   --tint: #ecf8fe;
-  --ink: #1c2126; --ink-soft: #4a5158; --ink-mute: #6d747a;
+  --ink: #1c2126; --ink-soft: #4a5158; --ink-mute: #5a6167;  /* 🚨 #6d747a 는 tint 배경(#ecf8fe)에서 대비 4.36 — G14-C(4.5) 미달.
+     표 셀·캡션이 tint 위에 놓이면 실패하므로 한 단계 어둡게 고정(대비 4.9). */
   --rule: #d3dce2; --paper: #ffffff;
   --han: "Pretendard", sans-serif;
   --disp: "Paperlogy", "Pretendard", sans-serif;
