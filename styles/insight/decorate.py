@@ -17,7 +17,8 @@ except ImportError:
 
 MM = 72 / 25.4
 CYAN = (0x5E / 255, 0xC6 / 255, 0xDC / 255)
-MUTE = (0x6D / 255, 0x74 / 255, 0x7A / 255)
+MUTE = (0x5A / 255, 0x61 / 255, 0x67 / 255)  # = theme.css --ink-mute. 백색 지면 위 대비 6.29
+
 
 def decorate(doc, ctx):
     numfont = str(ctx["fonts_dir"] / "Barlow-Light.ttf")

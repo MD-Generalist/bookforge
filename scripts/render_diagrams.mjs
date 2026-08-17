@@ -304,7 +304,12 @@ for (const file of sidecars) {
     if (!labelsA.length) fail(`${name}: 라벨 0개`);
     const aliens = alienColors(normalized, palette, true);
     if (aliens.length) {
-      fail(`${name}: 팔레트 밖 색 ${aliens.join(", ")} — authored SVG는 styles/${style} tokens.diagram.palette + #ffffff만 허용(토큰 밖 색 금지)`);
+      // 구 토큰으로 그린 authored SVG를 위한 안내: insight --ink-mute가 대비 하한 미달로
+      // 교체됐다(#6d747a는 tint #ecf8fe 위 4.37 < 4.5 — 실물 사고 사례가 있다).
+      const migrated = aliens.includes("#6d747a")
+        ? " · #6d747a는 대비 미달로 #5a6167로 교체됐다 — SVG의 해당 색을 바꿀 것"
+        : "";
+      fail(`${name}: 팔레트 밖 색 ${aliens.join(", ")} — authored SVG는 styles/${style} tokens.diagram.palette + #ffffff만 허용(토큰 밖 색 금지)${migrated}`);
     }
     const checkA = await pixelSelfCheck(browser, rawAuthored, normalized, FONT_DIR, path.join(checkDir, name));
     if (checkA.ratio > PIXEL_TOLERANCE) {
