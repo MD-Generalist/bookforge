@@ -7,7 +7,10 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
   M1  목차 쪽번호 변조  — 첫 장의 인쇄 쪽번호를 +7 틀리게 재스탬핑 → G14-A FAIL
   M2  목차 이색(異色)   — 목차 면에 도비라 색 계열과 무관한 마젠타 라벨 주입 → G14-B FAIL
   M3  저대비 텍스트     — 본문 면에 흰 바탕 연회색(#c8c8c8) 캡션 주입 → G14-C FAIL
-  M0  무변조 대조군     — 원본은 G14 전 축 PASS (오탐 없음 확인)
+  M7  전역 축소        — 전 면을 0.8035배로 재배치 → G1-SCALE FAIL
+                         (실측 사고 재현: 출하된 insight-ondevice-ai.pdf가 정확히 이 상태였고
+                          기존 15개 게이트를 전부 통과했다. 주입본 최빈 7.63pt = 사고본과 동일)
+  M0  무변조 대조군     — 원본은 G14 전 축 + G1-SCALE PASS (오탐 없음 확인)
 
 Usage: python3 tests/mutations/run_mutations.py <book_dir>
        (book_dir는 게이트 PASS 상태의 draft/book.pdf + outline.json 보유)
@@ -27,6 +30,7 @@ except ImportError:
     import fitz
 
 from tocgate import find_toc_pages, g14a_toc_numbers, g14b_key_color, g14c_contrast
+from qc_gate import g1_scale_check
 
 
 def load(book_dir):
@@ -35,6 +39,28 @@ def load(book_dir):
     doc = fitz.open(book_dir / "draft" / "book.pdf")
     ch_starts = sorted({p for l, _, p in doc.get_toc(simple=True) if l == 1})
     return doc, titles, ch_starts
+
+
+def declared_body_pt(book_dir):
+    """book.json의 style → styles/<style>/tokens.json의 body_pt."""
+    book = json.loads((book_dir / "book.json").read_text(encoding="utf-8"))
+    tokens = json.loads((SKILL / "styles" / book["style"] / "tokens.json").read_text(encoding="utf-8"))
+    return tokens.get("body_pt")
+
+
+def mutate_global_shrink(src, dst, k=0.8035):
+    """전 면을 k배로 축소 재배치 — Chromium shrink-to-fit 산출물과 동형.
+    show_pdf_page는 form XObject 변환으로 싣기 때문에 텍스트 레이어 급수도 k배가 된다
+    (실측: 9.49pt 원본 → 7.63pt, 출하 사고본과 동일값)."""
+    s = fitz.open(src)
+    out = fitz.open()
+    for page in s:
+        np_ = out.new_page(width=page.rect.width, height=page.rect.height)
+        np_.show_pdf_page(fitz.Rect(0, 0, page.rect.width * k, page.rect.height * k),
+                          s, page.number)
+    out.save(dst)
+    out.close()
+    s.close()
 
 
 def mutate_toc_number(doc, titles, ch_starts):
@@ -84,10 +110,12 @@ def main():
 
     # M0 대조군 — 원본은 전 축 PASS여야 뮤테이션 판정이 의미 있다
     doc, titles, ch_starts = load(book_dir)
+    decl_pt = declared_body_pt(book_dir)
     a0, _ = g14a_toc_numbers(doc, titles, ch_starts)
     b0 = g14b_key_color(doc, titles, ch_starts)
     c0, _ = g14c_contrast(doc)
-    results["M0-clean"] = not a0 and not b0 and not c0
+    s0 = g1_scale_check(doc, decl_pt)[1] if decl_pt else []
+    results["M0-clean"] = not a0 and not b0 and not c0 and not s0
     doc.close()
 
     with tempfile.TemporaryDirectory() as td:
@@ -118,12 +146,24 @@ def main():
         results["M3-low-contrast"] = bool(c3)
         doc.close()
 
+        # M7 — body_pt 미선언 스타일 팩에서는 검사 자체가 성립하지 않으므로 건너뛴다
+        if decl_pt:
+            work = Path(td) / "m7.pdf"
+            mutate_global_shrink(book_dir / "draft" / "book.pdf", work)
+            doc = fitz.open(work)
+            meas7, s7 = g1_scale_check(doc, decl_pt)
+            results["M7-global-shrink"] = bool(s7)
+            print(f"      (M7 주입본 본문 {meas7}pt vs 선언 {decl_pt}pt)")
+            doc.close()
+        else:
+            print("      (M7 건너뜀 — tokens.json에 body_pt 미선언)")
+
     ok = all(results.values())
     for k, v in results.items():
         print(f"{'PASS' if v else 'FAIL'}  {k}")
     if not ok:
         sys.exit(1)
-    print("전 뮤테이션 검출 — G14 감도 확인")
+    print("전 뮤테이션 검출 — G14·G1-SCALE 감도 확인")
 
 
 if __name__ == "__main__":

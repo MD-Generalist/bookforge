@@ -118,6 +118,7 @@ P9 되감기      실패 시 P7→P6→P3→(PLAN만)P2 역순. REFIT은 P3에�
 | 게이트 | 조건 | 판정 |
 |---|---|---|
 | G1-RENDER | draft/book.pdf 실재 + 판형=tokens `trim_mm` ±0.5mm. 쪽수 범위는 WARN(INV-1, `--strict-pages`만 HARD) | 부재·판형 불일치 HARD |
+| G1-SCALE | 본문 최빈 pt(글자 수 가중) = tokens `body_pt` ±0.3pt. **다른 모든 밀도·급수 게이트는 문서 자신을 기준으로 하는 상대 지표라 전역 축소를 원리적으로 못 본다** — Chromium print가 판면 초과 요소를 만나면 문서 전체를 shrink-to-fit으로 줄이고, 그 산출물은 G1(판형만 검사)·G7-FRAME(실측 드리프트 2.7pt < 6pt 임계)·G8·G9를 전부 통과한다(실측: 출하된 예제 1권이 0.804배 축소 상태로 15게이트 통과). `body_pt` 미선언 스타일 팩은 WARN(중단 지점 불변) | HARD — 뮤테이션 스위트 M7로 감도 고정 |
 | G2-FONTS | 전 폰트 완전 임베드 + **Type3 글리프 0**(CFF .otf → Chromium Type3 폴백은 임베드 실패로 판정) | HARD |
 | G3-OVERFLOW | 텍스트·이미지 bbox가 재단 밖(tol 1.5pt) | HARD |
 | G4-TOC | PDF 북마크 ↔ 장 시작 면 정합(HTML 트랙은 스탬핑 후 대조) | HARD |

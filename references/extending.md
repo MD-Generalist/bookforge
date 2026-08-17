@@ -7,7 +7,7 @@
 | 파일 | 역할 |
 |---|---|
 | `STYLE.md` | 디자인 규칙서(수치 포함). 집필 톤·지면 문법의 단일 진실 원천 |
-| `tokens.json` | `engine`(typst\|html), `trim_mm`(G1이 PDF 실측과 ±0.5mm 대조 — 테마 하드코딩과 어긋나면 FAIL), `length_pages`, `brand_default`, `fonts`(스타일이 실제 쓰는 동봉 패밀리 목록), `body_frame_mm`(pagemetrics 판면 정본), `diagram`(팔레트·minFontPt·widths) |
+| `tokens.json` | `engine`(typst\|html), `trim_mm`(G1이 PDF 실측과 ±0.5mm 대조 — 테마 하드코딩과 어긋나면 FAIL), **`body_pt`**(테마가 선언한 본문 급수. G1-SCALE이 PDF 본문 최빈 pt와 ±0.3pt 대조 — 전역 축소 차단. **미선언 시 WARN만 나가고 그 스타일은 축소 검출 불가**이므로 새 팩은 반드시 넣을 것), `length_pages`, `brand_default`, `fonts`(스타일이 실제 쓰는 동봉 패밀리 목록), `body_frame_mm`(pagemetrics 판면 정본), `diagram`(팔레트·minFontPt·widths) |
 | `theme.typ` | (typst 엔진) 테마 구현 |
 | `theme.html` + `theme.css` | (html 엔진) 페이지 골격 + 인쇄 스타일시트 |
 | `decorate.py` | (html 엔진, 선택) 렌더 후 PyMuPDF 러닝 장식 스탬핑 |

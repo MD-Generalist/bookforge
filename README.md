@@ -113,7 +113,7 @@ python3 scripts/qc_gate.py mybook      # 게이트 통과 시에만 → final/my
 | 게이트 | 검사 |
 |---|---|
 | G0 | (렌더 전) 도해 SVG 소스 — `foreignObject` 잔존·텍스트 부재·외부 참조·단독 문단 위반·사이드카 무결성·아이콘 탈락 차단 |
-| G1 | 렌더 성공 + 판형(`tokens.trim_mm`) 대조 + 분량 프리셋 범위(WARN — `--strict-pages`만 HARD) |
+| G1 | 렌더 성공 + 판형(`tokens.trim_mm`) 대조 + **본문 급수(`tokens.body_pt`) 대조 — 전역 축소 차단** + 분량 프리셋 범위(WARN — `--strict-pages`만 HARD) |
 | G2 | 폰트 전량 임베드 + **Type3 글리프 0** |
 | G3 | 본문 bbox 오버플로 0 (허용오차 1.5pt) |
 | G4 | 목차·북마크 ↔ 실제 장 시작 쪽 정합 |

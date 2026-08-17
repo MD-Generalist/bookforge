@@ -93,7 +93,7 @@ python3 <SKILL>/scripts/build.py <book_dir>          # → draft/book.pdf
 python3 <SKILL>/scripts/qc_gate.py <book_dir>        # PASS 시에만 final/<slug>.pdf 생성
 ```
 
-게이트: G10 인용·수치 실재(렌더 전) / G0 도해 SVG 소스(렌더 전 — foreignObject·외부참조·단독문단·아이콘 탈락) / G1 렌더·판형(tokens `trim_mm` 대조)·분량범위(WARN — `--strict-pages`만 HARD) / G2 폰트 임베드+Type3 0 / G3 오버플로 0 / G4 목차·북마크 정합 / G7 밀도(백면·꼬리 채움·판면 드리프트) / G8 공기 채움 / G9 제목 고립·widow / G11 사유 코드 무결성 / G12 필러 백면 / G13 도해 라벨 PDF 실재 / G14 목차·디자인 정합(인쇄 목차 쪽번호↔폴리오·목차↔도비라 색 계열·텍스트 대비 하한). 기준 수치와 대응법은 [references/pagination.md](references/pagination.md)가 정본이다.
+게이트: G10 인용·수치 실재(렌더 전) / G0 도해 SVG 소스(렌더 전 — foreignObject·외부참조·단독문단·아이콘 탈락) / G1 렌더·판형(tokens `trim_mm` 대조)·**본문 급수(tokens `body_pt` ±0.3pt — 전역 축소 차단)**·분량범위(WARN — `--strict-pages`만 HARD) / G2 폰트 임베드+Type3 0 / G3 오버플로 0 / G4 목차·북마크 정합 / G7 밀도(백면·꼬리 채움·판면 드리프트) / G8 공기 채움 / G9 제목 고립·widow / G11 사유 코드 무결성 / G12 필러 백면 / G13 도해 라벨 PDF 실재 / G14 목차·디자인 정합(인쇄 목차 쪽번호↔폴리오·목차↔도비라 색 계열·텍스트 대비 하한). 기준 수치와 대응법은 [references/pagination.md](references/pagination.md)가 정본이다.
 
 실패 시 `gate-report.json`의 원인 항목만 고치고 재실행한다. **금지 대응**: 분량 미달을 부록·용어집 추가로 메우기, 절별 강제 개면, 빈 줄·행간 확대로 면 채우기 — 전부 게이트가 다시 잡는다. 올바른 대응: G7 꼬리 미달은 `python3 <SKILL>/scripts/refit.py <book_dir>`(자간 미세조정 자동 탐색) → 해 없으면 문단 1~2개 국소 증감 또는 `pageroles.json` 사유 코드(의도된 여백 선언, G11이 진위 검증). 같은 게이트 3회 연속 실패면 원인을 사용자에게 보고한다.
 

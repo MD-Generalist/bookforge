@@ -123,6 +123,34 @@ def _eff_chars(s):
     return sum(1.0 if ord(c) > 0x2E7F else 0.55 for c in s)
 
 
+SCALE_TOL_PT = 0.3  # 실측: 정상 8권 |측정-선언| <= 0.01pt(float 표현차), 축소본 1.87pt
+
+
+def body_pt_mode(doc):
+    """본문 최빈 pt — 글자 수 가중(행 수 기준이면 표·리스트가 본문을 이긴다).
+    앞부속 대형 활자는 글자 수가 적어 최빈값을 흔들지 못한다(실측 확인)."""
+    sz = Counter()
+    for pno in range(doc.page_count):
+        for blk in doc[pno].get_text("dict").get("blocks", []):
+            for ln in blk.get("lines", []):
+                for sp in ln["spans"]:
+                    if sp["text"].strip():
+                        sz[round(sp["size"], 2)] += len(sp["text"].strip())
+    return sz.most_common(1)[0][0] if sz else None
+
+
+def g1_scale_check(doc, decl_pt, tol=SCALE_TOL_PT):
+    """G1-SCALE: 선언 본문 급수 대조. (측정값, problems) 반환.
+    뮤테이션 스위트가 이 함수를 직접 호출해 감도를 고정한다."""
+    meas = body_pt_mode(doc)
+    if meas is None or decl_pt is None or abs(meas - decl_pt) <= tol:
+        return meas, []
+    return meas, [
+        f"본문 최빈 {meas:.2f}pt vs tokens body_pt {decl_pt}pt (비 {meas / decl_pt:.4f}) — "
+        "전역 축소/확대. Chromium shrink-to-fit 의심: 목차·표·도해 중 판면을 넘긴 요소를 "
+        "찾아 원고/조판에서 줄일 것(폰트 크기 조정으로 대응 금지)"]
+
+
 def g15_para_check(book_dir, outline, style):
     cfg = G15_PARA_CFG.get(style)
     if not cfg:
@@ -301,12 +329,35 @@ def main():
         g1["trim_mm_measured"] = [round(w_mm, 1), round(h_mm, 1)]
         g1["trim_mm_expected"] = list(trim)
     g1["trim_ok"] = trim_ok
+    # ---- G1-SCALE 전역 축소/확대 (스케일 불변 게이트들의 사각지대) ----
+    # 🚨 Chromium print는 조판 요소가 판면을 넘기면 **문서 전체**를 shrink-to-fit으로 축소한다
+    #    (styles/insight/theme.css의 목차 주석이 경고하는 그 메커니즘). 실측 사고: 목차 24행이
+    #    판면을 2.11mm 넘긴 책이 전권 0.804배로 축소돼 출하됐고 **기존 15개 게이트가 전부 통과**했다
+    #    — body_size(:589)·reach·gap·pitch가 모두 문서 자신을 기준으로 하는 상대 지표이고, G1은
+    #    판형만, G7-FRAME은 6pt 임계(실측 드리프트 2.7pt)라서다. 절대 급수를 선언값과 대조하는
+    #    축이 없으면 이 사고 계열은 원리적으로 검출되지 않는다.
+    # 축은 본문 pt 하나다 — 행송(pitch)은 선언값 대비 -1.4~-2% 편차가 정상 권에도 있어
+    #    (insight 17.25 vs 17.5, magazine 15.00 vs 15.31 실측) 게이트 축으로 쓰면 오탐이 난다.
+    # tokens에 body_pt가 없는 스타일 팩은 WARN으로 넘긴다 — 중단 지점을 늘리지 않는다
+    #    (pagination.md의 "중단 지점" 불변식 유지).
+    scale_ok = True
+    decl_pt = tokens.get("body_pt")
+    if decl_pt:
+        meas, probs = g1_scale_check(doc, decl_pt)
+        g1["body_pt_declared"] = decl_pt
+        g1["body_pt_measured"] = meas
+        if probs:
+            fails.extend("G1-SCALE: " + p for p in probs)
+            scale_ok = False
+    else:
+        report["warns"].append(
+            f"G1-SCALE: tokens.json에 body_pt 미선언 — 전역 축소 검출 불가 (styles/{style}/tokens.json)")
     # INV-1(pagination.md): 목표 쪽수는 조판의 입력이 아니다 — 산출물 쪽수는 기본
     # WARN. 하드 FAIL은 --strict-pages 명시 opt-in에서만 (강제 채움/개면 유인 차단).
     # ok는 이 게이트가 fails에 넣은 모든 사유(판형 포함)를 반영해야 진단이 안 갈라진다.
     strict_pages = "--strict-pages" in sys.argv[2:]
     g1.update({"pages": n, "range": [lo, hi],
-               "ok": trim_ok and (in_range or not strict_pages),
+               "ok": trim_ok and scale_ok and (in_range or not strict_pages),
                "strict": strict_pages})
     report["gates"]["G1"] = g1
     if not in_range:
