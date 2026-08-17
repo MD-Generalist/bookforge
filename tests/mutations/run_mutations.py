@@ -7,6 +7,10 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
   M1  목차 쪽번호 변조  — 첫 장의 인쇄 쪽번호를 +7 틀리게 재스탬핑 → G14-A FAIL
   M2  목차 이색(異色)   — 목차 면에 도비라 색 계열과 무관한 마젠타 라벨 주입 → G14-B FAIL
   M3  저대비 텍스트     — 본문 면에 흰 바탕 연회색(#c8c8c8) 캡션 주입 → G14-C FAIL
+  M8  절 쪽번호 변조   — 인쇄 목차의 **절 행** 쪽번호를 +5 틀리게 재스탬핑 → G14-D FAIL
+                         (실측 사고 재현: 절 마커 오배정으로 절 쪽번호·레벨 2 북마크 10/15가
+                          틀린 책이 G4 레벨 2 수 대조와 G14-A를 전부 통과해 출하됐다.
+                          이 축만 빌더 산출물을 참조하지 않으므로 그 계열을 유일하게 잡는다)
   M7  전역 축소        — 전 면을 0.8035배로 재배치 → G1-SCALE FAIL
                          (실측 사고 재현: 출하된 insight-ondevice-ai.pdf가 정확히 이 상태였고
                           기존 15개 게이트를 전부 통과했다. 주입본 최빈 7.63pt = 사고본과 동일)
@@ -29,7 +33,8 @@ try:
 except ImportError:
     import fitz
 
-from tocgate import find_toc_pages, g14a_toc_numbers, g14b_key_color, g14c_contrast
+from tocgate import (find_toc_pages, g14a_toc_numbers, g14b_key_color, g14c_contrast,
+                     g14d_section_numbers, _printed_toc_rows)
 from qc_gate import g1_scale_check
 
 
@@ -102,6 +107,32 @@ def mutate_low_contrast(doc, ch_starts):
     return True
 
 
+def mutate_section_number(doc, titles, ch_starts):
+    """인쇄 목차의 첫 **절 행** 쪽번호를 지우고 +5 값으로 재스탬핑.
+    장 행이 아니라 절 행을 고른다 — G14-A는 장만 순회하므로 이 변조는 G14-D만 잡는다."""
+    toc_pages = find_toc_pages(doc, titles, first_ch=ch_starts[0])
+    if not toc_pages:
+        return False
+    for r in _printed_toc_rows(doc, toc_pages):
+        txt = "".join(r["text"].split())
+        if any(txt.startswith("".join(t.split())[:10]) for t in titles):
+            continue                       # 장 행 — 건너뛴다
+        page = doc[r["page"]]
+        for b in page.get_text("dict")["blocks"]:
+            for l in b.get("lines", []):
+                for s in l["spans"]:
+                    if s["text"].strip() == str(r["printed"]) and \
+                            abs(s["bbox"][1] - min(x["bbox"][1] for x in l["spans"])) < 1:
+                        rect = fitz.Rect(s["bbox"])
+                        page.add_redact_annot(rect, fill=(1, 1, 1))
+                        page.apply_redactions()
+                        page.insert_text(fitz.Point(rect.x0, rect.y1 - 1),
+                                         str(r["printed"] + 5),
+                                         fontsize=s["size"], color=(0, 0, 0))
+                        return True
+    return False
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
@@ -115,7 +146,10 @@ def main():
     b0 = g14b_key_color(doc, titles, ch_starts)
     c0, _ = g14c_contrast(doc)
     s0 = g1_scale_check(doc, decl_pt)[1] if decl_pt else []
-    results["M0-clean"] = not a0 and not b0 and not c0 and not s0
+    tp0 = find_toc_pages(doc, titles, first_ch=ch_starts[0])
+    d0, _w0, d0_pairs = g14d_section_numbers(doc, tp0, titles, ch_starts)
+    results["M0-clean"] = not a0 and not b0 and not c0 and not s0 and not d0
+    has_sections = bool(d0_pairs)
     doc.close()
 
     with tempfile.TemporaryDirectory() as td:
@@ -145,6 +179,21 @@ def main():
         c3, _ = g14c_contrast(doc)
         results["M3-low-contrast"] = bool(c3)
         doc.close()
+
+        # M8 — toc_levels: 1 스타일(절 행 없음)에서는 성립하지 않으므로 건너뛴다
+        if has_sections:
+            work = Path(td) / "m8.pdf"
+            shutil.copy(book_dir / "draft" / "book.pdf", work)
+            doc = fitz.open(work)
+            assert mutate_section_number(doc, titles, ch_starts), "M8 주입 실패"
+            tp8 = find_toc_pages(doc, titles, first_ch=ch_starts[0])
+            d8, _w8, _p8 = g14d_section_numbers(doc, tp8, titles, ch_starts)
+            a8, _ = g14a_toc_numbers(doc, titles, ch_starts)
+            results["M8-section-number"] = bool(d8)
+            print(f"      (M8 G14-D {len(d8)}건 검출 / G14-A는 {len(a8)}건 — 장 축은 못 본다)")
+            doc.close()
+        else:
+            print("      (M8 건너뜀 — toc_levels 1 또는 절 행 없음)")
 
         # M7 — body_pt 미선언 스타일 팩에서는 검사 자체가 성립하지 않으므로 건너뛴다
         if decl_pt:

@@ -7,7 +7,7 @@
 | 파일 | 역할 |
 |---|---|
 | `STYLE.md` | 디자인 규칙서(수치 포함). 집필 톤·지면 문법의 단일 진실 원천 |
-| `tokens.json` | `engine`(typst\|html), `trim_mm`(G1이 PDF 실측과 ±0.5mm 대조 — 테마 하드코딩과 어긋나면 FAIL), **`body_pt`**(테마가 선언한 본문 급수. G1-SCALE이 PDF 본문 최빈 pt와 ±0.3pt 대조 — 전역 축소 차단. **미선언 시 WARN만 나가고 그 스타일은 축소 검출 불가**이므로 새 팩은 반드시 넣을 것), `length_pages`, `brand_default`, `fonts`(스타일이 실제 쓰는 동봉 패밀리 목록), `body_frame_mm`(pagemetrics 판면 정본), `diagram`(팔레트·minFontPt·widths) |
+| `tokens.json` | `engine`(typst\|html), `trim_mm`(G1이 PDF 실측과 ±0.5mm 대조 — 테마 하드코딩과 어긋나면 FAIL), **`body_pt`**(테마가 선언한 본문 급수. G1-SCALE이 PDF 본문 최빈 pt와 ±0.3pt 대조 — 전역 축소 차단. **미선언 시 WARN만 나가고 그 스타일은 축소 검출 불가**이므로 새 팩은 반드시 넣을 것), `length_pages`, `brand_default`, `fonts`(스타일이 실제 쓰는 동봉 패밀리 목록), `body_frame_mm`(pagemetrics 판면 정본), **`toc_levels`**(인쇄 목차에 노출하는 계층 수. 1이면 빌더가 절 엔트리도, `<h2>`의 `@@chNNsMM@@` 마커도, 레벨 2 북마크도 발행하지 않는다 — STYLE.md가 "계층 1단계까지만"을 선언한 스타일은 1로 둘 것. **미선언 시 2로 폴백**), **`toc_capacity`**(단면 목차 스타일 전용 — 아래 「단면 목차 팩」. TOCPAGE 블록이 없는 html 엔진 스타일이 이걸 선언하지 않으면 빌드가 `die()`), `diagram`(팔레트·minFontPt·widths) |
 | `theme.typ` | (typst 엔진) 테마 구현 |
 | `theme.html` + `theme.css` | (html 엔진) 페이지 골격 + 인쇄 스타일시트 |
 | `decorate.py` | (html 엔진, 선택) 렌더 후 PyMuPDF 러닝 장식 스탬핑 |
@@ -29,7 +29,31 @@ base의 `book()`을 그대로 쓰거나(practical처럼 토큰만 교체), 완�
 `theme.css`엔 `$fonts_dir`(폰트 폴더 file:// URI), `$key_color`, `$key_tint`가 주입된다. 규칙:
 
 - `@page { size: <trim>mm; margin: ... }` + 풀페이지 섹션(표지·목차)용 `@page full { margin: 0 }` — 해당 섹션에 `page: full; width/height = trim` 지정. 네거티브 마진으로 판형을 흉내내지 말 것(깨진다).
-- 목차 쪽번호는 빌더가 2-pass로 주입 — 장 오프너에 `<span class="pgmark">@@chNN@@</span>` 마커와 목차에 `<span class="tocpg" data-mk="chNN">00</span>`을 유지할 것.
+- 목차 쪽번호는 빌더가 2-pass로 주입 — 장 오프너에 `<span class="pgmark">@@chNN@@</span>` 마커와 목차에 `<span class="tocpg" data-mk="chNN">00</span>`을 유지할 것. `toc_levels >= 2`면 절 마커 `@@chNNsMM@@`도 발행되므로 `<h2>`에 **`position: relative`가 필수**다 — 없으면 마커가 문서 원점(1면)에 붙어 모든 쪽번호가 어긋나고 사후조건은 충족된다.
+- **`.tocpg` 칼럼 폭은 고정해야 한다.** pass 2에서 `00`이 실제 쪽번호로 바뀔 때 제목의 가용 폭이 변하면 경계 길이 제목이 접혀 면이 밀리고, 그 밀림은 pass 1 HTML 검사로 볼 수 없다(insight `flex: 0 0 6.5mm` = 3자리 실측폭 + 여유. 4자리 폴리오는 빌더가 `die()`).
+- **다면 목차**(분량에 따라 목차 면 수가 늘어나는 스타일)는 `theme.html`의 목차 섹션 전체를 `<!--BF:TOCPAGE-->` … `<!--/BF:TOCPAGE-->`로 감싼다. 빌더가 `Template.substitute` **전에** 이 블록을 잘라내 N회 복제하고 각 복제본의 `$toc`→`$toc_i`, `$toc_mod`→`$toc_mod_i`로 치환한다. 2면 이후는 `$toc_mod = "toc-cont"`이므로 1면에만 두는 요소는 CSS에서 `.toc-page.toc-cont` 선택자로 감춘다. 목차 마크업·장식을 `decorate.py`로 옮기지 말 것 — 겹침 게이트가 스탬핑 가구를 면제하면 사고 지점이 통째로 검사 밖으로 나간다.
+- 빌더는 `<book_dir>/typeset/tocplan.json`(면 수·면별 행 수·**예측 바닥 mm·실측 바닥 mm·렌더 배율·재계획 여부**·발행 절 마커 수·빌드 경고)을 남긴다. G4가 레벨 2 북마크 수를 이 파일의 `section_markers`와 대조하고, 빌드 경고를 게이트 리포트의 warns로 올린다. **html 엔진인데 이 파일이 없으면 G4가 FAIL**한다.
+- **높이·폭 모델은 계획자일 뿐이고 `pass1.pdf`가 검증자다.** 빌더는 렌더 후 목차 면의 스팬 bbox로 실제 바닥(mm)을 재고, 전역 축소 배율(본문 최빈 pt / `body_pt`)로 원좌표를 복원한다. 물리 한계 초과면 **실측 접힘 실태로 1회 재계획하고 pass1을 다시 렌더**하며(결정론·최대 1회) 그래도 넘치면 `die()`. 미학 한계 초과·모델 이탈은 WARN으로 남는다. 추정 정확도만으로는 "조용한 넘침 → 문서 전역 축소" 계열을 닫을 수 없다는 것이 이 구조의 이유다.
+
+### 단면 목차 팩 (TOCPAGE 블록이 없는 html 엔진 스타일)
+
+목차를 스프레드 1면에 고정하는 스타일(magazine 계열)은 `tokens.json`에 **`toc_capacity`를 반드시 선언**한다. 선언이 없으면 빌드가 `die()`한다 — 구 구현은 `if style != "magazine": return`으로 **폴더 이름**이 방어선이어서, magazine 파생 팩을 하나 만들면 용량 검사가 조용히 사라지고 넘침이 전역 축소로 갔다.
+
+```json
+"toc_capacity": {
+  "top_mm": 41.36,        // 첫 항목 제목 글리프 top
+  "pitch_mm": 23.548,     // 항목 피치
+  "tail_mm": 14.217,      // 마지막 항목 top → 콘텐츠 bottom
+  "bottom_mm": 238.0,     // 콘텐츠 하단 = 재단높이 − padding-bottom
+  "title_avail_mm": 75.0, // 제목 1행 가용 폭
+  "font": "Paperlogy-7Bold", "size_pt": 22.0   // assets/fonts 파일명(확장자 제외)
+}
+```
+
+값은 전부 `[실측]`이어야 한다(실렌더 PDF의 스팬 bbox). 빌더는 이 선언으로 ①제목이 1행에 들어가는지 ②예측 바닥이 `bottom_mm` 이하인지를 검사하고, 초과 시 상한 장 수와 대응 3종을 담아 `die()`한다. **`overflow:hidden`으로 잘라내거나 폰트·행간을 줄여 밀어 넣는 대응은 금지** — 잘린 목차는 어떤 게이트도 검출하지 못한다.
+
+**접힘은 예산이 아니라 금지다.** `.toc li{flex-wrap:wrap}` 구조에서 제목이 1행을 넘으면 높이만 느는 게 아니라 정렬이 파손된다(실측: 제목 좌단이 쪽번호 칼럼보다 왼쪽으로 17mm 이탈, 쪽번호가 제목 위 독립 행으로 고아화). 근사 높이로 흡수하지 말고 `die()`할 것.
+- **절 목록과 절 마커는 한 경로에서만 나온다.** `md_to_html(md, …, sec_marker="chNN", sec_titles_out=lst)`가 비콜아웃 청크를 렌더하는 그 자리에서 `<h2>`에 마커를 주입하고 주입한 제목을 순서대로 돌려준다. 원고를 줄 단위로 다시 스캔해 절 목록을 만들지 말 것 — 콜아웃 안 `## `(마커만 생김)·코드블록 안 `## `(목록만 생김)·리터럴 `<h2>`·`:::` 미종료가 전부 두 경로를 어긋나게 하고, 그 어긋남은 절 쪽번호와 레벨 2 북마크를 조용히 오배정한다. 빌더는 pass 1에서 `발행 마커 == 회수 마커`를 **양방향**으로 검사한다(단방향이면 잉여 마커가 통과한다).
 - 러닝 장식(폴리오·바·세로 러닝헤드)은 CSS 마진박스보다 `decorate.py` 스탬핑이 정확하다: `decorate(doc, ctx)` — `ctx = {book, pages(마커→쪽), fonts_dir}`. 페이지별 생략 규칙을 코드로 구현.
 - 폰트는 전부 로컬 `@font-face`(assets/fonts). 웹 CDN 금지 — 결정론 훼손.
 

@@ -59,8 +59,12 @@ body {
 /* ---- toc = 콘텐츠 맵 (STYLE.md「목차 문법」) ----
    스프레드 좌면=리스트 / 우면=이미지 맵을, 단면 판형에서 한 면의 좌우 칼럼으로 보정.
    판면 164mm = 리스트 92mm + 8mm + 이미지 맵 64mm. */
+/* overflow:hidden 제거 — 용량 초과를 조용히 자르는 대응은 금지다(잘린 목차는 게이트가
+   보지 못한다). 용량 판정은 build_html.py의 check_single_page_toc가 빌드 전에 하고
+   초과 시 die()한다. 넘친 상태로 렌더되면 Chromium이 문서 전체를 축소하므로
+   G1-SCALE이 2차로 잡는다. */
 .toc-page { page: nofolio; break-after: page; width: 200mm; height: 265mm;
-  padding: 22mm 16mm 27mm 20mm; overflow: hidden; }
+  padding: 22mm 16mm 27mm 20mm; }
 
 /* 섹션 헤더: 상단 key 괘선 1.5pt + 하단 4mm 라벨 (섹션 1개) */
 .toc-section-head { border-top: 1.5pt solid var(--key); padding-top: 4mm;
@@ -110,6 +114,12 @@ body {
 .chapter-body p { margin-bottom: 5.4mm; orphans: 2; widows: 2; }
 .chapter-body li { orphans: 2; widows: 2; }
 .chapter-body h2, .chapter-body h3 { break-after: avoid; }
+/* ⚠ `position: relative`가 없다. 지금은 tokens.json `toc_levels: 1`이라 빌더가 절 마커
+   `@@chNNsMM@@`를 아예 발행하지 않으므로 무해하지만, toc_levels를 2로 올리는 순간
+   `.pgmark{position:absolute}`가 문서 원점(1면)에 앵커돼 **모든 절 마커가 1면으로
+   회수되고 folio_offset이 0이 되어 폴리오 원점이 통째로 어긋난다**(실측: base-mag8에서
+   p4에 "4"를 찍음, 정답 "2"). toc_levels를 올리려면 이 규칙에 position:relative를
+   함께 넣을 것 — references/extending.md 「HTML 테마 계약」의 같은 항목 참조. */
 .chapter-body h2 { column-span: all; font-size: 17pt; line-height: 1.4; font-weight: 700;
   margin: 10.8mm 0 5.4mm; }
 .chapter-body h3 { font-size: 11pt; font-weight: 700; margin: 5.4mm 0 2.7mm; }

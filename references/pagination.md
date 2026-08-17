@@ -121,7 +121,7 @@ P9 되감기      실패 시 P7→P6→P3→(PLAN만)P2 역순. REFIT은 P3에�
 | G1-SCALE | 본문 최빈 pt(글자 수 가중) = tokens `body_pt` ±0.3pt. **다른 모든 밀도·급수 게이트는 문서 자신을 기준으로 하는 상대 지표라 전역 축소를 원리적으로 못 본다** — Chromium print가 판면 초과 요소를 만나면 문서 전체를 shrink-to-fit으로 줄이고, 그 산출물은 G1(판형만 검사)·G7-FRAME(실측 드리프트 2.7pt < 6pt 임계)·G8·G9를 전부 통과한다(실측: 출하된 예제 1권이 0.804배 축소 상태로 15게이트 통과). `body_pt` 미선언 스타일 팩은 WARN(중단 지점 불변) | HARD — 뮤테이션 스위트 M7로 감도 고정 |
 | G2-FONTS | 전 폰트 완전 임베드 + **Type3 글리프 0**(CFF .otf → Chromium Type3 폴백은 임베드 실패로 판정) | HARD |
 | G3-OVERFLOW | 텍스트·이미지 bbox가 재단 밖(tol 1.5pt) | HARD |
-| G4-TOC | PDF 북마크 ↔ 장 시작 면 정합(HTML 트랙은 스탬핑 후 대조) | HARD |
+| G4-TOC | PDF 북마크 ↔ 장 시작 면 정합(HTML 트랙은 스탬핑 후 대조). **레벨 2 축 2개**: ㉠수 대조 — 절 북마크 수 == 빌더가 발행한 절 마커 수(`typeset/tocplan.json` `section_markers`). `toc_levels: 1` 스타일은 기대값 0이므로 같은 검사로 "발행하지 않았음"까지 확인된다. ㉡**대상 면 대조** — 각 절 북마크가 가리키는 면에 그 절 제목이 실재하는가(레벨 1엔 원래 있던 대조가 레벨 2엔 없었다). ㉠만으로는 기대값과 실측이 같은 리스트에서 나오는 항등식이라 마커 오배정을 원리적으로 못 본다. html 엔진인데 `tocplan.json`이 없으면 그 자체가 FAIL(구 구현은 WARN 강등이라 HARD 축이 통째로 꺼졌다) | HARD |
 | G7-FRAME | tokens 판면 vs PDF 역산 판면 차이 > 6pt [보정: 라운딩·float 오탐 흡수 — 구 3pt에서 상향] | HARD — fails 누적, 최종 일괄 FAIL(중단 아님) |
 | G7-BLANK (구 G5 흡수) | `ink < 0.03` — 면제·코드 없으면 | HARD. `to:"odd"` 필러 면 포함 |
 | G7-TAIL / G7-MID / G7-DOC | §4 밴드 | §4 |
@@ -132,13 +132,17 @@ P9 되감기      실패 시 P7→P6→P3→(PLAN만)P2 역순. REFIT은 P3에�
 | G13-FIGTEXT | **렌더 후**: 프리렌더 라벨(`assets/fig-*.labels.json`, 렌더 줄 단위)이 PDF 실텍스트에 존재 — G4/G11 anchor와 동일 정규화 대조 | FAIL — 조용한 드롭 최종 포착 |
 | G11-ROLES | pageroles.json 무결성: 코드 화이트리스트 / 기계 선행조건 / anchor 실재 / why 필수 / 예산 ≤ max(3, 8%) | HARD. anchor 불일치 = stale |
 | G12-PARITY | 장 시작 직전 빈 짝수 면(recto 맞춤)·스프레드 패딩 | HARD — 단면 전자책에 인쇄 관습 이식 금지 |
-| G14-TOC | A: 인쇄 목차 쪽번호 = 장 시작 폴리오(본문 1쪽부터, 오프셋 자기일관) / B: 목차 유채색 hue가 도비라·브랜드 계열(Δ≤36°) / C: 근흑 외 텍스트의 배경 대비(대형 3:1·그 외 4.5:1, 픽스맵 배경 추정) | HARD — 뮤테이션 스위트(tests/mutations/)로 감도 고정 |
+| G14-TOC | A: 인쇄 목차 쪽번호 = 장 시작 폴리오(본문 1쪽부터, 오프셋 자기일관) / B: 목차 유채색 hue가 도비라·브랜드 계열(Δ≤36°) / C: 근흑 외 텍스트의 배경 대비(대형 3:1·그 외 4.5:1, 픽스맵 배경 추정) / **D: 인쇄 목차의 절 행 쪽번호 = 실제 절 시작면**(`toc_levels ≥ 2`만). 목차 면 스팬에서 절 행과 쪽번호를 읽고, 그 절 제목이 **해당 장 시작면 이후 본문에서 제목 행으로 처음 나오는 면**과 대조한다 — 빌더 산출물을 일절 참조하지 않는 축이라 G4 레벨 2의 항등식이 못 보는 마커 오배정을 잡는다. 한 장 안에 같은 절 제목이 둘 이상이면 앵커링 불가로 WARN(오탐 금지) | HARD — 뮤테이션 스위트(tests/mutations/)로 감도 고정 |
+
+**목차 면 회수는 축마다 하지 않는다.** `tocgate.run`이 `find_toc_pages`를 한 번 돌려 A·B·D가 같은 면 집합을 본다. 앞부속 범위(`first_ch` 전달) 안에서는 **장제목 과반 규칙을 쓰지 않는다** — 다면 목차는 면당 장 수가 `24/(1+절수)`로 떨어져 과반이 원리적으로 불가하고(14장×10절이면 면당 2개, need 7), 그 규칙 때문에 A가 "목차 면을 찾지 못함"으로 오탐하고 B·D는 침묵으로 통과했다. 도비라가 범위 밖이므로 "장제목 1개 이상 또는 쪽번호 칼럼(순수 숫자 스팬 3개 이상)"으로 시작 면을 잡고 연속 구간을 확장한다. 목차 면을 못 찾았는데 A가 아무 문제도 내지 않는 조합은 `run()`이 게이트 결함으로 FAIL시킨다.
 
 **순서(qc_gate.py 실물)**: G10 → G0(렌더 전) → G1 → G2 → G3 → G4 → G13 → G14 → G11 → G7-FRAME → G7-BLANK/G12 → G7-TAIL/MID → G7-DOC → G8 → G9.
 
 **중단 지점은 4곳뿐**: G10 실패, G0 실패, `draft/book.pdf` 부재(G1의 일부), `styles/<style>/tokens.json`에 `body_frame_mm` 없음(qc_gate.py 326행, G7 밀도 전처리 직전) — 이 넷만 그 자리에서 즉시 `finish()`로 종료하고 뒤 게이트를 아예 실행하지 않는다. 그 외 모든 게이트(G1 판형·G2~G4·G13·G14·G11·G7-FRAME·G7-BLANK/G12·G7-TAIL/MID·G7-DOC·G8·G9)는 실패해도 `fails` 리스트에 누적만 하고 그대로 다음 게이트를 계속 판정하며, 전 게이트를 다 돈 뒤 `fails`가 하나라도 있으면 그때 일괄 `finish()`로 FAIL 처리한다(중간에 끊기지 않음). G6(시각 판정)은 이 스크립트에 없다 — qc_gate.py의 게이트 집합이 아니다.
 
 **사유 코드 채널**: `<book_dir>/pageroles.json` — 1차 렌더 후 사람/에이전트가 작성. 각 항목 `{page, code, why(필수), anchor(그 면 실재 문자열)}`. **코드 6종**: `PART_DIVIDER`(텍스트 ≤3행) / `FULL_BLEED_PLATE`(imgarea ≥ 0.60) / `EXEC_SUMMARY`(business, ink 0.35~0.70, 폰트·여백 축소 금지) / `ESSAY_BREATH`(essay 꼬리, lines ≥ 6, 장당 1회) / `MAGAZINE_WHITESPACE`(진입점 존재 시) / `TOC_TAIL`(목차 직후 1면). 각 코드는 기계 선행조건 미충족 시 코드 자체가 FAIL(도장 방지). **폐기**(단면에서 재현 시 오히려 FAIL): RECTO_ADJUST·SIGNATURE_PAD·ENDPAPER·PART_DIVIDER_VERSO.
+
+**목차 면 수가 바뀌면 재승인한다.** 다면 목차 스타일(insight)은 원고 분량에 따라 목차가 N면으로 늘거나 줄고, 그때 첫 장 이후 **전 페이지가 시프트**된다. 기존 `pageroles.json`의 `page`는 옛 면 번호를 가리키고 `anchor`는 그 면에 더 이상 없으므로 G11이 "anchor 불일치(stale)"를 대량으로 낸다. 이것은 오탐이 아니라 **승인의 근거가 소멸한 상태**다 — 면 번호를 기계적으로 밀지 말고, 새 조판의 콘택트시트를 다시 보고 각 항목의 `page`·`anchor`·`why`를 재작성한다.
 
 ## 8. 절 분량 정합 (PLAN 모드 플래너 지표 — PDF 게이트 아님)
 

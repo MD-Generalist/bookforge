@@ -411,8 +411,44 @@ def main():
     # ---- G4 TOC / bookmarks ----
     toc_entries = doc.get_toc(simple=True)
     lvl1 = [(t.strip(), p) for (l, t, p) in toc_entries if l == 1]
-    g4 = {"bookmarks": len(lvl1), "mismatches": [], "ok": True}
+    lvl2 = [(t.strip(), p) for (l, t, p) in toc_entries if l == 2]
+    g4 = {"bookmarks": len(lvl1), "bookmarks_lvl2": len(lvl2), "mismatches": [], "ok": True}
     want = [ch["title"].strip() for ch in outline["chapters"]]
+    # 레벨 2(절) 북마크. 두 축을 본다.
+    #  ㉠ 수 대조: 기대값은 빌더가 발행한 절 마커 수(typeset/tocplan.json). 이 축은 항등식에
+    #     가까워(적대검토 D5) set_toc/saveIncr의 북마크 소실과 파일 변조만 잡는다.
+    #  ㉡ **대상 면 대조**: 각 절 북마크가 가리키는 면에 그 절 제목이 실재하는가. 레벨 1엔
+    #     이미 있던 대조가 레벨 2엔 없어서, 마커 오배정(D3/V1)이 개수만 맞으면 통과했다.
+    plan_p = book_dir / "typeset" / "tocplan.json"
+    if plan_p.exists():
+        plan = json.loads(plan_p.read_text(encoding="utf-8"))
+        g4["sections_declared"] = plan.get("section_markers")
+        g4["toc_pages"] = plan.get("toc_pages")
+        g4["replanned"] = plan.get("replanned")
+        g4["measured_bottom_mm"] = plan.get("measured_bottom_mm")
+        for w in plan.get("warnings", []):
+            report["warns"].append("build: " + w)
+        if plan.get("section_markers") != len(lvl2):
+            g4["ok"] = False
+            g4["mismatches"].append(
+                f"레벨 2 북마크 {len(lvl2)} != 발행 절 마커 {plan.get('section_markers')} "
+                f"(toc_levels={plan.get('toc_levels')})")
+    elif tokens.get("engine") == "html":
+        # 계획 파일 부재는 그 자체가 실패다 — 구 구현은 WARN으로 강등해 HARD 축을 통째로
+        # 껐고, 스테일 산출물에 qc_gate만 재실행하면 조용히 통과했다.
+        g4["ok"] = False
+        g4["mismatches"].append(
+            "typeset/tocplan.json 부재 — html 엔진 빌드는 이 파일을 반드시 남긴다"
+            "(구 빌드 산출물이면 현행 코드로 재빌드할 것)")
+    lvl2_bad = []
+    for title, page in lvl2:
+        if page < 1 or page > n:
+            lvl2_bad.append(f"절 '{title[:16]}' -> bad page {page}")
+        elif norm(title) not in norm(doc[page - 1].get_text()):
+            lvl2_bad.append(f"절 '{title[:16]}'이 북마크 대상 면 {page}에 없음")
+    if lvl2_bad:
+        g4["ok"] = False
+        g4["mismatches"] += lvl2_bad[:5]
     if len(lvl1) < len(want):
         g4["ok"] = False
         g4["mismatches"].append(f"bookmark count {len(lvl1)} < chapters {len(want)}")
@@ -458,9 +494,11 @@ def main():
     report["gates"]["G14-A"] = g14["A"]
     report["gates"]["G14-B"] = g14["B"]
     report["gates"]["G14-C"] = g14["C"]
-    for axis in ("A", "B", "C"):
+    report["gates"]["G14-D"] = g14["D"]
+    for axis in ("A", "B", "C", "D"):
         for p in g14[axis]["problems"]:
             fails.append(f"G14-{axis}: {p}")
+    report["warns"] += g14["D"].get("warns", [])
     colophon_pages = {i + 1 for i, t in enumerate(page_texts)
                       if "bookforge" in t and "조판" in t and i + 1 >= (ch_starts[-1] if ch_starts else 1)}
     fullbleed = {p["page"] for p in pages

@@ -61,6 +61,13 @@ b, strong { font-weight: 500; }
 .toc-sidebar { position: absolute; top: 0; left: 0; width: 40mm; height: 257mm; display: block; overflow: hidden; }
 .toc-body { position: absolute; left: 57mm; top: 41mm; right: 20mm; }
 .toc-word { font-family: var(--disp); font-weight: 800; font-size: 30pt; color: var(--ink); margin-bottom: 14mm; }
+/* 다면 목차 2면 이후(.toc-cont): "Contents" 워드마크와 그 워드마크에 착지하는 커넥터
+   장식만 감춘다. 40mm 사이드바와 걸침 아이콘 2개는 남겨 면의 정체성을 잇는다
+   (STYLE.md「목차 문법」다면 목차 규범). 워드마크가 display:none이면 ol.toc의 상단
+   붕괴 마진이 14mm에서 장 엔트리의 8mm로 바뀌어 첫 행 top이 61.43mm → 49.26mm가 된다
+   — build_html.py의 TOC_TOP_CONT_MM이 이 값이다. */
+.toc-page.toc-cont .toc-word { display: none; }
+.toc-page.toc-cont .toc-connector { display: none; }
 .toc { list-style: none; }
 /* 엔트리 2레벨(STYLE 목차 문법): 1레벨 Bold 10.9pt --blue-800 / 2레벨 Medium 9.9pt
    --teal-600 들여쓰기 2mm. 쪽번호는 전 레벨 --ink, 웨이트는 레벨 서체와 동일.
@@ -73,8 +80,12 @@ b, strong { font-weight: 500; }
 .toc-title { font-weight: 700; font-size: 10.9pt; color: var(--blue-800); }
 .toc-sec-title { font-weight: 500; font-size: 9.9pt; color: var(--teal-600); }
 .toc-leader { flex: 1; }
+/* 쪽번호 칼럼 폭 고정 — 2-pass 스탬핑이 "00"을 실제 쪽번호로 바꿀 때 제목의 가용 폭이
+   변하면 안 된다(변하면 경계 길이 제목이 pass 2에서 접혀 면이 밀리고, 그 밀림은
+   pass 1 HTML 검사로는 원리적으로 보이지 않는다). 6.5mm = 3자리 실측폭 6.21mm
+   (10.9pt Barlow-Bold, 자리당 2.07mm) + 여유. 4자리 폴리오는 build_html이 die(). */
 .tocpg { font-family: var(--num); font-variant-numeric: tabular-nums; font-size: 10.9pt;
-  font-weight: 700; color: var(--ink); }
+  font-weight: 700; color: var(--ink); flex: 0 0 6.5mm; text-align: right; }
 .toc li.toc-sec .tocpg { font-size: 9.9pt; font-weight: 500; }
 
 /* ---- 장 도비라 (T-dobira): 여백 중심, 폴리오 없음(스탬핑에서 제외) ---- */
