@@ -97,7 +97,12 @@ body {
 .chapter { break-before: page; }
 .opener { page: opener; width: 200mm; height: 265mm; position: relative;
   break-after: page; padding: 22mm 16mm 27mm 20mm; }
-.pgmark { position: absolute; top: 0; left: 0; font-size: 1px; color: transparent; }
+.pgmark { position: absolute; top: 0; left: 0; font-size: 1px;
+  /* 🚨 color: transparent 금지 — Chromium print 가 완전 투명 텍스트를 PDF 텍스트
+     레이어에서 생략해 2-pass 마커 회수가 0건이 된다(실측: 1px·4px 모두 미추출,
+     alpha 0.004 는 추출됨). 그러면 목차 쪽번호가 00 으로 남고 북마크가 비어
+     G4·G14-A 가 실패한다. 시각적으로는 1px·alpha 0.004 라 보이지 않는다. */
+  color: rgba(0, 0, 0, 0.004); }
 .opener-num { font-family: var(--num); font-weight: 800; font-size: 126pt;
   line-height: 0.86; letter-spacing: -0.03em; color: var(--key); margin-top: 40mm; }
 .opener-title { font-family: var(--display); font-weight: 800; font-size: 71pt;

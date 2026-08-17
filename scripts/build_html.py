@@ -124,6 +124,14 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     if rp.exists():
         refit = json.loads(rp.read_text(encoding="utf-8"))
 
+    # 목차 1면 수용 상한(스타일 tokens.json). 미선언이면 무제한 = 종전 동작 보존.
+    _toc_sec_max = json.loads((style_dir / "tokens.json").read_text(encoding="utf-8")).get("toc_section_max")
+    _toc_sec_total = 0
+    if _toc_sec_max is not None:
+        for _ch in outline["chapters"]:
+            _p = book_dir / "chapters" / _ch["file"]
+            if _p.exists():
+                _toc_sec_total += len(re.findall(r"^##\s+", _p.read_text(encoding="utf-8"), re.M))
     toc_items, sections, tocmap_items, first_pull = [], [], [], None
     for idx, ch in enumerate(outline["chapters"], 1):
         mk = f"ch{idx:02d}"
@@ -207,7 +215,15 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
             f'<span class="toc-leader"></span>'
             f'<span class="tocpg" data-mk="{mk}">00</span></li>')
         # 2레벨(절) 엔트리 — 색 위계(1레벨 cyan / 2레벨 teal)는 테마 CSS가 결정
-        for sidx, stitle in enumerate(sec_titles, 1):
+        # 🚨 목차 본문(.toc-body)은 position:absolute 라 넘쳐도 면이 늘어나지 않고 **다음 면 위로
+        #    흘러넘쳐 장 도비라와 겹쳐 인쇄된다**(실측: 7장·56절 → p3 에서 목차와 1장 도비라 중첩).
+        #    겹침은 오버플로가 아니라 중첩이라 G3·G9 가 원리적으로 못 잡는다 — 시각 검수에서만 보인다.
+        #    그래서 스타일이 선언한 1면 수용 상한을 넘으면 절을 전량 생략하고 장만 싣는다.
+        if _toc_sec_max is not None and _toc_sec_total > _toc_sec_max:
+            sec_titles_for_toc = []
+        else:
+            sec_titles_for_toc = sec_titles
+        for sidx, stitle in enumerate(sec_titles_for_toc, 1):
             toc_items.append(
                 f'<li class="toc-sec"><span class="toc-sec-title">{_esc(stitle)}</span>'
                 f'<span class="toc-leader"></span>'
