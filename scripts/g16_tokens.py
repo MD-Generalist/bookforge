@@ -474,13 +474,21 @@ def g16_sync(style, tokens, theme_text, brand=None, style_dir=None):
         css_hex = css_literal_hexes(theme_text)
         if ctx["brand"]:
             css_hex.add(ctx["brand"])   # $key_color 치환 결과
-        for i, c in enumerate(pal):
+        # 양방향 모두 **렌더가 실제로 쓰는 팔레트**로 대조한다 — render_diagrams.mjs:38이
+        # `if (bookMeta.brand) palette[0] = bookMeta.brand`로 0번 슬롯을 치환하므로,
+        # 브랜드를 준 책에서 tokens의 brand_default는 지면에도 도해에도 나타나지 않는
+        # 죽은 값이고 그것을 CSS와 대조하면 양쪽 방향 모두 오탐이 난다.
+        # HARD ②가 brand_default == palette[0]을 이미 못박으므로 브랜드 미지정 책에서는 항등.
+        pal_res = list(pal)
+        if ctx["brand"]:
+            pal_res[0] = ctx["brand"]
+        for i, c in enumerate(pal_res):
             h = norm_hex(c)
             if h and h not in css_hex:
                 role = roles[i] if (isinstance(roles, list) and i < len(roles)) else None
                 out.append(_f("SYNC", "WARN",
                               f"palette[{i}] {h} (role={role})이 theme.css 리터럴에 없음 — 도해 전용 슬롯"))
-        pal_hex = {norm_hex(c) for c in pal if norm_hex(c)}
+        pal_hex = {norm_hex(c) for c in pal_res if norm_hex(c)}
         for name, raw in ctx["vars"].items():
             kind, v = _resolve_value(raw, ctx)
             if kind != "hex" or v == "#ffffff":   # 백색은 alienColors가 암묵 허용(render_diagrams.mjs:108)
