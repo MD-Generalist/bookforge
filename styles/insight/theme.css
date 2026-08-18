@@ -44,7 +44,11 @@ b, strong { font-weight: 500; }
   background: var(--paper); overflow: hidden; break-after: page; }
 .cover-mark { position: absolute; top: 12mm; right: 21mm; text-align: right; }
 .wordmark { font-family: var(--disp); font-weight: 800; font-size: 13pt; color: var(--blue-800); line-height: 1.2; }
-.wordmark span { font-size: 8pt; color: var(--cyan-500); letter-spacing: 0.12em; }
+/* 부제 색은 --cyan-500이 아니라 --blue-800이다 — 표지 배경(--paper) 위에서 cyan-500은
+   3.21:1로 G16-CONTRAST 하한 4.5 미달(8pt는 대형 텍스트 예외 밖). blue-800은 같은
+   배경에서 7.81:1 — .wordmark 본체가 이미 쓰던 색이자 근거(줄 46). CONFIRM 밴드
+   (4.5×1.05=4.725) 근접이 아니라 여유 있게 넘는 값이라 선택했다(blue-600 4.73은 아슬아슬). */
+.wordmark span { font-size: 8pt; color: var(--blue-800); letter-spacing: 0.12em; }
 .badge { display: inline-block; margin-top: 6mm; background: var(--blue-800); color: #fff;
   font-weight: 700; font-size: 10.9pt; padding: 1.4mm 4mm; }
 .cover-title { position: absolute; top: 71mm; right: 21mm; left: 24mm; text-align: right;
@@ -74,7 +78,9 @@ b, strong { font-weight: 500; }
 /* 엔트리 2레벨(STYLE 목차 문법): 1레벨 Bold 10.9pt --blue-800 / 2레벨 Medium 9.9pt
    --teal-600 들여쓰기 2mm. 쪽번호는 전 레벨 --ink, 웨이트는 레벨 서체와 동일.
    1레벨 색은 원래 --cyan-500이었으나 백지 대비 3.21<4.5 (G14-C) — 같은 브랜드 계열의
-   --blue-800(7.81:1)로 교체. cyan-500은 대형 텍스트·장식(리스트 마커 등)에만 유지 */
+   --blue-800(7.81:1)로 교체. cyan-500은 W4-A 2단계(G16-CONTRAST)에서 리스트 마커 fg도
+   같은 사유로 --blue-800으로 교체돼, 이제 텍스트 fg로는 어디에도 쓰이지 않는다
+   (장식·보더 전용으로만 :root에 남음) */
 /* line-height를 본문(17.5pt)에서 분리 — 2레벨 19행이 257mm 페이지를 넘치면
    Chromium 인쇄가 문서 전체를 shrink-to-fit으로 축소해 버린다 */
 .toc li { display: flex; align-items: baseline; margin-top: 8mm; line-height: 1.3; }
@@ -148,7 +154,11 @@ b, strong { font-weight: 500; }
 .chapter-body h4::before { content: "\FF5C"; }
 .chapter-body ul, .chapter-body ol { margin: 6mm 0; padding-left: 4.8mm; }
 .chapter-body li { color: var(--ink-soft); font-size: 9.9pt; margin-bottom: 6mm; }
-.chapter-body li::marker { color: var(--cyan-500); font-weight: 500; }
+/* 마커 색은 --cyan-500이 아니라 --blue-800이다 — 본문 지면(body background: --paper) 위에서
+   cyan-500은 3.21:1로 G16-CONTRAST 하한 4.5 미달(9.9pt Medium은 bold 판정 밖). blue-800은
+   같은 배경에서 7.81:1 — toc-title·callout-title이 이미 쓰던 동일 치환 패턴(위 주석 참조).
+   blue-600(4.73)·teal-600(4.67) 둘 다 CONFIRM 밴드(4.725) 안팎이라 제외했다. */
+.chapter-body li::marker { color: var(--blue-800); font-weight: 500; }
 .chapter-body blockquote { border-left: 3pt solid var(--blue-600); background: var(--tint);
   padding: 5mm 6mm; margin: 6mm 0; width: 130mm; max-width: none; break-inside: avoid; }
 .chapter-body blockquote p { color: var(--ink-soft); }
