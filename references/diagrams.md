@@ -38,7 +38,11 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
   `diagrams/fig-NN.svg`(에이전트가 직접 그린 SVG 소스)가 입력이다 — 아래 §authored 트랙.
 - `dsl`: (antv 전용) 문자열 또는 줄 배열. 첫 줄은 반드시 `infographic <template-name>`.
   템플릿 문법은 infographic-creator 스킬(~/.claude/skills/infographic-creator)이 정본.
-- `bf.width`: `full`(기본) | `twothirds`. 도해 내 최소 글자 크기 검사의 물리 폭 기준.
+- `bf.width`: `full`(기본) | `twothirds`. **지면에 실제로 앉는 폭이자** 도해 내 최소 글자 크기
+  검사의 물리 폭 기준이다 — 둘은 같은 값이어야 하고, 그 값은 스타일 팩의
+  `tokens.json diagram.widths.<키>`(mm) 하나뿐이다. HTML 트랙은 빌더가 `twothirds`를
+  `<figure class="svgfig twothirds">`로 발행하고 theme.css가 `$fig_full_mm`·`$fig_twothirds_mm`
+  치환으로 그 mm를 받는다(G16-SYNC widths 축이 배선을 HARD로 지킨다).
 - `bf.icons`: 기본 `false`. `true`는 HTML 트랙 스타일(insight·magazine)에서만 허용되며
   **네트워크가 필요**하다(아이콘 API). 렌더러가 요청 아이콘 수와 SVG `<symbol>` 수를
   대조해 조용한 탈락을 차단한다. `false`면 DSL의 `icon` 줄을 자동 제거한다.

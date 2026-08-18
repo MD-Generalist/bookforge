@@ -4,9 +4,11 @@
 Usage: python3 scripts/g16_tokens.py <style>        # 단일 스타일 사람 읽기용 출력
 
 축 3개:
-  G16-SYNC     : 스타일 팩의 색 계약 정합. engine↔팩 실물 일치 · diagram.palette 존재 ·
+  G16-SYNC     : 스타일 팩의 색·수치 계약 정합. engine↔팩 실물 일치 · diagram.palette 존재 ·
                  palette_roles 무결성 · brand_default↔palette[0] 동기 ·
-                 contrast_contract 형식(enforce bool)과 토큰명 해석 가능성
+                 contrast_contract 형식(enforce bool)과 토큰명 해석 가능성 ·
+                 front_frame_mm 선언값 타당성 · **diagram.widths ↔ theme.css $fig_* 치환
+                 계약**(도해 폭의 단일 진리원이 tokens임을 배선으로 못박는다 — html 한정)
   G16-CONTRAST : contrast_contract 선언 페어의 WCAG 대비를 pt·bold 파생 하한과 대조
   G16-BRAND    : 브랜드 입력 사전 검증(형식·치환 지점 대비·고정 동반색과의 hue 정합)
 
@@ -35,6 +37,11 @@ from pathlib import Path
 SKILL = Path(__file__).resolve().parent.parent
 
 ROLES = ("label", "fill", "stroke")
+
+# tokens.diagram.widths 키 ↔ theme.css 플레이스홀더명. build_html.fig_width_css가 이 표를
+# 그대로 읽어 치환하므로 게이트와 빌더가 같은 계약을 본다(표가 두 벌이면 그 어긋남 자체가
+# 이 축이 없애려는 결함이다). render_diagrams.mjs는 같은 키로 pt 환산 기준을 뽑는다.
+FIG_WIDTH_KEYS = {"full": "fig_full_mm", "twothirds": "fig_twothirds_mm"}
 
 # G14-B와 같은 값이어야 두 게이트가 다른 판정을 내지 않는다. 사전 FAIL의 존재 이유가
 # "2-pass 렌더 후에야 G14-B에서 죽는 것"을 앞당기는 것이므로 값이 갈리면 목적이 무너진다.
@@ -552,6 +559,99 @@ def front_frame_findings(style, tokens):
                f"{{cover, toc}} 객체만 허용")]
 
 
+# --------------------------------------------------- diagram.widths 치환 계약
+
+# `... figure`(요소 자신)를 겨냥하는 셀렉터 한 갈래. `figure img`처럼 자손을 겨냥하는
+# 규칙은 대상이 아니다 — 폭 계약은 figure 박스에만 걸린다.
+_FIG_SEL = re.compile(r"(^|[\s>+~])figure(\.[\w-]+|:[\w-]+(\([^)]*\))?|\[[^\]]*\])*$")
+_CSS_RULE = re.compile(r"([^{}@;]+)\{([^{}]*)\}")
+_ABS_LEN = re.compile(r"\d\s*(mm|cm|in|pt|pc|px|em|rem|ch|ex)\b")
+_ANY_LEN = re.compile(r"\d\s*(mm|cm|in|pt|pc|px|em|rem|ch|ex|%)")
+_COMMENT = re.compile(r"/\*.*?\*/", re.S)
+
+
+def _css_code(css_text):
+    """주석을 걷어낸 CSS. 이 팩들의 주석은 근거를 길게 적어 셀렉터 파싱을 오염시키고
+    (쉼표·콜론·중괄호 없는 산문), 무엇보다 **주석에 적힌 `$fig_full_mm`이 실제 치환
+    자리로 오인되면** 축이 통째로 무력해진다 — 계약은 코드에만 있어야 한다."""
+    return _COMMENT.sub(" ", css_text)
+
+
+def figure_width_literals(css_text):
+    """theme.css에서 figure 폭을 **리터럴로** 못 박은 자리. (셀렉터, 속성, 값) 목록.
+
+    `width`는 어떤 길이 리터럴도 허용하지 않는다(퍼센트 포함 — magazine의 `width: 100%`가
+    바로 tokens 151과 실렌더 164를 갈라놓은 형태다). `max-width`는 절대 길이만 잡는다
+    (`none`·`100%`는 상한을 씌우지 않으므로 폭 계약을 훼손하지 않는다).
+    """
+    out = []
+    for sel, body in _CSS_RULE.findall(_css_code(css_text)):
+        s = sel.strip()
+        if not s or s.startswith("@"):
+            continue
+        if not any(_FIG_SEL.search(p.strip()) for p in s.split(",")):
+            continue
+        for prop, val in re.findall(r"(?<![\w-])(width|max-width)\s*:\s*([^;{}]+)", body):
+            v = val.strip()
+            if "$" in v:          # 치환 자리는 계약 성립 — 이 축이 요구하는 형태다
+                continue
+            rx = _ANY_LEN if prop == "width" else _ABS_LEN
+            if rx.search(v):
+                out.append((" ".join(s.split()), prop, v))
+    return out
+
+
+def widths_findings(style, tokens, theme_text, engine):
+    """G16-SYNC widths 축 — tokens.diagram.widths ↔ theme.css 치환 계약.
+
+    셋이 갈라진 상태(선언 tokens / 실렌더 CSS / 정본 STYLE.md)가 W5 조사에서 6스타일 중
+    5스타일에 있었고, 그중 magazine은 151 선언 대 164 실렌더로 도해 글자 하한 검사가
+    1.086배 과엄격하게 돌았다. 값의 "옳음"은 정적으로 증명할 수 없지만 **CSS가 tokens를
+    받고 있는가**는 증명할 수 있다 — 그래서 이 축은 오직 배선만 본다:
+
+      ① `diagram.widths`가 full·twothirds 두 키를 양수로 갖는다
+         (부재 시 render_diagrams.mjs:240 `if (!minPt || !widthMm) return []`로
+          글자 하한 검사가 **조용히 꺼진다** — 침묵 생략이라 HARD)
+      ② theme.css에 두 플레이스홀더가 실존한다(= 치환 계약 성립)
+      ③ figure 폭을 리터럴로 다시 못 박은 자리가 없다(= 파생이 아니라 제2의 진리원)
+
+    ②③은 CSS를 실제로 렌더하는 html 엔진 한정이다. typst 4종은 폭이 md2typ.py→base.typ
+    경로라 theme.css 자체가 없다 — 이 축 N/A(3단계 소관).
+    """
+    out = []
+    dg = tokens.get("diagram") if isinstance(tokens.get("diagram"), dict) else {}
+    widths = dg.get("widths")
+    if not isinstance(widths, dict):
+        out.append(_f("SYNC", "FAIL",
+                      f"diagram.widths 부재/비객체({type(widths).__name__}) — "
+                      f"{'·'.join(FIG_WIDTH_KEYS)} 두 키가 도해 폭의 단일 진리원이다. "
+                      f"부재 시 render_diagrams의 글자 하한 검사가 경고 없이 꺼진다"))
+        widths = {}
+    for key in FIG_WIDTH_KEYS:
+        v = widths.get(key)
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            out.append(_f("SYNC", "FAIL",
+                          f"diagram.widths.{key} = {v!r} — 수치(mm)여야 한다. "
+                          f"bf.width={key} 도해의 pt 환산 기준이 사라진다"))
+        elif v <= 0:
+            out.append(_f("SYNC", "FAIL", f"diagram.widths.{key} = {v} — 양수(mm)여야 한다"))
+    if engine != "html" or theme_text is None:
+        return out                      # typst 4종: CSS 배선 자체가 없다 — 축 N/A
+    code = _css_code(theme_text)
+    for key, ph in FIG_WIDTH_KEYS.items():
+        if not re.search(r"\$\{?%s\}?(?![\w])" % re.escape(ph), code):
+            out.append(_f("SYNC", "FAIL",
+                          f"theme.css에 ${ph} 플레이스홀더 부재 — diagram.widths.{key}"
+                          f"({widths.get(key)})가 실렌더에 도달하지 못한다. "
+                          f"figure 폭은 CSS 리터럴이 아니라 이 치환으로 받을 것"))
+    for sel, prop, val in figure_width_literals(theme_text):
+        out.append(_f("SYNC", "FAIL",
+                      f"theme.css `{sel}`의 {prop}: {val} — figure 폭 리터럴 잔존. "
+                      f"tokens.diagram.widths와 갈라지는 제2의 진리원이다"
+                      f"(${FIG_WIDTH_KEYS['full']}/${FIG_WIDTH_KEYS['twothirds']}로 받을 것)"))
+    return out
+
+
 # ------------------------------------------------------------------- G16-SYNC
 
 def g16_sync(style, tokens, theme_text, brand=None, style_dir=None):
@@ -644,6 +744,9 @@ def g16_sync(style, tokens, theme_text, brand=None, style_dir=None):
     # ---- HARD ④ front_frame_mm 선언값 타당성 (수치 계약) ----
     # 이 축이 없던 동안 G3-FIT은 선언만 바꿔 5가지 방법으로 무력화할 수 있었다(D3).
     out += front_frame_findings(style, tokens)
+
+    # ---- HARD ⑤ diagram.widths ↔ theme.css 치환 계약 (폭 3원 동기화) ----
+    out += widths_findings(style, tokens, theme_text, engine)
 
     # ---- WARN: 팔레트↔theme.css 교집합 (부재는 결함, 잉여는 아님) ----
     if pal and engine == "html":

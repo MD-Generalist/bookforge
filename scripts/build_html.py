@@ -605,19 +605,43 @@ def md_to_html(md: str, book_dir: Path | None = None, ch_idx: int | None = None,
                 svg = re.sub(r'(<svg\b[^>]*?)\s+style="[^"]*"', r"\1", svg, count=1)
                 svg = re.sub(r"<svg\b", '<svg style="width:100%;height:auto"', svg, count=1)
                 # 사이드카 bf.width=twothirds — 세로형 도해가 전폭으로 부풀어 면을
-                # 통째로 먹는 것을 막는다 (HTML 트랙은 float가 없어 폭이 유일한 레버)
-                fig_style = ""
+                # 통째로 먹는 것을 막는다 (HTML 트랙은 float가 없어 폭이 유일한 레버).
+                # 🚨 여기서 폭 수치를 만들지 않는다. 구 구현은 `width:66%`를 인라인으로
+                # 박았고 그 값이 tokens.diagram.widths.twothirds와 독립이라 두 값이
+                # 갈라졌다(insight 66%×130=85.8mm vs 선언 86, magazine 66%×164=108.2 vs
+                # 선언 100). 클래스만 발행하고 실수치는 theme.css의 $fig_twothirds_mm
+                # 치환 = tokens 단일 진리원에 맡긴다.
+                fig_cls = "svgfig"
                 sidecar = book_dir / "diagrams" / (Path(src).stem + ".json")
                 if sidecar.exists():
                     bf = json.loads(sidecar.read_text(encoding="utf-8")).get("bf", {})
                     if bf.get("width") == "twothirds":
-                        fig_style = ' style="width:66%;margin-left:auto;margin-right:auto"'
-                return f'<figure class="svgfig"{fig_style}>{svg}{c}</figure>'
+                        fig_cls = "svgfig twothirds"
+                return f'<figure class="{fig_cls}">{svg}{c}</figure>'
         return f'<figure><img src="{src}" alt="{alt}">{c}</figure>'
     html = re.sub(
         r'<p><img src="(?P<src>[^"]+)" alt="(?P<alt>[^"]*)"(?: title="(?P<title>[^"]*)")?\s*/?></p>',
         fig, html)
     return html
+
+def fig_width_css(tokens: dict) -> dict:
+    """`{플레이스홀더명: CSS 길이}` — tokens.diagram.widths(mm)의 CSS 전사.
+
+    값이 없거나 수치가 아니면 `100%`로 떨어진다. 조용한 폴백처럼 보이지만 그 상태는
+    G16-SYNC widths 축이 HARD FAIL로 이미 막았고(build.py는 렌더 앞에서 죽는다),
+    --g16-warn-only 강등 시에만 여기까지 온다 — 그때는 렌더가 계속돼야 한다.
+    """
+    widths = (tokens.get("diagram") or {}).get("widths") or {}
+    out = {}
+    # 플레이스홀더명↔토큰 키 표는 g16_tokens에 하나만 둔다 — 표가 두 벌이면 게이트와
+    # 빌더가 서로 다른 계약을 갖게 되고, 그 어긋남이야말로 이 단계가 없애려는 것이다.
+    for key, ph in g16_tokens.FIG_WIDTH_KEYS.items():
+        v = widths.get(key)
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or v <= 0:
+            out[ph] = "100%"
+        else:
+            out[ph] = f"{v:g}mm"
+    return out
 
 def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Path):
     global _FONTS_DIR
@@ -651,11 +675,18 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     # .callout-title은 tint 위 4.45 < 4.5)를 브랜드가 바뀌어도 자동으로 맞춘다.
     # 파생 산식은 g16_tokens에 하나만 있고 G16-BRAND도 같은 함수의 결과를 판정한다.
     key_label = g16_tokens.key_label_hex(tokens, css_src, book.get("brand")) or key
+    # $fig_full_mm / $fig_twothirds_mm: 도해 figure의 실렌더 폭. tokens.diagram.widths가
+    # **단일 진리원**이고 CSS는 그 파생이다 — 같은 값을 render_diagrams.mjs가 글자 하한의
+    # pt 환산 기준으로 쓰므로(scalePt = widths[key]×2.835 ÷ viewBox폭) 두 곳이 갈라지면
+    # 게이트가 실제와 다른 폭으로 판정한다(magazine 151 선언 / 164 실렌더 = 1.086배 과엄격).
+    # 계약 성립(플레이스홀더 실존 · mm 리터럴 부재)은 G16-SYNC widths 축이 렌더 전에 지킨다.
+    fig_widths = fig_width_css(tokens)
     css = Template(css_src).safe_substitute(
         fonts_dir=(skill / "assets" / "fonts").as_uri(),
         key_color=key,
         key_tint=f"rgba({r_},{g_},{b_},0.08)",
         key_label=key_label,
+        **fig_widths,
     )
 
     # refit-params.json: 장별 자간 미세조정(pagination.md §5 L2). 주의 — inline

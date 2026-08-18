@@ -24,10 +24,11 @@ base의 `book()`을 그대로 쓰거나(practical처럼 토큰만 교체), 완�
 
 ## HTML 테마 계약
 
-`theme.html`은 python `string.Template` — `$title $subtitle $author $date $brand $cover_art $toc $body $css` + `$tocmap`(magazine 목차 이미지 맵) `$backquote`(뒤표지 인용) 플레이스홀더. `$` 문자를 리터럴로 쓰려면 `$$`. css 쪽 플레이스홀더는 `$fonts_dir $key_color $key_tint`.
+`theme.html`은 python `string.Template` — `$title $subtitle $author $date $brand $cover_art $toc $body $css` + `$tocmap`(magazine 목차 이미지 맵) `$backquote`(뒤표지 인용) 플레이스홀더. `$` 문자를 리터럴로 쓰려면 `$$`. css 쪽 플레이스홀더는 `$fonts_dir $key_color $key_tint $key_label $fig_full_mm $fig_twothirds_mm`.
 
-`theme.css`엔 `$fonts_dir`(폰트 폴더 file:// URI), `$key_color`, `$key_tint`가 주입된다. 규칙:
+`theme.css`엔 `$fonts_dir`(폰트 폴더 file:// URI), `$key_color`, `$key_tint`, `$key_label`(tokens `key_label` 계약에서 파생한 라벨색), `$fig_full_mm`·`$fig_twothirds_mm`(tokens `diagram.widths`의 CSS 전사 — 아래 참조)가 주입된다. 규칙:
 
+- **도해 figure 폭은 반드시 `$fig_full_mm`·`$fig_twothirds_mm`으로 받는다.** 두 값의 단일 진리원은 `tokens.json diagram.widths`이고 CSS는 그 파생이다 — 같은 값을 `render_diagrams.mjs`가 도해 글자 하한의 pt 환산 기준(`scalePt = widths[key]×2.835 ÷ viewBox폭`)으로 쓰므로, CSS가 폭을 따로 적으면 게이트가 실렌더와 다른 폭으로 판정한다(magazine이 선언 151 / 실렌더 164로 1.086배 과엄격하게 돌던 사고). `bf.width: twothirds` 사이드카는 빌더가 `<figure class="svgfig twothirds">`로 발행하므로 팩은 `figure.twothirds` 규칙에서 `$fig_twothirds_mm`을 받아야 한다. **G16-SYNC widths 축이 HARD로 강제한다**: `diagram.widths.full`·`.twothirds`가 양수 수치일 것 · 두 플레이스홀더가 theme.css에 실존할 것 · figure를 겨냥한 규칙에 `width` 길이 리터럴(퍼센트 포함)이나 `max-width` 절대 길이가 없을 것.
 - `@page { size: <trim>mm; margin: ... }` + 풀페이지 섹션(표지·목차)용 `@page full { margin: 0 }` — 해당 섹션에 `page: full; width/height = trim` 지정. 네거티브 마진으로 판형을 흉내내지 말 것(깨진다).
 - 목차 쪽번호는 빌더가 2-pass로 주입 — 장 오프너에 `<span class="pgmark">@@chNN@@</span>` 마커와 목차에 `<span class="tocpg" data-mk="chNN">00</span>`을 유지할 것. `toc_levels >= 2`면 절 마커 `@@chNNsMM@@`도 발행되므로 `<h2>`에 **`position: relative`가 필수**다 — 없으면 마커가 문서 원점(1면)에 붙어 모든 쪽번호가 어긋나고 사후조건은 충족된다.
 - **`.tocpg` 칼럼 폭은 고정해야 한다.** pass 2에서 `00`이 실제 쪽번호로 바뀔 때 제목의 가용 폭이 변하면 경계 길이 제목이 접혀 면이 밀리고, 그 밀림은 pass 1 HTML 검사로 볼 수 없다(insight `flex: 0 0 6.5mm` = 3자리 실측폭 + 여유. 4자리 폴리오는 빌더가 `die()`).

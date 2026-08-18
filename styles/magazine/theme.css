@@ -176,8 +176,16 @@ body {
 .tbl-source { font-size: 6.5pt; color: var(--ink-faint); margin-top: 2mm; letter-spacing: 0.08em; }
 
 /* ---- figure/figcaption (md 이미지) ---- */
-.chapter-body figure { column-span: all; margin: 8.1mm 0; break-inside: avoid; width: 100%; }
+/* 🚨 폭은 tokens.json `diagram.widths`가 유일 진리원이다(insight/theme.css 같은 항목 참조).
+   구 `width: 100%`는 판면폭 164mm(=200−16−20, STYLE.md 12칼럼)로 풀리는데 tokens는
+   151을 선언하고 있어 render_diagrams의 pt 환산이 1.086배 과엄격했다 — 선언이 실렌더를
+   따라오도록 tokens를 164로 고치고, CSS는 그 값을 주입받는 파생으로 내렸다.
+   column-span: all은 유지 — 폭 계약과 무관하게 도해는 두 단을 가로지른다. */
+.chapter-body figure { column-span: all; margin: 8.1mm 0; break-inside: avoid; width: $fig_full_mm; }
 .chapter-body figure img { width: 100%; display: block; }
+/* 2/3폭 도해 — 사이드카 `bf.width: twothirds`를 빌더가 figure.twothirds 클래스로 발행한다. */
+.chapter-body figure.twothirds { width: $fig_twothirds_mm;
+  margin-left: auto; margin-right: auto; }
 .chapter-body figcaption { font-size: 7.5pt; line-height: 1.45; color: var(--ink-soft, #5a5a5a);
   margin-top: 3mm; }
 
