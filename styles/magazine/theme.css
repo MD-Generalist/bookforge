@@ -144,7 +144,11 @@ body {
 
 /* 박스: 매거진 문법(STYLE.md L5 사이드바) — 리포트식 좌측 바·키컬러 배경 금지 */
 .callout { background: var(--paper-tint); padding: 6mm; margin: 5.4mm 0; break-inside: avoid; }
-.callout-title { font-size: 7pt; letter-spacing: 0.14em; color: var(--key);
+/* 라벨 색은 --key가 아니라 $key_label이다 — paper-tint(#F4F1EC) 위에서 키색
+   #0E7C7B는 대비 4.45로 본문급 하한 4.5에 미달한다(7pt는 대형 텍스트 예외 밖).
+   $key_label은 build_html.py가 키색의 명도만 낮춰 하한을 처음 넘긴 값으로 파생하므로
+   브랜드가 바뀌어도 이 자리는 따라 내려간다(tokens.json key_label 계약). */
+.callout-title { font-size: 7pt; letter-spacing: 0.14em; color: $key_label;
   font-weight: 700; margin-bottom: 2.5mm; }
 .callout p { font-size: 8.5pt; line-height: 4.8mm; }
 .callout p:last-child { margin-bottom: 0; }

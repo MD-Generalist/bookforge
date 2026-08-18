@@ -22,6 +22,9 @@ except ImportError:
     import fitz
 from markdown_it import MarkdownIt
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import g16_tokens  # noqa: E402  — 색 파싱·$key_label 파생의 단일 진리원
+
 MD = MarkdownIt("commonmark", {"html": True, "typographer": True}) \
     .enable("table").enable("strikethrough")
 
@@ -625,7 +628,14 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
 
     tokens = json.loads((style_dir / "tokens.json").read_text(encoding="utf-8"))
     key = book.get("brand") or tokens.get("brand_default", "#0E7C7B")
-    r_, g_, b_ = (int(key.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+    # 구 구현은 `int(key.lstrip('#')[4:6], 16)`이라 3자리 hex(`#abc`)에 ValueError로 죽었다.
+    # 색 해석은 g16_tokens 하나만 안다 — 게이트가 통과시킨 형식을 빌더가 못 읽으면
+    # 두 곳이 서로 다른 "유효한 색"을 갖게 된다. 색이 아닌 값은 G16-BRAND가 FAIL로
+    # 이미 막았으므로 여기 오는 경우는 --g16-warn-only 강등뿐이고, 그때는 렌더가
+    # 계속돼야 하므로 팩 기본색으로 떨어진다.
+    r_, g_, b_ = (g16_tokens.parse_hex(key)
+                  or g16_tokens.parse_hex(tokens.get("brand_default") or "")
+                  or (14, 124, 123))
     cover_img = book_dir / "assets" / "cover.png"
     if not cover_img.exists():
         cover_img = book_dir / "assets" / "cover.jpg"
@@ -635,10 +645,17 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     # (@@chNNsMM@@)도 발행하지 않는다 — 마커가 pages 딕트에 섞이면 decorate.py의
     # openers가 절 시작면을 장 오프너로 오인한다(magazine 폴리오 7면 누락의 원인).
     toc_levels = tokens.get("toc_levels", 2)
-    css = Template((style_dir / "theme.css").read_text(encoding="utf-8")).safe_substitute(
+    css_src = (style_dir / "theme.css").read_text(encoding="utf-8")
+    # $key_label: 브랜드를 **명도만** 낮춰 tokens.json `key_label`이 지정한 배경 위에서
+    # 대비 하한을 처음 넘기는 값. 키색을 그대로 쓰면 미달인 자리(magazine
+    # .callout-title은 tint 위 4.45 < 4.5)를 브랜드가 바뀌어도 자동으로 맞춘다.
+    # 파생 산식은 g16_tokens에 하나만 있고 G16-BRAND도 같은 함수의 결과를 판정한다.
+    key_label = g16_tokens.key_label_hex(tokens, css_src, book.get("brand")) or key
+    css = Template(css_src).safe_substitute(
         fonts_dir=(skill / "assets" / "fonts").as_uri(),
         key_color=key,
         key_tint=f"rgba({r_},{g_},{b_},0.08)",
+        key_label=key_label,
     )
 
     # refit-params.json: 장별 자간 미세조정(pagination.md §5 L2). 주의 — inline
