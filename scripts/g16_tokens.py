@@ -71,29 +71,60 @@ def contrast_floor(pt, bold):
 # `tests/lint_contrast.py`가 이 상수를 import한다(값 복제 금지).
 BOLD_MIN_WEIGHT = 700
 
-# 폰트명에서 bold(=700 이상)를 읽는 술어. `Semi`/`Demi`가 앞에 붙으면 600이므로
-# **bold가 아니다** — WCAG 하한이 4.5 -> 3.0으로 완화되는 갈래라 여기서 틀리면
-# 저대비 텍스트가 대형 자격을 얻어 통과한다(W4 판정 D6). `Extra`/`Ultra`가 붙은
-# ExtraBold(800)·UltraBold는 bold이므로 lookbehind에 넣지 않는다.
-# Medium(500)·Regular은 애초에 어떤 토큰과도 매치되지 않는다.
-_BOLD_FONT_RE = re.compile(r"(?<!semi)(?<!demi)bold|black|heavy")
+# 카멜케이스·구분자(공백/‗/-/.)·숫자 토큰을 뽑는다. "ExtraBold" -> ["Extra","Bold"],
+# "Pretendard-SemiBold" -> ["Pretendard","Semi","Bold"], "Pretendard-600" -> ["Pretendard","600"].
+_WORD_TOKEN_RE = re.compile(r"[A-Z][a-z]+|[A-Z]+(?![a-z])|[a-z]+|\d+")
+
+# 토큰 그대로 bold인 굵기 이름(700 이상, "Bold" 토큰 규칙과 별도로 단독 성립).
+# ExtraBold/UltraBold는 토큰화하면 ["Extra","Bold"]/["Ultra","Bold"]가 되어
+# 아래 "Bold" 토큰 규칙(직전 토큰이 Semi/Demi가 아니면 bold)으로 이미 걸린다.
+_HEAVY_WORD_TOKENS = {"black", "heavy"}
+# 이 토큰 바로 뒤에 "bold" 토큰이 오면 600(=bold 아님)이다 — Pretendard-SemiBold 등.
+_LIGHTEN_BOLD_PREFIX = {"semi", "demi"}
 
 
 def is_bold_font(font_name):
     """PDF 스팬 폰트명이 WCAG 기준 bold(700+)인가 — **단일 진리원**.
 
-    `tocgate.py`(G14-C 픽셀 축)가 import한다. 이전에는 그쪽이 `"Bold" in font`라는
-    부분문자열 판정을 자체 보유했고, `Pretendard-SemiBold`(600)가 부분문자열 `Bold`를
-    포함해 대형 자격을 얻었다 — 같은 굵기를 `styles/magazine/tokens.json`의 계약
-    엔트리는 "SemiBold 600 — bold 임계 700 미만이라 하한 4.5"라고 반대로 적고 있었다.
+    `tocgate.py`(G14-C 픽셀 축)가 import한다. 예전에는 부분문자열 판정
+    (`"Bold" in font` 계열)을 썼고, 그 결과 이원화됐다: `Pretendard-SemiBold`(600)가
+    부분문자열 "Bold"를 포함해 대형 자격을 얻었고(W4 판정 D6), 반대 방향으로
+    `Blackriver-Regular`(400)·`Boldoni-Light`(300)처럼 **가문명 자체에 굵기 낱말이
+    섞여 있을 뿐인 폰트**도 bold로 오판했다(W4 재판정 E2 — 하한을 관대화하는 방향이라
+    더 위험하다: 실제로는 400인 텍스트가 대형 자격(하한 3.0)을 받아 저대비가 통과한다).
 
-    판정은 폰트명 표기에만 근거한다(구분자·대소문자 무시). 이름에 굵기 표기가 없는
-    폰트는 False — 보수적 방향(하한 4.5 유지)이라 안전하다.
+    이번 버전은 **토큰화 후 토큰 단위로만** 판정한다 — 부분문자열 매칭을 하지 않으므로
+    "Blackriver"(하나의 카멜 토큰)는 "black"과 다르고, "Boldoni"도 "bold"와 다르다.
+
+    규칙(순서 무관, 하나라도 성립하면 True):
+      1. 굵기 숫자 토큰(`\\d+`)이 100~950 범위면 **CSS font-weight 수치로 우선 해석**하고
+         `BOLD_MIN_WEIGHT`(700)와 직접 비교한다 — `Pretendard-600`은 600 < 700이라 False,
+         `Pretendard-700`은 True. (범위 밖 숫자는 버전 번호 등으로 보고 무시한다.)
+      2. "black"·"heavy" 토큰이 그대로 존재하면 True(`Pretendard-Black`).
+      3. "bold" 토큰이 있고, 그 **직전 토큰**이 "semi"/"demi"가 **아니면** True
+         (`Pretendard-Bold`·`Pretendard-ExtraBold`=True, `Pretendard-SemiBold`=False).
+
+    이름에 굵기 표기가 전혀 없는 폰트(`NotoSansKR-Bd` 같은 약어 포함)는 False다 —
+    보수적 방향(하한 4.5 유지)이라 안전하고, 이 함수의 목적은 관대화 오판(위 D6·E2
+    방향)을 막는 것이지 모든 표기 변종을 인식하는 것이 아니다.
     """
     if not font_name:
         return False
-    n = re.sub(r"[\s_\-.]", "", str(font_name)).lower()
-    return bool(_BOLD_FONT_RE.search(n))
+    tokens = [t.lower() for t in _WORD_TOKEN_RE.findall(str(font_name))]
+    for i, tok in enumerate(tokens):
+        if tok.isdigit():
+            w = int(tok)
+            if 100 <= w <= 950:
+                return w >= BOLD_MIN_WEIGHT
+            continue
+        if tok in _HEAVY_WORD_TOKENS:
+            return True
+        if tok == "bold":
+            prev = tokens[i - 1] if i > 0 else ""
+            if prev in _LIGHTEN_BOLD_PREFIX:
+                continue
+            return True
+    return False
 
 
 def _lin(c):

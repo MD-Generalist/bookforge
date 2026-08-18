@@ -70,6 +70,13 @@ COLLIDE_OY_FRAC = 0.35
 # 사유서가 지목하지 않은 겹침까지 함께 열리므로, "승인으로 설명 가능한 교차"의 크기를
 # 검출 임계의 2배로 묶는다 — 근거·실측은 G11의 해당 분기 주석.
 OVERLAP_APPROVE_MAX_OX_PT = 2 * COLLIDE_OX_PT
+# OVERLAP_APPROVED 승인 면의 교차 **건수** 상한(W4 재판정 R-2). 면제는 좌표가 아니라
+# 면 단위라, 개별 교차가 전부 ㉢(ox <= 3.0pt) 이내라도 건수가 쌓이면 폭발 반경이 넓어진다
+# — 실측(overlap_attack.py): ox 2.9pt(상한 이내) 교차 20건을 한 면에 심고 사유서 1줄로
+# 승인하면 pass=True가 됐다. 사소한 물림(장식 글리프가 행 끝에 머리카락만큼 물리는 것)의
+# 현실 범위는 한 면에 2~3건이고, 그 이상(특히 수십 건)은 크기가 작아도 "장식"으로 설명될
+# 수 없는 조판 붕괴다. 5건은 그 현실 범위(2~3건)에 여유를 더한 상한이다.
+OVERLAP_APPROVE_MAX_COUNT = 5
 # 세로 박스는 line["bbox"]를 그대로 쓰지 않는다. fo2text가 재는 것은 DOM 라인박스
 # (font-size × line-height ≈ 1.0~1.3em)인데 PyMuPDF의 line bbox는 **폰트 선언 bbox**라
 # 서체 메트릭에 따라 1.44em까지 부푼다(실측: magazine `.pullquote`의 `::before` 큰따옴표가
@@ -414,7 +421,12 @@ def g16_lint_check(book_dir, style):
     (W4 판정 D1). 반환 dict는 그대로 report["gates"]["G16-LINT"]가 된다.
 
     **중단 지점이 아니다** — FAIL은 fails에 누적만 하고 뒤 게이트를 계속 판정한다.
-    린터 자체가 터져도(경로·의존성 문제) 게이트를 죽이지 않는다: WARN으로 강등한다.
+    린터 자체가 터져도(경로·의존성 문제·**`sys.exit()`이 던지는 `SystemExit` 포함**) 게이트를
+    죽이지 않는다: WARN으로 강등한다. `SystemExit`은 `BaseException` 계열이라 평범한
+    `except Exception`으로는 못 잡는다 — 아래 호출부는 `(Exception, SystemExit)`을 명시로
+    잡는다(단 `KeyboardInterrupt`는 사용자 중단이라 그대로 전파한다). 또한 이 경로에서
+    죽더라도 `main()` 진입 시 이미 낡은 `gate-report.json`을 지운 뒤이므로, 죽은 뒤 디스크에
+    남는 리포트가 "직전 실행의 오래된 PASS"일 수 없다(W4 재판정 E1).
     """
     res = {"ok": True, "problems": [], "warns": [], "skipped": None}
     html = book_dir / "typeset" / "book-final.html"
@@ -434,7 +446,12 @@ def g16_lint_check(book_dir, style):
         spec.loader.exec_module(mod)
         mod._VIRT_CACHE.clear()
         r = mod.lint_book(book_dir)
-    except Exception as exc:  # 린터의 사고가 게이트 전체를 죽이지 않게 한다
+    except (Exception, SystemExit) as exc:  # 린터의 사고가 게이트 전체를 죽이지 않게 한다.
+        # SystemExit은 BaseException 계열이라 `except Exception`만으로는 못 잡는다 —
+        # 린터가 `sys.exit(...)`으로 죽으면 이 함수를 그대로 빠져나가 qc_gate.py 프로세스
+        # 전체가 죽었고, 그 시점에 gate-report.json이 갱신되지 않아 **직전 실행의 낡은
+        # PASS 리포트가 디스크에 그대로 남았다**(W4 재판정 E1). KeyboardInterrupt는
+        # BaseException 계열이지만 여기 안 넣는다 — 사용자 중단은 강등하지 않고 전파한다.
         res["warns"].append(f"린터 실행 실패({type(exc).__name__}: {exc}) — 이 축은 미판정. "
                             f"직접 실행: python3 {lint_py} {book_dir}")
         return res
@@ -490,6 +507,13 @@ def main():
     if len(sys.argv) < 2:
         sys.exit("usage: python3 scripts/qc_gate.py <book_dir> [--strict-pages]")
     book_dir = Path(sys.argv[1]).resolve()
+    # 크래시 안전판(W4 재판정 E1): main() 진입 시 이전 실행의 gate-report.json을 무조건
+    # 지운다. 이 시점 이후 어떤 코드 경로가 잡히지 않은 예외로 죽더라도(린터의 SystemExit
+    # 포함, 또는 이 함수 자체의 다른 미래 실수) 디스크에는 "직전 실행의 낡은 PASS"가 남을
+    # 수 없다 — 크래시 후에는 gate-report.json이 아예 없거나 이번 실행이 끝까지 써낸 값뿐이다.
+    stale_report = book_dir / "gate-report.json"
+    if stale_report.exists():
+        stale_report.unlink()
     book = json.loads((book_dir / "book.json").read_text(encoding="utf-8"))
     outline = json.loads((book_dir / "outline.json").read_text(encoding="utf-8"))
     style = book["style"]
@@ -745,6 +769,16 @@ def main():
 
     ch_starts = sorted({p for (_, p) in lvl1 if 1 <= p <= n})
     first_ch = ch_starts[0] if ch_starts else 1
+    if not ch_starts:
+        # 북마크·장 마커가 0건이면 first_ch가 조용히 1로 폴백하고, range(1, first_ch)가
+        # 빈 집합이 되어 앞부속 보호가 통째로 정지한다: G3-COLLIDE의 앞부속 차감
+        # (collide_exempt_pages)과 G3-FIT의 검사 대상(front_pages)이 둘 다 비게 된다
+        # (W4 재판정 E3). 같은 원인으로 G4(북마크 정합)가 별도로 FAIL해 단독 우회는
+        # 성립하지 않지만, 이 축들이 왜 침묵했는지는 리포트에 남겨야 한다.
+        report["warns"].append(
+            "앞부속 보호 정지: 북마크(장 마커) 0건 → first_ch=1 폴백 → "
+            "G3-COLLIDE 앞부속 면제 차감과 G3-FIT 검사 대상이 둘 다 빈 집합. "
+            "(같은 원인으로 G4가 별도 FAIL한다)")
 
     # ---- G14 목차·디자인 정합 (tocgate.py) ----
     from tocgate import run as g14_run
@@ -856,10 +890,15 @@ def main():
                     # 하나로 선행조건을 제조한 뒤 같은 면의 중대한 겹침까지 함께 면제하는
                     # 경로가 열려 있었다(W4 판정 D5 — 실측: 장식 불릿 ox 2.02pt로 승인을
                     # 정당화하고 본문 행 통째 겹침 ox 38.85pt를 함께 통과시킴).
-                    # 폭발 반경을 기계 상한으로 묶는다: 승인 면의 **모든** 교차가 검출
-                    # 임계의 2배(ox <= 3.0pt ≈ 1mm) 이내여야 한다. 이 코드가 존재하는
-                    # 사유(장식 글리프가 행 끝에 머리카락만큼 물리는 정당한 조판)는 전부
-                    # 이 대역 안이고, 그보다 큰 교차는 "설명 가능한 조판"이 아니라 결함이다.
+                    # 폭발 반경을 기계 상한 둘로 묶는다:
+                    #  ㉢ 크기 — 승인 면의 **모든** 교차가 검출 임계의 2배(ox <= 3.0pt ≈ 1mm)
+                    #    이내여야 한다. 이 코드가 존재하는 사유(장식 글리프가 행 끝에
+                    #    머리카락만큼 물리는 정당한 조판)는 전부 이 대역 안이고, 그보다 큰
+                    #    교차는 "설명 가능한 조판"이 아니라 결함이다.
+                    #  ㉣ 건수 — 개별 크기가 ㉢ 이내라도 건수가 쌓이면 폭발 반경이 넓어진다
+                    #    (W4 재판정 R-2 — ox 2.9pt 교차 20건을 사유서 1줄로 승인해 통과시킴).
+                    #    사소한 물림의 현실 범위는 면당 2~3건이고, 그 이상은 개별 크기가
+                    #    작아도 조판 붕괴다.
                     big = [h for h in collide_raw[pg] if h["ox"] > OVERLAP_APPROVE_MAX_OX_PT]
                     if big:
                         h0 = big[0]
@@ -869,6 +908,12 @@ def main():
                             f"{OVERLAP_APPROVE_MAX_OX_PT}pt = 검출 임계 {COLLIDE_OX_PT}pt의 2배). "
                             "면 단위 면제라 사유서에 없는 겹침까지 함께 열리므로, 이 크기의 "
                             "겹침은 승인 대상이 아니라 수리 대상이다")
+                    n_ovl = len(collide_raw[pg])
+                    if n_ovl > OVERLAP_APPROVE_MAX_COUNT:
+                        g11["problems"].append(
+                            f"p{pg}: OVERLAP_APPROVED 면에 교차 {n_ovl}건 > 상한 "
+                            f"{OVERLAP_APPROVE_MAX_COUNT}건 — 개별 크기가 ㉢ 이내라도 이 건수는 "
+                            "사소한 물림의 현실 범위(면당 2~3건)를 넘는 조판 붕괴다(W4 재판정 R-2)")
             if code == "CH_CLOSE_APPROVED" and pg not in tails:
                 g11["problems"].append(f"p{pg}: CH_CLOSE_APPROVED는 장 끝 면 한정 "
                                        "(레버 소진 후 최종 에스컬레이션)")
