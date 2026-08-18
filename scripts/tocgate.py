@@ -13,19 +13,27 @@
   G14-B 목차 유채색 ↔ 도비라(장 오프너) 유채색의 색상(hue) 정합 — 목차가 본문과
         다른 색 계열을 쓰는 "다른 책 같은 목차"를 차단. 명도/채도 셰이드 변주는 허용.
   G14-C 유채색 텍스트의 배경 대비 WCAG 하한 — 전 면 스캔. 렌더 픽스맵에서 스팬
-        주변 배경색을 추정해 대비를 계산한다. 대형(≥14pt 또는 ≥10.5pt 볼드) 3:1,
-        그 외 4.5:1. 배경 추정이 불안정한 스팬(이미지·그라데이션 위)은 건너뛴다.
+        주변 배경색을 추정해 대비를 계산한다. 하한은 `g16_tokens.contrast_floor`가
+        단일 진리원 — WCAG 1.4.3 대형(≥18pt 또는 ≥14pt 볼드) 3:1, 그 외 4.5:1.
+        배경 추정이 불안정한 스팬(이미지·그라데이션 위)은 건너뛴다.
 
 반환: (problems: list[str], warns: list[str], info: dict)
 """
 import colorsys
 import re
+import sys
 import unicodedata
+from pathlib import Path
 
 try:
     import pymupdf as fitz
 except ImportError:
     import fitz
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+# 대비 하한은 g16_tokens가 단일 진리원 — 여기서 값을 복제하지 않는다.
+# (사전 게이트 G16-CONTRAST와 렌더 후 G14-C가 다른 수를 내면 사전 FAIL이 무의미해진다.)
+from g16_tokens import contrast_floor  # noqa: E402
 
 
 def _norm(s):
@@ -430,7 +438,7 @@ def g14c_contrast(doc, zoom=2.0):
             rgb = _int_rgb(s["color"])
             size = s["size"]
             bold = "Bold" in s.get("font", "") or "Black" in s.get("font", "")
-            floor = 3.0 if (size >= 14 or (size >= 10.5 and bold)) else 4.5
+            floor = contrast_floor(size, bold)   # 단일 진리원: g16_tokens.contrast_floor
             x0, y0, x1, y1 = (int(v * zoom) for v in s["bbox"])
             # 배경 추정: bbox 바깥 2~5px 링의 최빈색
             # (dedup 키에 배경이 들어가므로 링 스캔은 dedup보다 먼저 수행해야 한다)

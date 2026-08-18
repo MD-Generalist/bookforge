@@ -50,14 +50,21 @@ THIN_BAND = 1.05
 # ---------------------------------------------------------------- 대비 산술
 
 def contrast_floor(pt, bold):
-    """대비 하한의 단일 진리원.
+    """대비 하한의 **단일 진리원** — G16-CONTRAST(정적)와 G14-C(픽셀)가 함께 쓴다.
 
-    현행 tocgate.py:433(G14-C)과 같은 값이라 두 게이트가 다른 수를 내지 않는다.
-    이 값은 WCAG(18pt / 14pt-bold)보다 두 갈래 모두 느슨하며, 교정은 W4 7단계에서
-    이 함수 하나만 바꾸는 것으로 끝나야 한다 — 그래서 하한을 계약 데이터에
-    저장하지 않고 pt·bold에서 파생한다.
+    WCAG 2.x 1.4.3 large-text 정의를 그대로 따른다: 18pt 이상, 또는 14pt 이상이면서
+    볼드일 때만 대형 텍스트로 보고 3:1, 그 외에는 4.5:1.
+
+    W4 7단계 이전에는 `pt >= 14 or (pt >= 10.5 and bold)`라는 자체 완화값을 썼다
+    (두 갈래 모두 WCAG보다 느슨). 교정 근거·영향 실측은
+    `/mnt/d/bookforge-verify/report/dualfloor-diff.md` — 출하 9권 전수 재스캔에서
+    신규 FAIL은 business 2권의 accent #C2662E 10.5pt bold on white(4.01) 2건뿐이며,
+    그 조판(styles/business/theme.typ `bf-exec-open`)은 같은 단계에서 수리했다.
+
+    tocgate.py(G14-C)는 이 함수를 import해 쓴다 — 값 복제 금지. 두 게이트가 다른
+    수를 내면 사전 게이트(렌더 전 FAIL 앞당기기)의 존재 이유가 무너진다.
     """
-    return 3.0 if (pt >= 14 or (pt >= 10.5 and bold)) else 4.5
+    return 3.0 if (pt >= 18 or (pt >= 14 and bold)) else 4.5
 
 
 def _lin(c):
