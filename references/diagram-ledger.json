@@ -1,947 +1,1781 @@
 {
-  "schema": "bf-diagram-ledger/2",
-  "_doc": "AntV 템플릿 적합성 실측 원장. **v2 재도출(2026-08-18, W5 8단계)** — 판정 축이 하나(min_pt 8pt 하한)에서 넷(min_pt · max_pt/max_ratio · frame_slack · label-paint)으로 늘었다. 재도출이 필요했던 이유 둘: ① W5 2~4단계 폭 3원 동기화로 **구 행의 width_mm 귀속이 무효**가 됐고(선언폭이 실렌더폭과 갈라져 있었다), ② W5 6단계 라벨 급수 강제(역할별 font-size 주입 + 폭 프레임 고정)가 **하한 축의 결론 자체를 뒤집었다** — 구 blocked 3건은 전부 급수 강제 이전 수치다. 입력은 assets/fig-NN.metrics.json 전량(코퍼스 12권 64건 + 폭 프로브 5권 10건 = 74건) + 이번 단계의 템플릿 프로브다. metrics.json에 `template` 축을 신설해 이후 재도출이 metrics만으로 닫히게 했다. 새 실측은 이 파일에 추가할 것.",
-  "derived_at": "2026-08-18",
-  "derived_from": {
-    "corpus_metrics": "/mnt/d/bookforge-verify 12권 64건 + 폭 프로브 5권 10건 = fig-NN.metrics.json 74건 (antv 8건이 템플릿 축을 가진다)",
-    "template_probes": "insight 팩 · 3항목(라벨 6자 + 설명 12자) 표준 콘텐츠 · full 130mm/twothirds 106mm — 등록 변형 실측 28건 + 반려 7건",
-    "report": "/mnt/d/bookforge-verify/report/w5-step89.md"
+ "schema": "bf-diagram-ledger/3",
+ "_doc": "AntV 템플릿 적합성 실측 원장. **v3 전수 재도출(2026-08-18, W5 재작업)** — 두 가지가 v2를 무효화했다. ① **커버리지**: v2는 등록 123종 중 25종(21%)만 판정했고, 미판정 구간에 blocked와 같은 축의 반려가 실재했다(판정 K12). v3는 **등록 123종 전건**을 같은 표준 프로브로 실측했다. ② **판정식 수리**: v2의 label-paint 판정은 배경 산출이 세 계열에서 틀린 채로 내려졌다(판정 K4) — `url(#…)` 그라데이션을 버렸고, `fill:none` + stroke 면을 후보에서 뺐고, 표본이 bbox 중심점 1개였고, **색 문자열의 알파(`rgba(…,0.12)`)를 무시**했다. 마지막 것이 v2 blocked 5행의 근거를 통째로 뒤집는다: 그 템플릿들의 '채움 카드'는 불투명 팔레트 면이 아니라 **8~12% 틴트**였고, 라벨 실배경은 `#1e7aad`가 아니라 `#e8f1f7`이며 실대비는 3.201이 아니라 **13.3**이다(Chromium 실픽셀 대조로 확인 — 게이트 산출 `#e9f2f7` vs 실픽셀 `#e8f1f7`, 오차 1/255). 따라서 v2 blocked 5행 중 4행은 **오탐**이었고 차단을 해제한다. v2가 근거로 든 대비 산술 상한(knockout-safe 슬롯 L ≤ 0.18333 위의 #262626(L 0.019382) → 3.363; v2 문서의 3.24는 L(#262626)을 0.0219로 잘못 적은 데서 나온 값이다 — 판정 K11) 자체는 옳지만, **그 전제인 '불투명 팔레트 면 위'가 성립하는 템플릿이 실측상 없었다**. ③ 새 축 `palette_reach`: 벤더 기본색(`#ff356a`·`#1677ff`)이 산출에 남으면 팔레트가 그 요소에 도달하지 못했다는 증거다 — 2사이클 연속 이연됐던 antv 트랙 색 계약의 봉합이며 17종이 여기 걸린다.",
+ "derived_at": "2026-08-18",
+ "derived_from": {
+  "template_probes": "insight 팩 · 3항목(라벨 6자 + 설명 12자) 표준 콘텐츠 · full 130mm — **등록 123종 전건**. 사전 차단 5종은 `blocked_prefixes`를 비우고 별도 실측했다.",
+  "corpus_metrics": "/mnt/d/bookforge-verify 12권 64건 재렌더(수리 후) — 라벨 746건 검사 · 역할 위반 0 · 대비 위반 0 · 최악 4.727 · 밴드 최대 1.169×. v2 기록과 전 수치 동일(수리가 코퍼스에 새 오탐을 만들지 않았다는 증거).",
+  "pixel_ground_truth": "텍스트를 숨기고 스크린샷한 뒤 라벨 bbox 5점의 **실픽셀**을 읽어 게이트 산출 배경과 대조했다 — `hierarchy-structure-mirror` 실픽셀 `#e4eff5` vs 게이트 `#e4eff5`, `list-grid-badge-card` `#e8f1f7` vs `#e9f2f7`, `sequence-ascending-stairs-3d-simple` `#5ea0c4`/`#5787a2`/`#898e92`(백색 knockout 대비 2.876/3.894/3.308 — 전부 4.5 미만이므로 이 템플릿의 반려는 참양성).",
+  "report": "/mnt/d/bookforge-verify/report/w5-rework.md"
+ },
+ "floor_pt": 8,
+ "band": {
+  "maxRatio": 1.2,
+  "grade": "하우스",
+  "note": "라벨 최대 pt ≤ body_pt × 1.20. 스타일별 `tokens.diagram.labelBand`가 정본이고 이 값은 그 사본이다 — 6스타일 전부 1.20 · enforce:true(W5 8단계)."
+ },
+ "axes": {
+  "min_pt": "라벨 최소 실측 pt. < floor_pt면 렌더가 HARD 반려(fontFloorViolations).",
+  "max_ratio": "라벨 최대 pt ÷ body_pt. > band.maxRatio면 labelBand.enforce:true 스타일에서 HARD 반려.",
+  "frame_slack": "1 − 실내용폭 ÷ 프레임폭(6단계 폭 프레임 고정의 부산물). 양수 = 도형이 명목 폭을 못 채운다, 음수 = 프레임을 넘겨 pt/u가 낮아졌다(라벨이 목표에 미달). ±0.03이 실무 무해 대역.",
+  "label_paint": "역할·대비 HARD(7단계) 실측. blocked 판정의 새 근거 축이다.",
+  "palette_reach": "산출 SVG에 벤더 기본색(`#ff356a`·`#1677ff`)이 남는가. 남으면 그 요소에 `theme.palette`가 도달하지 못한 것이다(팔레트가 그 색을 실제로 선언한 경우는 면제). 렌더 시 HARD."
+ },
+ "coverage": {
+  "registered": 123,
+  "measured": 123,
+  "ok": 87,
+  "blocked": 26,
+  "content_sensitive": 7,
+  "palette_sensitive": 3
+ },
+ "measurements": [
+  {
+   "template": "chart-bar-plain-text",
+   "verdict": "ok",
+   "min_pt": 8.468,
+   "max_pt": 10.81,
+   "max_ratio": 1.138,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 14,
+   "knockout": 0,
+   "frame_slack": -0.01,
+   "scale_passes": 2
   },
-  "floor_pt": 8,
-  "band": {
-    "maxRatio": 1.2,
-    "grade": "하우스",
-    "note": "라벨 최대 pt ≤ body_pt × 1.20. 스타일별 `tokens.diagram.labelBand`가 정본이고 이 값은 그 사본이다 — 6스타일 전부 1.20 · enforce:true(W5 8단계)."
+  {
+   "template": "chart-column-simple",
+   "verdict": "ok",
+   "min_pt": 8.557,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 11,
+   "knockout": 0,
+   "frame_slack": 0.078,
+   "scale_passes": 2
   },
-  "axes": {
-    "min_pt": "라벨 최소 실측 pt. < floor_pt면 렌더가 HARD 반려(fontFloorViolations).",
-    "max_ratio": "라벨 최대 pt ÷ body_pt. > band.maxRatio면 labelBand.enforce:true 스타일에서 HARD 반려.",
-    "frame_slack": "1 − 실내용폭 ÷ 프레임폭(6단계 폭 프레임 고정의 부산물). 양수 = 도형이 명목 폭을 못 채운다, 음수 = 프레임을 넘겨 pt/u가 낮아졌다(라벨이 목표에 미달). ±0.03이 실무 무해 대역.",
-    "label_paint": "역할·대비 HARD(7단계) 실측. blocked 판정의 새 근거 축이다."
+  {
+   "template": "chart-line-plain-text",
+   "verdict": "ok",
+   "min_pt": 8.562,
+   "max_pt": 10.924,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 14,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
   },
-  "measurements": [
-    {
-      "template": "list-column-simple-vertical-arrow",
-      "verdict": "ok-slack",
-      "max_ratio_range": [
-        1.15,
-        1.15
-      ],
-      "min_pt_min": 8.556,
-      "frame_slack_range": [
-        0.224,
-        0.338
-      ],
-      "note": "프레임 여백 34% — 라벨을 밴드 안으로 넣으면 도형이 명목 폭을 다 채우지 못한다. 이 폭에는 항목 수가 적거나 템플릿이 세로형이라는 뜻이므로 bf.width를 twothirds로 내리거나 항목을 늘릴 것.",
-      "measurements": [
-        {
-          "style": "magazine",
-          "width_key": "full",
-          "width_mm": 164,
-          "body_pt": 9.5,
-          "min_pt": 8.556,
-          "max_pt": 10.925,
-          "max_ratio": 1.15,
-          "frame_slack": 0.338,
-          "scale_passes": 2,
-          "worst_contrast": 5.015,
-          "source": "corpus:adv-g16/mag-diag-oldpal/fig-02"
-        },
-        {
-          "style": "magazine",
-          "width_key": "full",
-          "width_mm": 164,
-          "body_pt": 9.5,
-          "min_pt": 8.556,
-          "max_pt": 10.925,
-          "max_ratio": 1.15,
-          "frame_slack": 0.338,
-          "scale_passes": 2,
-          "worst_contrast": 5.015,
-          "source": "corpus:adv-g16/mag-diag/fig-02"
-        },
-        {
-          "style": "magazine",
-          "width_key": "full",
-          "width_mm": 164,
-          "body_pt": 9.5,
-          "min_pt": 8.556,
-          "max_pt": 10.925,
-          "max_ratio": 1.15,
-          "frame_slack": 0.338,
-          "scale_passes": 2,
-          "worst_contrast": 5.015,
-          "source": "corpus:w5s2-mag23/fig-02"
-        },
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.56,
-          "max_pt": 10.925,
-          "max_ratio": 1.15,
-          "frame_slack": 0.328,
-          "scale_passes": 2,
-          "worst_contrast": 4.727,
-          "source": "probe:w5s89/list-column-simple-vertical-arrow__full"
-        },
-        {
-          "style": "insight",
-          "width_key": "twothirds",
-          "width_mm": 106,
-          "body_pt": 9.5,
-          "min_pt": 8.559,
-          "max_pt": 10.925,
-          "max_ratio": 1.15,
-          "frame_slack": 0.224,
-          "scale_passes": 2,
-          "worst_contrast": 4.727,
-          "source": "corpus:iso-base-dsl/fig-02"
-        },
-        {
-          "style": "insight",
-          "width_key": "twothirds",
-          "width_mm": 106,
-          "body_pt": 9.5,
-          "min_pt": 8.559,
-          "max_pt": 10.925,
-          "max_ratio": 1.15,
-          "frame_slack": 0.224,
-          "scale_passes": 2,
-          "worst_contrast": 4.727,
-          "source": "corpus:merge-diag-dsl/fig-02"
-        },
-        {
-          "style": "magazine",
-          "width_key": "twothirds",
-          "width_mm": 108,
-          "body_pt": 9.5,
-          "min_pt": 8.558,
-          "max_pt": 10.925,
-          "max_ratio": 1.15,
-          "frame_slack": 0.233,
-          "scale_passes": 2,
-          "worst_contrast": 5.015,
-          "source": "corpus:w5s2-mag23/fig-01"
-        },
-        {
-          "style": "insight",
-          "width_key": "twothirds",
-          "width_mm": 106,
-          "body_pt": 9.5,
-          "min_pt": 8.559,
-          "max_pt": 10.925,
-          "max_ratio": 1.15,
-          "frame_slack": 0.224,
-          "scale_passes": 2,
-          "worst_contrast": 4.727,
-          "source": "probe:w5s89/list-column-simple-vertical-arrow__twothirds"
-        }
-      ]
-    },
-    {
-      "template": "list-grid-circular-progress",
-      "verdict": "ok",
-      "max_ratio_range": [
-        1.15,
-        1.15
-      ],
-      "min_pt_min": 9.503,
-      "frame_slack_range": [
-        0,
-        0
-      ],
-      "note": null,
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 9.503,
-          "max_pt": 10.925,
-          "max_ratio": 1.15,
-          "frame_slack": 0,
-          "scale_passes": 2,
-          "worst_contrast": 4.727,
-          "source": "probe:w5s89/list-grid-circular-progress__full"
-        }
-      ]
-    },
-    {
-      "template": "list-grid-done-list",
-      "verdict": "ok",
-      "max_ratio_range": [
-        1.141,
-        1.141
-      ],
-      "min_pt_min": 9.425,
-      "frame_slack_range": [
-        -0.008,
-        -0.008
-      ],
-      "note": null,
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 9.425,
-          "max_pt": 10.836,
-          "max_ratio": 1.141,
-          "frame_slack": -0.008,
-          "scale_passes": 2,
-          "worst_contrast": 5.742,
-          "source": "probe:w5s89/list-grid-done-list__full"
-        }
-      ]
-    },
-    {
-      "template": "list-grid-horizontal-icon-arrow",
-      "verdict": "ok",
-      "max_ratio_range": [
-        1.15,
-        1.15
-      ],
-      "min_pt_min": 8.558,
-      "frame_slack_range": [
-        0,
-        0
-      ],
-      "note": null,
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.558,
-          "max_pt": 10.925,
-          "max_ratio": 1.15,
-          "frame_slack": 0,
-          "scale_passes": 2,
-          "worst_contrast": 4.727,
-          "source": "probe:w5s89/list-grid-horizontal-icon-arrow__full"
-        }
-      ]
-    },
-    {
-      "template": "list-grid-progress-card",
-      "verdict": "ok",
-      "max_ratio_range": [
-        1.15,
-        1.15
-      ],
-      "min_pt_min": 8.561,
-      "frame_slack_range": [
-        0,
-        0
-      ],
-      "note": null,
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.561,
-          "max_pt": 10.926,
-          "max_ratio": 1.15,
-          "frame_slack": 0,
-          "scale_passes": 2,
-          "worst_contrast": 6.897,
-          "source": "probe:w5s89/list-grid-progress-card__full"
-        }
-      ]
-    },
-    {
-      "template": "list-grid-ribbon-card",
-      "verdict": "ok",
-      "max_ratio_range": [
-        1.15,
-        1.15
-      ],
-      "min_pt_min": 8.562,
-      "frame_slack_range": [
-        0,
-        0
-      ],
-      "note": null,
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.562,
-          "max_pt": 10.923,
-          "max_ratio": 1.15,
-          "frame_slack": 0,
-          "scale_passes": 2,
-          "worst_contrast": 6.897,
-          "source": "probe:w5s89/list-grid-ribbon-card__full"
-        }
-      ]
-    },
-    {
-      "template": "list-grid-simple",
-      "verdict": "ok-undershoot",
-      "max_ratio_range": [
-        1.092,
-        1.15
-      ],
-      "min_pt_min": 8.127,
-      "frame_slack_range": [
-        -0.053,
-        0.002
-      ],
-      "note": "프레임 초과 -5.3% — 급수 주입이 실내용 폭을 프레임 밖으로 밀어 pt/u가 낮아졌고 라벨이 목표(본문×1.15)에 못 미친 채로 앉았다(최소 8.127pt, 하한 8pt 여유 0.127pt). 항목 수·라벨 길이를 줄일 것.",
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.559,
-          "max_pt": 10.926,
-          "max_ratio": 1.15,
-          "frame_slack": 0.002,
-          "scale_passes": 2,
-          "worst_contrast": 6.897,
-          "source": "probe:w5s89/list-grid-simple__full"
-        },
-        {
-          "style": "insight",
-          "width_key": "twothirds",
-          "width_mm": 106,
-          "body_pt": 9.5,
-          "min_pt": 8.127,
-          "max_pt": 10.374,
-          "max_ratio": 1.092,
-          "frame_slack": -0.053,
-          "scale_passes": 2,
-          "worst_contrast": 6.897,
-          "source": "probe:w5s89/list-grid-simple__twothirds"
-        }
-      ]
-    },
-    {
-      "template": "list-row-horizontal-icon-arrow",
-      "verdict": "ok",
-      "max_ratio_range": [
-        1.15,
-        1.15
-      ],
-      "min_pt_min": 8.558,
-      "frame_slack_range": [
-        0,
-        0
-      ],
-      "note": null,
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.558,
-          "max_pt": 10.925,
-          "max_ratio": 1.15,
-          "frame_slack": 0,
-          "scale_passes": 2,
-          "worst_contrast": 4.727,
-          "source": "corpus:iso-base-dsl/fig-01"
-        },
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.558,
-          "max_pt": 10.925,
-          "max_ratio": 1.15,
-          "frame_slack": 0,
-          "scale_passes": 2,
-          "worst_contrast": 4.727,
-          "source": "corpus:merge-diag-dsl/fig-01"
-        },
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.558,
-          "max_pt": 10.925,
-          "max_ratio": 1.15,
-          "frame_slack": 0,
-          "scale_passes": 2,
-          "worst_contrast": 4.727,
-          "source": "probe:w5s89/list-row-horizontal-icon-arrow__full"
-        },
-        {
-          "style": "insight",
-          "width_key": "twothirds",
-          "width_mm": 106,
-          "body_pt": 9.5,
-          "min_pt": 8.562,
-          "max_pt": 10.928,
-          "max_ratio": 1.15,
-          "frame_slack": 0,
-          "scale_passes": 2,
-          "worst_contrast": 4.727,
-          "source": "probe:w5s89/list-row-horizontal-icon-arrow__twothirds"
-        }
-      ]
-    },
-    {
-      "template": "sequence-ascending-steps",
-      "verdict": "ok",
-      "max_ratio_range": [
-        1.15,
-        1.15
-      ],
-      "min_pt_min": 8.56,
-      "frame_slack_range": [
-        0,
-        0
-      ],
-      "note": null,
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.563,
-          "max_pt": 10.928,
-          "max_ratio": 1.15,
-          "frame_slack": 0,
-          "scale_passes": 2,
-          "worst_contrast": 6.897,
-          "source": "probe:w5s89/sequence-ascending-steps__full"
-        },
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 9.497,
-          "max_pt": 10.928,
-          "max_ratio": 1.15,
-          "frame_slack": 0,
-          "scale_passes": 2,
-          "worst_contrast": 15.134,
-          "source": "probe:w5s89/sequence-ascending-steps__full__labelonly"
-        },
-        {
-          "style": "insight",
-          "width_key": "twothirds",
-          "width_mm": 106,
-          "body_pt": 9.5,
-          "min_pt": 8.56,
-          "max_pt": 10.923,
-          "max_ratio": 1.15,
-          "frame_slack": 0,
-          "scale_passes": 2,
-          "worst_contrast": 6.897,
-          "source": "probe:w5s89/sequence-ascending-steps__twothirds"
-        },
-        {
-          "style": "insight",
-          "width_key": "twothirds",
-          "width_mm": 106,
-          "body_pt": 9.5,
-          "min_pt": 9.497,
-          "max_pt": 10.923,
-          "max_ratio": 1.15,
-          "frame_slack": 0,
-          "scale_passes": 2,
-          "worst_contrast": 15.134,
-          "source": "probe:w5s89/sequence-ascending-steps__twothirds__labelonly"
-        }
-      ]
-    },
-    {
-      "template": "sequence-roadmap-vertical-plain-text",
-      "verdict": "ok-undershoot",
-      "max_ratio_range": [
-        1.057,
-        1.118
-      ],
-      "min_pt_min": 8.734,
-      "frame_slack_range": [
-        -0.088,
-        -0.029
-      ],
-      "note": "프레임 초과 -8.8% — 급수 주입이 실내용 폭을 프레임 밖으로 밀어 pt/u가 낮아졌고 라벨이 목표(본문×1.15)에 못 미친 채로 앉았다(최소 8.734pt, 하한 8pt 여유 0.734pt). 항목 수·라벨 길이를 줄일 것.",
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 9.231,
-          "max_pt": 10.617,
-          "max_ratio": 1.118,
-          "frame_slack": -0.029,
-          "scale_passes": 2,
-          "worst_contrast": 4.727,
-          "source": "probe:w5s89/sequence-roadmap-vertical-plain-text__full"
-        },
-        {
-          "style": "insight",
-          "width_key": "twothirds",
-          "width_mm": 106,
-          "body_pt": 9.5,
-          "min_pt": 8.734,
-          "max_pt": 10.043,
-          "max_ratio": 1.057,
-          "frame_slack": -0.088,
-          "scale_passes": 2,
-          "worst_contrast": 4.727,
-          "source": "probe:w5s89/sequence-roadmap-vertical-plain-text__twothirds"
-        }
-      ]
-    },
-    {
-      "template": "sequence-roadmap-vertical-quarter-circular",
-      "verdict": "ok",
-      "max_ratio_range": [
-        1.15,
-        1.15
-      ],
-      "min_pt_min": 8.559,
-      "frame_slack_range": [
-        0,
-        0
-      ],
-      "note": null,
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.559,
-          "max_pt": 10.924,
-          "max_ratio": 1.15,
-          "frame_slack": 0,
-          "scale_passes": 2,
-          "worst_contrast": 4.727,
-          "source": "probe:w5s89/sequence-roadmap-vertical-quarter-circular__full"
-        }
-      ]
-    },
-    {
-      "template": "sequence-roadmap-vertical-quarter-simple-card",
-      "verdict": "ok",
-      "max_ratio_range": [
-        1.15,
-        1.15
-      ],
-      "min_pt_min": 8.562,
-      "frame_slack_range": [
-        0,
-        0
-      ],
-      "note": null,
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.562,
-          "max_pt": 10.925,
-          "max_ratio": 1.15,
-          "frame_slack": 0,
-          "scale_passes": 2,
-          "worst_contrast": 4.727,
-          "source": "probe:w5s89/sequence-roadmap-vertical-quarter-simple-card__full"
-        }
-      ]
-    },
-    {
-      "template": "sequence-roadmap-vertical-simple",
-      "verdict": "ok-undershoot",
-      "max_ratio_range": [
-        1.11,
-        1.15
-      ],
-      "min_pt_min": 8.259,
-      "frame_slack_range": [
-        -0.036,
-        0.031
-      ],
-      "note": "프레임 초과 -3.6% — 급수 주입이 실내용 폭을 프레임 밖으로 밀어 pt/u가 낮아졌고 라벨이 목표(본문×1.15)에 못 미친 채로 앉았다(최소 8.259pt, 하한 8pt 여유 0.259pt). 항목 수·라벨 길이를 줄일 것.",
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.259,
-          "max_pt": 10.544,
-          "max_ratio": 1.11,
-          "frame_slack": -0.036,
-          "scale_passes": 3,
-          "worst_contrast": 4.727,
-          "source": "probe:w5s89/sequence-roadmap-vertical-simple__full"
-        },
-        {
-          "style": "insight",
-          "width_key": "twothirds",
-          "width_mm": 106,
-          "body_pt": 9.5,
-          "min_pt": 8.559,
-          "max_pt": 10.926,
-          "max_ratio": 1.15,
-          "frame_slack": 0.031,
-          "scale_passes": 3,
-          "worst_contrast": 4.727,
-          "source": "probe:w5s89/sequence-roadmap-vertical-simple__twothirds"
-        }
-      ]
-    },
-    {
-      "template": "sequence-roadmap-vertical-underline-text",
-      "verdict": "ok-undershoot",
-      "max_ratio_range": [
-        1.11,
-        1.11
-      ],
-      "min_pt_min": 8.259,
-      "frame_slack_range": [
-        -0.036,
-        -0.036
-      ],
-      "note": "프레임 초과 -3.6% — 급수 주입이 실내용 폭을 프레임 밖으로 밀어 pt/u가 낮아졌고 라벨이 목표(본문×1.15)에 못 미친 채로 앉았다(최소 8.259pt, 하한 8pt 여유 0.259pt). 항목 수·라벨 길이를 줄일 것.",
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.259,
-          "max_pt": 10.544,
-          "max_ratio": 1.11,
-          "frame_slack": -0.036,
-          "scale_passes": 3,
-          "worst_contrast": 4.727,
-          "source": "probe:w5s89/sequence-roadmap-vertical-underline-text__full"
-        }
-      ]
-    },
-    {
-      "template": "sequence-snake-steps-simple",
-      "verdict": "ok-undershoot",
-      "max_ratio_range": [
-        1.079,
-        1.137
-      ],
-      "min_pt_min": 8.031,
-      "frame_slack_range": [
-        -0.066,
-        -0.011
-      ],
-      "note": "프레임 초과 -6.6% — 급수 주입이 실내용 폭을 프레임 밖으로 밀어 pt/u가 낮아졌고 라벨이 목표(본문×1.15)에 못 미친 채로 앉았다(최소 8.031pt, 하한 8pt 여유 0.031pt). 항목 수·라벨 길이를 줄일 것.",
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.465,
-          "max_pt": 10.8,
-          "max_ratio": 1.137,
-          "frame_slack": -0.011,
-          "scale_passes": 2,
-          "worst_contrast": 6.897,
-          "source": "probe:w5s89/sequence-snake-steps-simple__full"
-        },
-        {
-          "style": "insight",
-          "width_key": "twothirds",
-          "width_mm": 106,
-          "body_pt": 9.5,
-          "min_pt": 8.031,
-          "max_pt": 10.248,
-          "max_ratio": 1.079,
-          "frame_slack": -0.066,
-          "scale_passes": 2,
-          "worst_contrast": 6.897,
-          "source": "probe:w5s89/sequence-snake-steps-simple__twothirds"
-        }
-      ]
-    },
-    {
-      "template": "sequence-snake-steps-simple-illus",
-      "verdict": "ok",
-      "max_ratio_range": [
-        1.15,
-        1.15
-      ],
-      "min_pt_min": 8.558,
-      "frame_slack_range": [
-        0.005,
-        0.005
-      ],
-      "note": null,
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.558,
-          "max_pt": 10.927,
-          "max_ratio": 1.15,
-          "frame_slack": 0.005,
-          "scale_passes": 2,
-          "worst_contrast": 6.897,
-          "source": "probe:w5s89/sequence-snake-steps-simple-illus__full"
-        }
-      ]
-    },
-    {
-      "template": "sequence-snake-steps-underline-text",
-      "verdict": "ok",
-      "max_ratio_range": [
-        1.137,
-        1.137
-      ],
-      "min_pt_min": 8.465,
-      "frame_slack_range": [
-        -0.011,
-        -0.011
-      ],
-      "note": null,
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.465,
-          "max_pt": 10.8,
-          "max_ratio": 1.137,
-          "frame_slack": -0.011,
-          "scale_passes": 2,
-          "worst_contrast": 4.727,
-          "source": "probe:w5s89/sequence-snake-steps-underline-text__full"
-        }
-      ]
-    },
-    {
-      "template": "sequence-timeline-simple",
-      "verdict": "ok-slack",
-      "max_ratio_range": [
-        1.15,
-        1.15
-      ],
-      "min_pt_min": 8.556,
-      "frame_slack_range": [
-        0.462,
-        0.49
-      ],
-      "note": "프레임 여백 49% — 라벨을 밴드 안으로 넣으면 도형이 명목 폭을 다 채우지 못한다. 이 폭에는 항목 수가 적거나 템플릿이 세로형이라는 뜻이므로 bf.width를 twothirds로 내리거나 항목을 늘릴 것.",
-      "measurements": [
-        {
-          "style": "insight",
-          "width_key": "full",
-          "width_mm": 130,
-          "body_pt": 9.5,
-          "min_pt": 8.556,
-          "max_pt": 10.923,
-          "max_ratio": 1.15,
-          "frame_slack": 0.49,
-          "scale_passes": 2,
-          "worst_contrast": 6.897,
-          "source": "probe:w5s89/sequence-timeline-simple__full"
-        },
-        {
-          "style": "insight",
-          "width_key": "twothirds",
-          "width_mm": 106,
-          "body_pt": 9.5,
-          "min_pt": 8.564,
-          "max_pt": 10.923,
-          "max_ratio": 1.15,
-          "frame_slack": 0.462,
-          "scale_passes": 2,
-          "worst_contrast": 6.897,
-          "source": "probe:w5s89/sequence-timeline-simple__twothirds"
-        }
-      ]
-    }
-  ],
-  "blocked": [
-    {
-      "template": "sequence-roadmap-vertical-badge-card",
-      "verdict": "blocked",
-      "axis": "label-paint(role/contrast HARD)",
-      "measured": "render fail — metrics 미발행",
-      "evidence": "위반 6건 — '오프라인 작동' #262626 on #1e7aad 3.201 · '네트워크…' #5a5a5a on #1e7aad 1.459 · … (insight full 130mm, 3항목)",
-      "reason": "라벨 급수는 밴드 안에 들어오지만 **역할·대비 HARD**(7단계)가 반드시 반려한다 — 이 템플릿은 AntV `theme.palette` 채움 카드 위에 기본 잉크색(#262626/#5a5a5a) 라벨을 얹는다. 그런데 그 채움 채널에 넘기는 슬롯은 `antvPaletteChannel`이 **백색 knockout 가능한 슬롯만** 고른 것이므로(contrast(slot,#ffffff) ≥ 4.5) 정의상 어두운 색이고(L ≤ 0.1833), 그 위의 #262626(L 0.0219) 대비는 산술 상한이 **3.24**로 4.5를 넘을 수 없다. 즉 팔레트 값과 무관한 구조적 미달이며 사이드카·폭 조정으로 구제되지 않는다(항목 datum의 color는 무시되고 콘텐츠 theme 블록은 applyTheme가 재작성한다 — w5-step7.md §3.1 실증). 유일한 예외 가능성은 0번(브랜드) 슬롯만 쓰는 1항목 도해다 — 0번은 knockout 필터를 면제받기 때문이며, 그 경우에도 렌더 시 역할·대비 HARD가 최종 판정한다."
-    },
-    {
-      "template": "sequence-roadmap-vertical-pill-badge",
-      "verdict": "blocked",
-      "axis": "label-paint(role/contrast HARD)",
-      "measured": "render fail — metrics 미발행",
-      "evidence": "위반 3건 — #262626 on #1e7aad 3.201 / on #14577d 1.938 / on #5a6167 2.407 (insight full 130mm)",
-      "reason": "라벨 급수는 밴드 안에 들어오지만 **역할·대비 HARD**(7단계)가 반드시 반려한다 — 이 템플릿은 AntV `theme.palette` 채움 카드 위에 기본 잉크색(#262626/#5a5a5a) 라벨을 얹는다. 그런데 그 채움 채널에 넘기는 슬롯은 `antvPaletteChannel`이 **백색 knockout 가능한 슬롯만** 고른 것이므로(contrast(slot,#ffffff) ≥ 4.5) 정의상 어두운 색이고(L ≤ 0.1833), 그 위의 #262626(L 0.0219) 대비는 산술 상한이 **3.24**로 4.5를 넘을 수 없다. 즉 팔레트 값과 무관한 구조적 미달이며 사이드카·폭 조정으로 구제되지 않는다(항목 datum의 color는 무시되고 콘텐츠 theme 블록은 applyTheme가 재작성한다 — w5-step7.md §3.1 실증). 유일한 예외 가능성은 0번(브랜드) 슬롯만 쓰는 1항목 도해다 — 0번은 knockout 필터를 면제받기 때문이며, 그 경우에도 렌더 시 역할·대비 HARD가 최종 판정한다."
-    },
-    {
-      "template": "sequence-snake-steps-pill-badge",
-      "verdict": "blocked",
-      "axis": "label-paint(role/contrast HARD)",
-      "measured": "render fail — metrics 미발행",
-      "evidence": "위반 4건 — 같은 조합. 라벨이 배지 안에서 '오프라인 작'/'동'으로 끊기기까지 한다(insight full 130mm)",
-      "reason": "라벨 급수는 밴드 안에 들어오지만 **역할·대비 HARD**(7단계)가 반드시 반려한다 — 이 템플릿은 AntV `theme.palette` 채움 카드 위에 기본 잉크색(#262626/#5a5a5a) 라벨을 얹는다. 그런데 그 채움 채널에 넘기는 슬롯은 `antvPaletteChannel`이 **백색 knockout 가능한 슬롯만** 고른 것이므로(contrast(slot,#ffffff) ≥ 4.5) 정의상 어두운 색이고(L ≤ 0.1833), 그 위의 #262626(L 0.0219) 대비는 산술 상한이 **3.24**로 4.5를 넘을 수 없다. 즉 팔레트 값과 무관한 구조적 미달이며 사이드카·폭 조정으로 구제되지 않는다(항목 datum의 color는 무시되고 콘텐츠 theme 블록은 applyTheme가 재작성한다 — w5-step7.md §3.1 실증). 유일한 예외 가능성은 0번(브랜드) 슬롯만 쓰는 1항목 도해다 — 0번은 knockout 필터를 면제받기 때문이며, 그 경우에도 렌더 시 역할·대비 HARD가 최종 판정한다."
-    },
-    {
-      "template": "list-grid-badge-card",
-      "verdict": "blocked",
-      "axis": "label-paint(role/contrast HARD)",
-      "measured": "render fail — metrics 미발행",
-      "evidence": "위반 6건 — 라벨·설명 전부 채움 카드 위(insight full 130mm)",
-      "reason": "라벨 급수는 밴드 안에 들어오지만 **역할·대비 HARD**(7단계)가 반드시 반려한다 — 이 템플릿은 AntV `theme.palette` 채움 카드 위에 기본 잉크색(#262626/#5a5a5a) 라벨을 얹는다. 그런데 그 채움 채널에 넘기는 슬롯은 `antvPaletteChannel`이 **백색 knockout 가능한 슬롯만** 고른 것이므로(contrast(slot,#ffffff) ≥ 4.5) 정의상 어두운 색이고(L ≤ 0.1833), 그 위의 #262626(L 0.0219) 대비는 산술 상한이 **3.24**로 4.5를 넘을 수 없다. 즉 팔레트 값과 무관한 구조적 미달이며 사이드카·폭 조정으로 구제되지 않는다(항목 datum의 color는 무시되고 콘텐츠 theme 블록은 applyTheme가 재작성한다 — w5-step7.md §3.1 실증). 유일한 예외 가능성은 0번(브랜드) 슬롯만 쓰는 1항목 도해다 — 0번은 knockout 필터를 면제받기 때문이며, 그 경우에도 렌더 시 역할·대비 HARD가 최종 판정한다."
-    },
-    {
-      "template": "list-grid-candy-card-lite",
-      "verdict": "blocked",
-      "axis": "label-paint(role/contrast HARD)",
-      "measured": "render fail — metrics 미발행",
-      "evidence": "위반 6건 — 같은 구조(insight full 130mm)",
-      "reason": "라벨 급수는 밴드 안에 들어오지만 **역할·대비 HARD**(7단계)가 반드시 반려한다 — 이 템플릿은 AntV `theme.palette` 채움 카드 위에 기본 잉크색(#262626/#5a5a5a) 라벨을 얹는다. 그런데 그 채움 채널에 넘기는 슬롯은 `antvPaletteChannel`이 **백색 knockout 가능한 슬롯만** 고른 것이므로(contrast(slot,#ffffff) ≥ 4.5) 정의상 어두운 색이고(L ≤ 0.1833), 그 위의 #262626(L 0.0219) 대비는 산술 상한이 **3.24**로 4.5를 넘을 수 없다. 즉 팔레트 값과 무관한 구조적 미달이며 사이드카·폭 조정으로 구제되지 않는다(항목 datum의 color는 무시되고 콘텐츠 theme 블록은 applyTheme가 재작성한다 — w5-step7.md §3.1 실증). 유일한 예외 가능성은 0번(브랜드) 슬롯만 쓰는 1항목 도해다 — 0번은 knockout 필터를 면제받기 때문이며, 그 경우에도 렌더 시 역할·대비 HARD가 최종 판정한다."
-    }
-  ],
-  "content_sensitive": [
-    {
-      "template": "sequence-snake-steps-compact-card",
-      "verdict": "content-sensitive",
-      "axis": "text-overlap",
-      "evidence": "text overlap: '오프라인 작동' ↔ '네트워크 없이 이어지는' (full 130mm) / '…이어' (twothirds 106mm)",
-      "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
-    },
-    {
-      "template": "list-grid-compact-card",
-      "verdict": "content-sensitive",
-      "axis": "text-overlap",
-      "evidence": "text overlap: '응답 지연' ↔ '결과가 얼마나 빨리 오는' (full 130mm) / '오프라인 작동' ↔ '네트워크 없이 이어지' (twothirds 106mm)",
-      "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
-    }
-  ],
-  "superseded_v1": [
-    {
-      "template": "sequence-timeline-simple",
-      "old": {
-        "width_mm": 106,
-        "min_pt": 11.7,
-        "verdict": "ok"
-      },
-      "reband": "violation",
-      "now": "ok",
-      "flip": true,
-      "evidence": "구 행은 min_pt만 기록했다. min_pt 11.7pt ÷ 본문 9.5pt = **1.232×**로 새 밴드 cap 1.20을 이미 넘는다 — 최대 라벨은 최소 라벨 이상이므로 max_ratio ≥ 1.232가 **증명**되어 재판정은 위반이다(구 width_mm 106 귀속은 W5 2~4단계 폭 교정으로 무효이나, 이 판정은 폭과 무관하게 성립한다: 밴드는 본문 대비 상대비이고 폭은 상·하한을 함께 옮긴다). 현행 재실측은 6단계 급수 강제 이후 1.150×로 통과 — 단 frameSlack 0.462~0.490으로 도형이 명목 폭의 절반만 채운다."
-    },
-    {
-      "template": "list-row-horizontal-icon-arrow",
-      "old": {
-        "width_mm": 130,
-        "min_pt": 11.2,
-        "verdict": "ok"
-      },
-      "reband": "ok",
-      "now": "ok",
-      "flip": false,
-      "evidence": "min_pt 11.2 ÷ 9.5 = 1.179× ≤ cap 1.20 — 하한만으로는 위반이 증명되지 않는다. 현행 재실측 max_ratio 1.150 · frameSlack 0.0으로 실제로도 통과(코퍼스 실책 2권 + 프로브 2폭)."
-    },
-    {
-      "template": "sequence-ascending-steps",
-      "old": {
-        "width_mm": 106,
-        "min_pt": 8.35,
-        "verdict": "label-only",
-        "note": "desc 넣으면 하한 미달"
-      },
-      "reband": "ok",
-      "now": "ok",
-      "flip": true,
-      "evidence": "'라벨만 허용' 제한은 **해제된다**. 6단계 급수 강제가 desc를 body×0.90(하한 8pt의 107%)로 주입하므로 desc를 넣어도 하한을 깨지 않는다 — 재실측: desc 포함 full 8.563~10.928(×1.15) · twothirds 8.560~10.923(×1.15), desc 없는 대조 9.497~10.928. 구 8.35pt는 강제 이전 수치다."
-    },
-    {
-      "template": "sequence-roadmap-vertical*",
-      "old": {
-        "width_mm": 106,
-        "min_pt": 4.7,
-        "verdict": "blocked"
-      },
-      "reband": "n/a",
-      "now": "unblocked (하한 축)",
-      "flip": true,
-      "evidence": "**bare name `sequence-roadmap-vertical`는 벤더 카탈로그에 실존하지 않는다**(getTemplate 미해석 — 구 원장의 sequence-column-vertical-arrow 오기와 같은 부류). 등록 변형 7종 중 6종을 실측: 하한 축은 전건 통과(min 8.259~9.231pt). 하한 차단은 6단계 급수 강제로 근거를 잃었다. 대신 badge-card·pill-badge 2종이 **역할·대비 축**에서 차단된다(위 blocked 행)."
-    },
-    {
-      "template": "sequence-snake-steps*",
-      "old": {
-        "width_mm": 106,
-        "min_pt": 5.8,
-        "verdict": "blocked"
-      },
-      "reband": "n/a",
-      "now": "unblocked (하한 축)",
-      "flip": true,
-      "evidence": "bare name 미실존. 등록 변형 5종 중 4종 실측 — 하한 축 전건 통과(min 8.031~8.558pt, 최소 여유 0.031pt로 얇다). pill-badge는 역할·대비 축 차단, compact-card는 겹침(콘텐츠 의존)."
-    },
-    {
-      "template": "list-grid*",
-      "old": {
-        "width_mm": 130,
-        "min_pt": 6.4,
-        "verdict": "blocked",
-        "note": "grid 계열 5.6~6.4pt 전 계열 차단"
-      },
-      "reband": "n/a",
-      "now": "unblocked (하한 축)",
-      "flip": true,
-      "evidence": "bare name 미실존. 등록 변형 8종 전량 실측 — 하한 축 전건 통과(min 8.127~9.503pt). badge-card·candy-card-lite는 역할·대비 축 차단, compact-card는 겹침. '전 계열 차단'은 급수 강제 이전의 판정이었다."
-    }
-  ],
-  "blocked_prefixes": [
-    "sequence-roadmap-vertical-badge-card",
-    "sequence-roadmap-vertical-pill-badge",
-    "sequence-snake-steps-pill-badge",
-    "list-grid-badge-card",
-    "list-grid-candy-card-lite"
-  ],
-  "_blocked_prefixes_note": "render_diagrams.mjs가 SSR 전에 startsWith로 사전 차단한다. **v1의 하한(min_pt) 근거 3건은 전부 폐기됐다** — 6단계 급수 강제 이후 등록 변형 28건 실측에서 하한 미달이 0건이다(최소 8.031pt). v2의 차단 근거는 **역할·대비 HARD가 구조적으로 반드시 반려하는 템플릿**이며, 이는 렌더 시 검사와 이중 방어다(차단이 없어도 렌더가 죽는다 — 사전 차단의 이득은 SSR 4초를 아끼고 템플릿 단위 처방을 주는 것뿐이다). 대안: 원장 ok 템플릿(sequence-timeline-simple · list-row-horizontal-icon-arrow · list-column-simple-vertical-arrow · sequence-ascending-steps · list-grid-simple · sequence-snake-steps-simple 등).",
-  "authored_track": {
-    "_note": "authored 트랙은 템플릿이 없으므로 원장의 템플릿 축 밖이다. 밴드 승격 판정에 쓴 스타일별 집계만 남긴다(정본은 각 스타일 tokens.json의 _labelBand_evidence).",
-    "insight": {
-      "n": 56,
-      "max_ratio_range": [
-        0.912,
-        1.169
-      ],
-      "verdict": "ok"
-    },
-    "magazine": {
-      "n": 2,
-      "max_ratio_range": [
-        1.15,
-        1.15
-      ],
-      "verdict": "ok",
-      "note": "수리 전 1.338(최대 라벨 12.71pt vs 본문 9.5pt)이 코퍼스 유일 위반이었다 — adv-g16/mag-diag(-oldpal)/fig-01의 라벨 13/12/11u를 11.2/10.3/9.5u로 축소해 해소(W5 8단계)."
-    },
-    "practical/academic/essay/business": {
-      "n": 9,
-      "verdict": "ok",
-      "note": "실 원고 코퍼스 0건 — w5s3 폭 프로브뿐이고 그마저 8단계에서 라벨을 축소해 통과시켰다. 이 4스타일의 cap 1.20은 실측 근거 없는 하우스 등급 상속값이다."
-    }
+  {
+   "template": "chart-pie-compact-card",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.927,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0.059,
+   "scale_passes": 2
+  },
+  {
+   "template": "chart-pie-donut-compact-card",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.927,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0.059,
+   "scale_passes": 2
+  },
+  {
+   "template": "chart-pie-donut-pill-badge",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0.096,
+   "scale_passes": 2
+  },
+  {
+   "template": "chart-pie-donut-plain-text",
+   "verdict": "content-sensitive",
+   "axis": "text-overlap",
+   "evidence": "text overlap: '오프라인 작동' ↔ '데이터 경로' — 라벨 축약 필요"
+  },
+  {
+   "template": "chart-pie-pill-badge",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0.096,
+   "scale_passes": 2
+  },
+  {
+   "template": "chart-pie-plain-text",
+   "verdict": "content-sensitive",
+   "axis": "text-overlap",
+   "evidence": "text overlap: '오프라인 작동' ↔ '데이터 경로' — 라벨 축약 필요"
+  },
+  {
+   "template": "chart-wordcloud",
+   "verdict": "ok",
+   "min_pt": 9.505,
+   "max_pt": 9.505,
+   "max_ratio": 1.001,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 3,
+   "knockout": 0,
+   "frame_slack": 0.487,
+   "scale_passes": 2
+  },
+  {
+   "template": "chart-wordcloud-rotate",
+   "verdict": "ok",
+   "min_pt": 9.505,
+   "max_pt": 9.505,
+   "max_ratio": 1.001,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 3,
+   "knockout": 0,
+   "frame_slack": 0.487,
+   "scale_passes": 2
+  },
+  {
+   "template": "compare-binary-horizontal-badge-card-arrow",
+   "verdict": "ok",
+   "min_pt": 8.563,
+   "max_pt": 10.93,
+   "max_ratio": 1.151,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 4,
+   "knockout": 2,
+   "frame_slack": 0.187,
+   "scale_passes": 2
+  },
+  {
+   "template": "compare-binary-horizontal-badge-card-fold",
+   "verdict": "ok",
+   "min_pt": 8.554,
+   "max_pt": 10.926,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 4,
+   "knockout": 2,
+   "frame_slack": 0.165,
+   "scale_passes": 2
+  },
+  {
+   "template": "compare-binary-horizontal-badge-card-vs",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('compare-binary-horizontal-badge-card-vs')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "compare-binary-horizontal-compact-card-arrow",
+   "verdict": "ok",
+   "min_pt": 8.563,
+   "max_pt": 10.93,
+   "max_ratio": 1.151,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 4,
+   "knockout": 2,
+   "frame_slack": 0.187,
+   "scale_passes": 2
+  },
+  {
+   "template": "compare-binary-horizontal-compact-card-fold",
+   "verdict": "ok",
+   "min_pt": 8.554,
+   "max_pt": 10.926,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 4,
+   "knockout": 2,
+   "frame_slack": 0.165,
+   "scale_passes": 2
+  },
+  {
+   "template": "compare-binary-horizontal-compact-card-vs",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('compare-binary-horizontal-compact-card-vs')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "compare-binary-horizontal-simple-arrow",
+   "verdict": "ok",
+   "min_pt": 8.563,
+   "max_pt": 10.93,
+   "max_ratio": 1.151,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 4,
+   "knockout": 2,
+   "frame_slack": 0.187,
+   "scale_passes": 2
+  },
+  {
+   "template": "compare-binary-horizontal-simple-fold",
+   "verdict": "ok",
+   "min_pt": 8.554,
+   "max_pt": 10.926,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 4,
+   "knockout": 2,
+   "frame_slack": 0.165,
+   "scale_passes": 2
+  },
+  {
+   "template": "compare-binary-horizontal-simple-vs",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('compare-binary-horizontal-simple-vs')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "compare-binary-horizontal-underline-text-arrow",
+   "verdict": "ok",
+   "min_pt": 8.563,
+   "max_pt": 10.93,
+   "max_ratio": 1.151,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 4,
+   "knockout": 2,
+   "frame_slack": 0.187,
+   "scale_passes": 2
+  },
+  {
+   "template": "compare-binary-horizontal-underline-text-fold",
+   "verdict": "ok",
+   "min_pt": 8.554,
+   "max_pt": 10.926,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 4,
+   "knockout": 2,
+   "frame_slack": 0.165,
+   "scale_passes": 2
+  },
+  {
+   "template": "compare-binary-horizontal-underline-text-vs",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('compare-binary-horizontal-underline-text-vs')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "compare-hierarchy-left-right-circle-node-pill-badge",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 4건 — '오프라인 작동' #1a6b97은 styles/insight tokens.diagram.palette 밖의 색 — 글자에는 role 'label' 슬롯 또는 백색 knockout만 허용; '데이터 경로' #104867은 styles/insight tokens.diagram.palette 밖의 색 — 글자에는 role 'label' 슬롯 또는 백색 knockout만 허용; '오프라인 작동' #1a6b97 on #77afcd 대비 2.448 < 4.5 (9.5pt ",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "compare-hierarchy-left-right-circle-node-plain-text",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 4건 — '오프라인 작동' #1a6b97은 styles/insight tokens.diagram.palette 밖의 색 — 글자에는 role 'label' 슬롯 또는 백색 knockout만 허용; '데이터 경로' #104867은 styles/insight tokens.diagram.palette 밖의 색 — 글자에는 role 'label' 슬롯 또는 백색 knockout만 허용; '오프라인 작동' #1a6b97 on #77afcd 대비 2.448 < 4.5 (9.504p",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "compare-hierarchy-row-letter-card-compact-card",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 4건 — '오' #ffffff on #2e9ddb 대비 3.016 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '오프라인 작동' #ffffff on #2e9ddb 대비 3.016 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '응' #ffffff on #778088 대비 4.017 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '응답 지연' #ffffff on #778088 대비",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "compare-hierarchy-row-letter-card-rounded-rect-node",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 4건 — '오' #ffffff on #2e9ddb 대비 3.016 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '오프라인 작동' #ffffff on #2e9ddb 대비 3.016 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '응' #ffffff on #778088 대비 4.017 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '응답 지연' #ffffff on #778088 대비",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "compare-quadrant-quarter-circular",
+   "verdict": "ok",
+   "min_pt": 8.56,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 11,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "compare-quadrant-quarter-simple-card",
+   "verdict": "ok",
+   "min_pt": 8.562,
+   "max_pt": 10.921,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 8,
+   "knockout": 6,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "compare-quadrant-simple-illus",
+   "verdict": "ok",
+   "min_pt": 8.559,
+   "max_pt": 10.928,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "compare-swot",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 4건 — '오' #ffffff on #2e9ddb 대비 3.016 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '오프라인 작동' #ffffff on #2e9ddb 대비 3.016 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '응' #ffffff on #778088 대비 4.017 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '응답 지연' #ffffff on #778088 대비",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "hierarchy-mindmap-branch-gradient-capsule-item",
+   "verdict": "ok",
+   "min_pt": 8.56,
+   "max_pt": 9.503,
+   "max_ratio": 1,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 2,
+   "knockout": 2,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "hierarchy-mindmap-branch-gradient-circle-progress",
+   "verdict": "ok",
+   "min_pt": 9.51,
+   "max_pt": 9.51,
+   "max_ratio": 1.001,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 2,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "hierarchy-mindmap-branch-gradient-compact-card",
+   "verdict": "ok",
+   "min_pt": 8.562,
+   "max_pt": 9.502,
+   "max_ratio": 1,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 2,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "hierarchy-mindmap-branch-gradient-lined-palette",
+   "verdict": "ok",
+   "min_pt": 9.504,
+   "max_pt": 9.504,
+   "max_ratio": 1,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 1,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "hierarchy-mindmap-branch-gradient-rounded-rect",
+   "verdict": "ok",
+   "min_pt": 9.503,
+   "max_pt": 9.503,
+   "max_ratio": 1,
+   "band": "ok",
+   "worst_contrast": 13.618,
+   "labels_checked": 1,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "hierarchy-mindmap-level-gradient-capsule-item",
+   "verdict": "ok",
+   "min_pt": 8.56,
+   "max_pt": 9.503,
+   "max_ratio": 1,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 2,
+   "knockout": 2,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "hierarchy-mindmap-level-gradient-circle-progress",
+   "verdict": "ok",
+   "min_pt": 9.51,
+   "max_pt": 9.51,
+   "max_ratio": 1.001,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 2,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "hierarchy-mindmap-level-gradient-compact-card",
+   "verdict": "ok",
+   "min_pt": 8.562,
+   "max_pt": 9.502,
+   "max_ratio": 1,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 2,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "hierarchy-mindmap-level-gradient-lined-palette",
+   "verdict": "ok",
+   "min_pt": 9.504,
+   "max_pt": 9.504,
+   "max_ratio": 1,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 1,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "hierarchy-mindmap-level-gradient-rounded-rect",
+   "verdict": "ok",
+   "min_pt": 9.503,
+   "max_pt": 9.503,
+   "max_ratio": 1,
+   "band": "ok",
+   "worst_contrast": 13.618,
+   "labels_checked": 1,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "hierarchy-structure",
+   "verdict": "ok",
+   "min_pt": 8.563,
+   "max_pt": 10.92,
+   "max_ratio": 1.149,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 5,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "hierarchy-structure-mirror",
+   "verdict": "ok",
+   "min_pt": 8.563,
+   "max_pt": 10.92,
+   "max_ratio": 1.149,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 5,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-column-done-list",
+   "verdict": "ok",
+   "min_pt": 8.565,
+   "max_pt": 10.922,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 5.742,
+   "labels_checked": 5,
+   "knockout": 0,
+   "frame_slack": 0.271,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-column-simple-vertical-arrow",
+   "verdict": "ok",
+   "min_pt": 8.559,
+   "max_pt": 10.927,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 11,
+   "knockout": 3,
+   "frame_slack": 0.325,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-column-vertical-icon-arrow",
+   "verdict": "ok",
+   "min_pt": 8.564,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 11,
+   "knockout": 3,
+   "frame_slack": 0.235,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-grid-badge-card",
+   "verdict": "ok",
+   "min_pt": 8.558,
+   "max_pt": 10.926,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 5.893,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-grid-candy-card-lite",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.926,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 5.893,
+   "labels_checked": 9,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-grid-circular-progress",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-grid-compact-card",
+   "verdict": "content-sensitive",
+   "axis": "text-overlap",
+   "evidence": "text overlap: '응답 지연' ↔ '결과가 얼마나 빨리 오는' — 라벨 축약 필요"
+  },
+  {
+   "template": "list-grid-done-list",
+   "verdict": "ok",
+   "min_pt": 8.494,
+   "max_pt": 10.836,
+   "max_ratio": 1.141,
+   "band": "ok",
+   "worst_contrast": 5.742,
+   "labels_checked": 5,
+   "knockout": 0,
+   "frame_slack": -0.008,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-grid-horizontal-icon-arrow",
+   "verdict": "ok",
+   "min_pt": 8.558,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 11,
+   "knockout": 3,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-grid-progress-card",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.926,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 10,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-grid-ribbon-card",
+   "verdict": "ok",
+   "min_pt": 8.562,
+   "max_pt": 10.923,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-grid-simple",
+   "verdict": "ok",
+   "min_pt": 8.559,
+   "max_pt": 10.926,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0.002,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-pyramid-badge-card",
+   "verdict": "ok",
+   "min_pt": 8.558,
+   "max_pt": 10.924,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 5.893,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-pyramid-compact-card",
+   "verdict": "ok",
+   "min_pt": 8.558,
+   "max_pt": 10.924,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-pyramid-rounded-rect-node",
+   "verdict": "ok",
+   "min_pt": 8.559,
+   "max_pt": 10.928,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 5,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-row-circular-progress",
+   "verdict": "ok",
+   "min_pt": 8.56,
+   "max_pt": 10.926,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-row-horizontal-icon-arrow",
+   "verdict": "ok",
+   "min_pt": 8.558,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 11,
+   "knockout": 3,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-row-horizontal-icon-line",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.926,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-row-simple-horizontal-arrow",
+   "verdict": "ok",
+   "min_pt": 8.558,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 11,
+   "knockout": 3,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-row-simple-illus",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.924,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0.023,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-sector-half-plain-text",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('list-sector-half-plain-text')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "list-sector-plain-text",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('list-sector-plain-text')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "list-sector-simple",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('list-sector-simple')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "list-waterfall-badge-card",
+   "verdict": "ok",
+   "min_pt": 8.557,
+   "max_pt": 10.926,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 5.893,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-waterfall-compact-card",
+   "verdict": "ok",
+   "min_pt": 8.557,
+   "max_pt": 10.926,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-zigzag-down-compact-card",
+   "verdict": "content-sensitive",
+   "axis": "text-overlap",
+   "evidence": "text overlap: '오프라인 작동' ↔ '네트워크 없이 이어지는' — 라벨 축약 필요"
+  },
+  {
+   "template": "list-zigzag-down-simple",
+   "verdict": "ok",
+   "min_pt": 8.56,
+   "max_pt": 10.924,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "list-zigzag-up-compact-card",
+   "verdict": "content-sensitive",
+   "axis": "text-overlap",
+   "evidence": "text overlap: '오프라인 작동' ↔ '네트워크 없이 이어지는' — 라벨 축약 필요"
+  },
+  {
+   "template": "list-zigzag-up-simple",
+   "verdict": "ok",
+   "min_pt": 8.56,
+   "max_pt": 10.923,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "relation-circle-circular-progress",
+   "verdict": "ok",
+   "min_pt": 8.558,
+   "max_pt": 10.928,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "relation-circle-icon-badge",
+   "verdict": "ok",
+   "min_pt": 8.559,
+   "max_pt": 10.924,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 5,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "relation-network-icon-badge",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('relation-network-icon-badge')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "relation-network-simple-circle-node",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('relation-network-simple-circle-node')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-ascending-stairs-3d-simple",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 9건 — '1' #ffffff on #8fbdd6 대비 1.256 < 4.5 (10.633pt bold · bbox 가로 10% 표본이 최악); '1' #ffffff on #8fbdd6 대비 1.447 < 4.5 (10.633pt bold · bbox 가로 10% 표본이 최악); '1' #ffffff on #8fbdd6 대비 2.016 < 4.5 (10.633pt bold · bbox 가로 10% 표본이 최악); '2' #ffffff on #8aabbe 대비 1.342 ",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "sequence-ascending-stairs-3d-underline-text",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 9건 — '1' #ffffff on #8fbdd6 대비 1.256 < 4.5 (10.633pt bold · bbox 가로 10% 표본이 최악); '1' #ffffff on #8fbdd6 대비 1.447 < 4.5 (10.633pt bold · bbox 가로 10% 표본이 최악); '1' #ffffff on #8fbdd6 대비 2.016 < 4.5 (10.633pt bold · bbox 가로 10% 표본이 최악); '2' #ffffff on #8aabbe 대비 1.342 ",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "sequence-ascending-steps",
+   "verdict": "ok",
+   "min_pt": 8.563,
+   "max_pt": 10.928,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-circle-arrows-indexed-card",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 11,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-circular-simple",
+   "verdict": "ok",
+   "min_pt": 8.133,
+   "max_pt": 10.378,
+   "max_ratio": 1.092,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": -0.053,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-circular-underline-text",
+   "verdict": "ok",
+   "min_pt": 8.133,
+   "max_pt": 10.378,
+   "max_ratio": 1.092,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": -0.053,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-color-snake-steps-horizontal-icon-line",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.926,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-color-snake-steps-simple-illus",
+   "verdict": "ok",
+   "min_pt": 8.557,
+   "max_pt": 10.927,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0.042,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-cylinders-3d-simple",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 3건 — '3' 색 'url(\"#numberGradient2\")' 해석 불가 — 글자색은 hex/rgb()/명명색으로 지정할 것; '2' 색 'url(\"#numberGradient1\")' 해석 불가 — 글자색은 hex/rgb()/명명색으로 지정할 것; '1' 색 'url(\"#numberGradient0\")' 해석 불가 — 글자색은 hex/rgb()/명명색으로 지정할 것",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "sequence-filter-mesh-simple",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 11,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-filter-mesh-underline-text",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 11,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-funnel-simple",
+   "verdict": "palette-sensitive",
+   "axis": "label-paint(contrast HARD)",
+   "evidence": "도해 라벨 역할·대비 위반 1건 — '오프라인 작동' #1e7aad on #e9f2f7 대비 4.166 < 4.5 (9.498pt bold · bbox 가로 10% 표본이 최악)"
+  },
+  {
+   "template": "sequence-horizontal-zigzag-horizontal-icon-line",
+   "verdict": "palette-sensitive",
+   "axis": "label-paint(contrast HARD)",
+   "evidence": "도해 라벨 역할·대비 위반 1건 — '오프라인 작동' #1e7aad on #e3eef5 대비 4.01 < 4.5 (9.503pt bold · bbox 가로 10% 표본이 최악)"
+  },
+  {
+   "template": "sequence-horizontal-zigzag-plain-text",
+   "verdict": "ok",
+   "min_pt": 8.56,
+   "max_pt": 10.923,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 5,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-horizontal-zigzag-simple",
+   "verdict": "ok",
+   "min_pt": 8.558,
+   "max_pt": 10.924,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 5.778,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-horizontal-zigzag-simple-horizontal-arrow",
+   "verdict": "ok",
+   "min_pt": 8.563,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 12,
+   "knockout": 3,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-horizontal-zigzag-simple-illus",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.922,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 5.778,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-horizontal-zigzag-underline-text",
+   "verdict": "palette-sensitive",
+   "axis": "label-paint(contrast HARD)",
+   "evidence": "도해 라벨 역할·대비 위반 1건 — '오프라인 작동' #1e7aad on #e3eef5 대비 4.01 < 4.5 (9.501pt bold · bbox 가로 10% 표본이 최악)"
+  },
+  {
+   "template": "sequence-mountain-underline-text",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 3건 — '01' #1e7aad on #8fbdd6 대비 2.345 < 4.5 (10.363pt bold · bbox 가로 10% 표본이 최악); '02' #14577d on #8aabbe 대비 3.216 < 4.5 (10.363pt bold · bbox 가로 10% 표본이 최악); '03' #5a6167 on #adb0b3 대비 2.885 < 4.5 (10.363pt bold · bbox 가로 10% 표본이 최악)",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "sequence-pyramid-simple",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #1677ff 잔존 — 이 템플릿('sequence-pyramid-simple')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-roadmap-vertical-badge-card",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 15,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-roadmap-vertical-pill-badge",
+   "verdict": "ok",
+   "min_pt": 8.184,
+   "max_pt": 10.449,
+   "max_ratio": 1.1,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 12,
+   "knockout": 0,
+   "frame_slack": -0.046,
+   "scale_passes": 3
+  },
+  {
+   "template": "sequence-roadmap-vertical-plain-text",
+   "verdict": "ok",
+   "min_pt": 8.315,
+   "max_pt": 10.617,
+   "max_ratio": 1.118,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": -0.029,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-roadmap-vertical-quarter-circular",
+   "verdict": "content-sensitive",
+   "axis": "text-overlap",
+   "evidence": "text overlap: '질문' ↔ '세 가지를 먼저 확' — 라벨 축약 필요"
+  },
+  {
+   "template": "sequence-roadmap-vertical-quarter-simple-card",
+   "verdict": "ok",
+   "min_pt": 8.562,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 14,
+   "knockout": 9,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-roadmap-vertical-simple",
+   "verdict": "ok",
+   "min_pt": 8.259,
+   "max_pt": 10.544,
+   "max_ratio": 1.11,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 12,
+   "knockout": 0,
+   "frame_slack": -0.036,
+   "scale_passes": 3
+  },
+  {
+   "template": "sequence-roadmap-vertical-underline-text",
+   "verdict": "ok",
+   "min_pt": 8.259,
+   "max_pt": 10.544,
+   "max_ratio": 1.11,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 12,
+   "knockout": 0,
+   "frame_slack": -0.036,
+   "scale_passes": 3
+  },
+  {
+   "template": "sequence-snake-steps-compact-card",
+   "verdict": "content-sensitive",
+   "axis": "text-overlap",
+   "evidence": "text overlap: '오프라인 작동' ↔ '네트워크 없이 이어지는' — 라벨 축약 필요"
+  },
+  {
+   "template": "sequence-snake-steps-pill-badge",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — theme.palette 미소비 컴포넌트",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-snake-steps-simple",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('sequence-snake-steps-simple')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-snake-steps-simple-illus",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('sequence-snake-steps-simple-illus')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-snake-steps-underline-text",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('sequence-snake-steps-underline-text')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-stairs-front-compact-card",
+   "verdict": "ok",
+   "min_pt": 8.56,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 11,
+   "knockout": 3,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-stairs-front-pill-badge",
+   "verdict": "ok",
+   "min_pt": 8.481,
+   "max_pt": 10.821,
+   "max_ratio": 1.139,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 11,
+   "knockout": 3,
+   "frame_slack": -0.01,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-stairs-front-simple",
+   "verdict": "ok",
+   "min_pt": 8.563,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 11,
+   "knockout": 3,
+   "frame_slack": 0.017,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-steps-badge-card",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('sequence-steps-badge-card')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-steps-simple",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('sequence-steps-simple')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-steps-simple-illus",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('sequence-steps-simple-illus')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-timeline-done-list",
+   "verdict": "ok",
+   "min_pt": 8.564,
+   "max_pt": 10.927,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0.209,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-timeline-plain-text",
+   "verdict": "ok",
+   "min_pt": 8.562,
+   "max_pt": 10.927,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 5,
+   "knockout": 0,
+   "frame_slack": 0.667,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-timeline-rounded-rect-node",
+   "verdict": "ok",
+   "min_pt": 8.563,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-timeline-simple",
+   "verdict": "ok",
+   "min_pt": 8.555,
+   "max_pt": 10.929,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 6.897,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": 0.487,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-timeline-simple-illus",
+   "verdict": "ok",
+   "min_pt": 8.558,
+   "max_pt": 10.929,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 11,
+   "knockout": 0,
+   "frame_slack": 0.132,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-zigzag-pucks-3d-indexed-card",
+   "verdict": "ok",
+   "min_pt": 8.56,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 14,
+   "knockout": 3,
+   "frame_slack": 0,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-zigzag-pucks-3d-simple",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 11,
+   "knockout": 3,
+   "frame_slack": 0.023,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-zigzag-pucks-3d-underline-text",
+   "verdict": "ok",
+   "min_pt": 8.561,
+   "max_pt": 10.925,
+   "max_ratio": 1.15,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 11,
+   "knockout": 3,
+   "frame_slack": 0.023,
+   "scale_passes": 2
+  },
+  {
+   "template": "sequence-zigzag-steps-underline-text",
+   "verdict": "ok",
+   "min_pt": 8.465,
+   "max_pt": 10.8,
+   "max_ratio": 1.137,
+   "band": "ok",
+   "worst_contrast": 4.727,
+   "labels_checked": 8,
+   "knockout": 0,
+   "frame_slack": -0.011,
+   "scale_passes": 2
   }
+ ],
+ "blocked": [
+  {
+   "template": "compare-binary-horizontal-badge-card-vs",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('compare-binary-horizontal-badge-card-vs')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "compare-binary-horizontal-compact-card-vs",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('compare-binary-horizontal-compact-card-vs')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "compare-binary-horizontal-simple-vs",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('compare-binary-horizontal-simple-vs')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "compare-binary-horizontal-underline-text-vs",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('compare-binary-horizontal-underline-text-vs')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "compare-hierarchy-left-right-circle-node-pill-badge",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 4건 — '오프라인 작동' #1a6b97은 styles/insight tokens.diagram.palette 밖의 색 — 글자에는 role 'label' 슬롯 또는 백색 knockout만 허용; '데이터 경로' #104867은 styles/insight tokens.diagram.palette 밖의 색 — 글자에는 role 'label' 슬롯 또는 백색 knockout만 허용; '오프라인 작동' #1a6b97 on #77afcd 대비 2.448 < 4.5 (9.5pt ",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "compare-hierarchy-left-right-circle-node-plain-text",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 4건 — '오프라인 작동' #1a6b97은 styles/insight tokens.diagram.palette 밖의 색 — 글자에는 role 'label' 슬롯 또는 백색 knockout만 허용; '데이터 경로' #104867은 styles/insight tokens.diagram.palette 밖의 색 — 글자에는 role 'label' 슬롯 또는 백색 knockout만 허용; '오프라인 작동' #1a6b97 on #77afcd 대비 2.448 < 4.5 (9.504p",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "compare-hierarchy-row-letter-card-compact-card",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 4건 — '오' #ffffff on #2e9ddb 대비 3.016 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '오프라인 작동' #ffffff on #2e9ddb 대비 3.016 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '응' #ffffff on #778088 대비 4.017 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '응답 지연' #ffffff on #778088 대비",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "compare-hierarchy-row-letter-card-rounded-rect-node",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 4건 — '오' #ffffff on #2e9ddb 대비 3.016 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '오프라인 작동' #ffffff on #2e9ddb 대비 3.016 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '응' #ffffff on #778088 대비 4.017 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '응답 지연' #ffffff on #778088 대비",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "compare-swot",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 4건 — '오' #ffffff on #2e9ddb 대비 3.016 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '오프라인 작동' #ffffff on #2e9ddb 대비 3.016 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '응' #ffffff on #778088 대비 4.017 < 4.5 (9.499pt bold · bbox 가로 10% 표본이 최악); '응답 지연' #ffffff on #778088 대비",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "list-sector-half-plain-text",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('list-sector-half-plain-text')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "list-sector-plain-text",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('list-sector-plain-text')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "list-sector-simple",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('list-sector-simple')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "relation-network-icon-badge",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('relation-network-icon-badge')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "relation-network-simple-circle-node",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('relation-network-simple-circle-node')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-ascending-stairs-3d-simple",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 9건 — '1' #ffffff on #8fbdd6 대비 1.256 < 4.5 (10.633pt bold · bbox 가로 10% 표본이 최악); '1' #ffffff on #8fbdd6 대비 1.447 < 4.5 (10.633pt bold · bbox 가로 10% 표본이 최악); '1' #ffffff on #8fbdd6 대비 2.016 < 4.5 (10.633pt bold · bbox 가로 10% 표본이 최악); '2' #ffffff on #8aabbe 대비 1.342 ",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "sequence-ascending-stairs-3d-underline-text",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 9건 — '1' #ffffff on #8fbdd6 대비 1.256 < 4.5 (10.633pt bold · bbox 가로 10% 표본이 최악); '1' #ffffff on #8fbdd6 대비 1.447 < 4.5 (10.633pt bold · bbox 가로 10% 표본이 최악); '1' #ffffff on #8fbdd6 대비 2.016 < 4.5 (10.633pt bold · bbox 가로 10% 표본이 최악); '2' #ffffff on #8aabbe 대비 1.342 ",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "sequence-cylinders-3d-simple",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 3건 — '3' 색 'url(\"#numberGradient2\")' 해석 불가 — 글자색은 hex/rgb()/명명색으로 지정할 것; '2' 색 'url(\"#numberGradient1\")' 해석 불가 — 글자색은 hex/rgb()/명명색으로 지정할 것; '1' 색 'url(\"#numberGradient0\")' 해석 불가 — 글자색은 hex/rgb()/명명색으로 지정할 것",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "sequence-mountain-underline-text",
+   "verdict": "blocked",
+   "axis": "label-paint(role/contrast HARD)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "도해 라벨 역할·대비 위반 3건 — '01' #1e7aad on #8fbdd6 대비 2.345 < 4.5 (10.363pt bold · bbox 가로 10% 표본이 최악); '02' #14577d on #8aabbe 대비 3.216 < 4.5 (10.363pt bold · bbox 가로 10% 표본이 최악); '03' #5a6167 on #adb0b3 대비 2.885 < 4.5 (10.363pt bold · bbox 가로 10% 표본이 최악)",
+   "reason": "라벨 역할·대비 HARD(7단계)가 구조적으로 반드시 반려한다. 근거는 각 행의 evidence이고, 판정은 **렌더 실좌표에서 배경을 산출한 실측**이다(그라데이션 stop 해석 · stroke 면 포함 · bbox 5점 최악값). 팔레트 값과 무관하거나(백색 knockout이 팔레트의 밝은 틴트 위에 얹히는 구조, 텍스트 fill이 그라데이션인 구조, 템플릿이 팔레트 밖 파생색을 글자로 쓰는 구조) 어떤 팔레트에서도 성립하지 않는 형태다."
+  },
+  {
+   "template": "sequence-pyramid-simple",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #1677ff 잔존 — 이 템플릿('sequence-pyramid-simple')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-snake-steps-pill-badge",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — theme.palette 미소비 컴포넌트",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-snake-steps-simple",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('sequence-snake-steps-simple')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-snake-steps-simple-illus",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('sequence-snake-steps-simple-illus')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-snake-steps-underline-text",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('sequence-snake-steps-underline-text')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-steps-badge-card",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('sequence-steps-badge-card')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-steps-simple",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('sequence-steps-simple')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  },
+  {
+   "template": "sequence-steps-simple-illus",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('sequence-steps-simple-illus')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
+  }
+ ],
+ "content_sensitive": [
+  {
+   "template": "chart-pie-donut-plain-text",
+   "verdict": "content-sensitive",
+   "axis": "text-overlap",
+   "evidence": "text overlap: '오프라인 작동' ↔ '데이터 경로' — 라벨 축약 필요",
+   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
+  },
+  {
+   "template": "chart-pie-plain-text",
+   "verdict": "content-sensitive",
+   "axis": "text-overlap",
+   "evidence": "text overlap: '오프라인 작동' ↔ '데이터 경로' — 라벨 축약 필요",
+   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
+  },
+  {
+   "template": "list-grid-compact-card",
+   "verdict": "content-sensitive",
+   "axis": "text-overlap",
+   "evidence": "text overlap: '응답 지연' ↔ '결과가 얼마나 빨리 오는' — 라벨 축약 필요",
+   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
+  },
+  {
+   "template": "list-zigzag-down-compact-card",
+   "verdict": "content-sensitive",
+   "axis": "text-overlap",
+   "evidence": "text overlap: '오프라인 작동' ↔ '네트워크 없이 이어지는' — 라벨 축약 필요",
+   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
+  },
+  {
+   "template": "list-zigzag-up-compact-card",
+   "verdict": "content-sensitive",
+   "axis": "text-overlap",
+   "evidence": "text overlap: '오프라인 작동' ↔ '네트워크 없이 이어지는' — 라벨 축약 필요",
+   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
+  },
+  {
+   "template": "sequence-roadmap-vertical-quarter-circular",
+   "verdict": "content-sensitive",
+   "axis": "text-overlap",
+   "evidence": "text overlap: '질문' ↔ '세 가지를 먼저 확' — 라벨 축약 필요",
+   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
+  },
+  {
+   "template": "sequence-snake-steps-compact-card",
+   "verdict": "content-sensitive",
+   "axis": "text-overlap",
+   "evidence": "text overlap: '오프라인 작동' ↔ '네트워크 없이 이어지는' — 라벨 축약 필요",
+   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
+  }
+ ],
+ "palette_sensitive": [
+  {
+   "template": "sequence-funnel-simple",
+   "verdict": "palette-sensitive",
+   "axis": "label-paint(contrast HARD)",
+   "evidence": "도해 라벨 역할·대비 위반 1건 — '오프라인 작동' #1e7aad on #e9f2f7 대비 4.166 < 4.5 (9.498pt bold · bbox 가로 10% 표본이 최악)",
+   "reason": "insight 팔레트에서 4.5 하한을 **근소하게** 밑돈다(4.0~4.2). 이 템플릿은 라벨을 자기 색의 8~12% 틴트 위에 얹으므로 대비가 `contrast(label,#ffffff) × 약 0.88`로 결정된다 — 즉 **팔레트의 label 슬롯이 백색 대비 약 5.2 이상이면 통과한다**. 팔레트 의존이므로 사전 차단하지 않고 렌더 시 역할·대비 HARD가 스타일별로 판정한다."
+  },
+  {
+   "template": "sequence-horizontal-zigzag-horizontal-icon-line",
+   "verdict": "palette-sensitive",
+   "axis": "label-paint(contrast HARD)",
+   "evidence": "도해 라벨 역할·대비 위반 1건 — '오프라인 작동' #1e7aad on #e3eef5 대비 4.01 < 4.5 (9.503pt bold · bbox 가로 10% 표본이 최악)",
+   "reason": "insight 팔레트에서 4.5 하한을 **근소하게** 밑돈다(4.0~4.2). 이 템플릿은 라벨을 자기 색의 8~12% 틴트 위에 얹으므로 대비가 `contrast(label,#ffffff) × 약 0.88`로 결정된다 — 즉 **팔레트의 label 슬롯이 백색 대비 약 5.2 이상이면 통과한다**. 팔레트 의존이므로 사전 차단하지 않고 렌더 시 역할·대비 HARD가 스타일별로 판정한다."
+  },
+  {
+   "template": "sequence-horizontal-zigzag-underline-text",
+   "verdict": "palette-sensitive",
+   "axis": "label-paint(contrast HARD)",
+   "evidence": "도해 라벨 역할·대비 위반 1건 — '오프라인 작동' #1e7aad on #e3eef5 대비 4.01 < 4.5 (9.501pt bold · bbox 가로 10% 표본이 최악)",
+   "reason": "insight 팔레트에서 4.5 하한을 **근소하게** 밑돈다(4.0~4.2). 이 템플릿은 라벨을 자기 색의 8~12% 틴트 위에 얹으므로 대비가 `contrast(label,#ffffff) × 약 0.88`로 결정된다 — 즉 **팔레트의 label 슬롯이 백색 대비 약 5.2 이상이면 통과한다**. 팔레트 의존이므로 사전 차단하지 않고 렌더 시 역할·대비 HARD가 스타일별로 판정한다."
+  }
+ ],
+ "blocked_prefixes": [
+  "compare-binary-horizontal-badge-card-vs",
+  "compare-binary-horizontal-compact-card-vs",
+  "compare-binary-horizontal-simple-vs",
+  "compare-binary-horizontal-underline-text-vs",
+  "compare-hierarchy-left-right-circle-node-pill-badge",
+  "compare-hierarchy-left-right-circle-node-plain-text",
+  "compare-hierarchy-row-letter-card-compact-card",
+  "compare-hierarchy-row-letter-card-rounded-rect-node",
+  "compare-swot",
+  "list-sector-half-plain-text",
+  "list-sector-plain-text",
+  "list-sector-simple",
+  "relation-network-icon-badge",
+  "relation-network-simple-circle-node",
+  "sequence-ascending-stairs-3d-simple",
+  "sequence-ascending-stairs-3d-underline-text",
+  "sequence-cylinders-3d-simple",
+  "sequence-mountain-underline-text",
+  "sequence-pyramid-simple",
+  "sequence-snake-steps-pill-badge",
+  "sequence-snake-steps-simple",
+  "sequence-snake-steps-simple-illus",
+  "sequence-snake-steps-underline-text",
+  "sequence-steps-badge-card",
+  "sequence-steps-simple",
+  "sequence-steps-simple-illus"
+ ],
+ "_blocked_prefixes_note": "render_diagrams.mjs가 SSR 전에 startsWith로 사전 차단한다. **v2의 5행 중 4행은 해제됐다** — `sequence-roadmap-vertical-badge-card`·`-pill-badge`·`list-grid-badge-card`·`list-grid-candy-card-lite`는 수리된 판정식에서 전건 통과한다(최악 대비 4.727~5.893). 남은 1행(`sequence-snake-steps-pill-badge`)은 **다른 축**(벤더 폴백색)으로 재차단됐다. 하한(8pt) 축 차단은 v2와 마찬가지로 0건이다. 차단은 렌더 시 검사와 이중 방어다(차단이 없어도 렌더가 죽는다 — 사전 차단의 이득은 SSR 4초를 아끼고 템플릿 단위 처방을 주는 것뿐이다). 대안은 `measurements`의 verdict=ok 87종.",
+ "superseded_v2": {
+  "unblocked": [
+   "sequence-roadmap-vertical-badge-card",
+   "sequence-roadmap-vertical-pill-badge",
+   "list-grid-badge-card",
+   "list-grid-candy-card-lite"
+  ],
+  "why": "v2가 근거로 쓴 `#262626 on #1e7aad = 3.201`은 **채움 카드의 알파(8~12%)를 무시한 산출**이었다. 수리 후 실배경은 `#e8f1f7`~`#e9f2f7`이고 실대비는 12.9~13.3이며, Chromium 실픽셀과 1/255 안에서 일치한다.",
+  "constant_fix": "L(#262626) 0.0219 → 0.019382 · 대비 산술 상한 3.24 → 3.363 (판정 K11, 결론 불변)"
+ },
+ "authored_track": {
+  "_note": "authored 트랙은 템플릿이 없으므로 원장의 템플릿 축 밖이다. 밴드 승격 판정에 쓴 스타일별 집계만 남긴다(정본은 각 스타일 tokens.json의 _labelBand_evidence).",
+  "insight": {
+   "n": 56,
+   "max_ratio_range": [
+    0.912,
+    1.169
+   ],
+   "verdict": "ok"
+  },
+  "magazine": {
+   "n": 2,
+   "max_ratio_range": [
+    1.15,
+    1.15
+   ],
+   "verdict": "ok",
+   "note": "수리 전 1.338(최대 라벨 12.71pt vs 본문 9.5pt)이 코퍼스 유일 위반이었다 — adv-g16/mag-diag(-oldpal)/fig-01의 라벨 13/12/11u를 11.2/10.3/9.5u로 축소해 해소(W5 8단계)."
+  },
+  "practical/academic/essay/business": {
+   "n": 9,
+   "verdict": "ok",
+   "note": "실 원고 코퍼스 0건 — w5s3 폭 프로브뿐이고 그마저 8단계에서 라벨을 축소해 통과시켰다. 이 4스타일의 cap 1.20은 실측 근거 없는 하우스 등급 상속값이다."
+  }
+ }
 }

@@ -44,6 +44,26 @@ ROLES = ("label", "fill", "stroke")
 # 이 축이 없애려는 결함이다). render_diagrams.mjs는 같은 키로 pt 환산 기준을 뽑는다.
 FIG_WIDTH_KEYS = {"full": "fig_full_mm", "twothirds": "fig_twothirds_mm"}
 
+# tokens.diagram.labelBand.maxRatio 타당성 대역 (W5 판정 K3 봉합).
+# 종전 검사는 "양수 수치인가" 하나였고, 그래서 `maxRatio: 999`가 **WARN 한 줄도 없이**
+# 통과했다(실측: 라벨 본문의 2.18×·2.51× 그대로 발행 + 6단계 급수 주입까지 무력화 —
+# `iter===0 && inBand`가 참이 되어 주입 전에 break). 대역 근거:
+#   · 하한 0.5 — 상한(body_pt × maxRatio)이 글자 하한(minFontPt 8pt)보다 낮으면 밴드가
+#     공집합이 되어 어떤 도해도 통과할 수 없다. 6스타일 body_pt는 9.5~10.5pt이므로
+#     0.5는 상한 4.75~5.25pt로 이미 8pt 하한 아래다 — 그 아래는 선언 오류가 확실하다.
+#   · 상한 2.0 — 이 축의 사용자 원 지적이 "도해 라벨이 본문보다 크다"였고 실측 코퍼스의
+#     max/본문 비는 중앙 0.96·p90 1.17, 하우스 등급은 1.20이다. 본문의 두 배는 어느
+#     스타일에도 등재 근거가 없고, 그 위는 "검사를 끈다"와 실질적으로 같다.
+# 대역 안의 값이 옳음을 증명하지는 않는다 — 그 판단은 스타일별 `_labelBand_evidence`가
+# 진다. 이 축이 막는 것은 **판정을 무력화하는 값**이다.
+LABEL_BAND_MIN_RATIO = 0.5
+LABEL_BAND_MAX_RATIO = 2.0
+LABEL_BAND_RATIO_RATIONALE = (
+    "하한 0.5 = 상한이 minFontPt(8pt) 아래로 내려가 밴드가 공집합이 되는 지점, "
+    "상한 2.0 = 본문의 두 배(등재 근거 없음, 그 위는 검사를 끄는 것과 같다). "
+    "하우스 등급은 1.20이다"
+)
+
 # G14-B와 같은 값이어야 두 게이트가 다른 판정을 내지 않는다. 사전 FAIL의 존재 이유가
 # "2-pass 렌더 후에야 G14-B에서 죽는 것"을 앞당기는 것이므로 값이 갈리면 목적이 무너진다.
 # 출처: scripts/tocgate.py:368 `def g14b_key_color(..., tol=36, ...)` 기본 인자.
@@ -562,13 +582,31 @@ def front_frame_findings(style, tokens):
 
 # --------------------------------------------------- diagram.widths 치환 계약
 
-# `... figure`(요소 자신)를 겨냥하는 셀렉터 한 갈래. `figure img`처럼 자손을 겨냥하는
-# 규칙은 대상이 아니다 — 폭 계약은 figure 박스에만 걸린다.
+# `... figure`(요소 자신)를 겨냥하는 셀렉터 한 갈래.
 _FIG_SEL = re.compile(r"(^|[\s>+~])figure(\.[\w-]+|:[\w-]+(\([^)]*\))?|\[[^\]]*\])*$")
+# figure **자손**(`figure svg`·`figure img`)을 겨냥하는 셀렉터. W5 판정 K7-ⓑ 실측:
+# `.chapter-body figure svg{width:170mm !important}`는 figure 박스를 129.997mm로 두고
+# `<svg>`만 169.999mm로 그린다 — **지면에서 도해의 실폭을 정하는 것은 figure 박스가
+# 아니라 그 안의 `<svg>`**이므로 이쪽도 제2의 진리원이다. 다만 자손의 `width: 100%`는
+# figure 폭에서 **파생**되는 값이라 진리원이 아니다(insight/magazine의 `figure img`가
+# 정확히 그 형태) — 그래서 자손 축은 **절대 길이만** 본다.
+_FIG_DESC_TAIL = re.compile(
+    r"(^|[\s>+~])(svg|img|picture|canvas|object|embed)(\.[\w-]+|:[\w-]+(\([^)]*\))?|\[[^\]]*\])*$")
+_FIG_ANY = re.compile(r"(^|[\s>+~])figure([\s>+~.:\[]|$)")
 _CSS_RULE = re.compile(r"([^{}@;]+)\{([^{}]*)\}")
 _ABS_LEN = re.compile(r"\d\s*(mm|cm|in|pt|pc|px|em|rem|ch|ex)\b")
 _ANY_LEN = re.compile(r"\d\s*(mm|cm|in|pt|pc|px|em|rem|ch|ex|%)")
 _COMMENT = re.compile(r"/\*.*?\*/", re.S)
+
+# 폭을 재정의할 수 있는 속성 전량. `width`/`inline-size`(논리 축)는 어떤 길이 리터럴도
+# 허용하지 않고(퍼센트 포함), 상·하한 계열은 절대 길이만 잡는다 — `max-width:none`·
+# `min-width:0`·`100%`는 상자 폭을 재정의하지 않기 때문이다.
+# **`min-width`·`inline-size`는 W5 판정 K7-ⓐⓒ의 실측 우회로다**(둘 다 figure 실폭을
+# 129.997 → 169.999mm로 바꾸는데 종전 축은 `width|max-width`만 봐서 통과시켰다).
+_FIG_WIDTH_PROPS_ANY = ("width", "inline-size")
+_FIG_WIDTH_PROPS_ABS = ("max-width", "min-width", "max-inline-size", "min-inline-size")
+_FIG_WIDTH_PROP_RE = re.compile(
+    r"(?<![\w-])(max-inline-size|min-inline-size|inline-size|max-width|min-width|width)\s*:\s*([^;{}]+)")
 
 
 def _css_code(css_text):
@@ -579,26 +617,34 @@ def _css_code(css_text):
 
 
 def figure_width_literals(css_text):
-    """theme.css에서 figure 폭을 **리터럴로** 못 박은 자리. (셀렉터, 속성, 값) 목록.
+    """theme.css에서 figure 폭을 **리터럴로** 못 박은 자리. (셀렉터, 속성, 값, 범위) 목록.
 
     `width`는 어떤 길이 리터럴도 허용하지 않는다(퍼센트 포함 — magazine의 `width: 100%`가
     바로 tokens 151과 실렌더 164를 갈라놓은 형태다). `max-width`는 절대 길이만 잡는다
     (`none`·`100%`는 상한을 씌우지 않으므로 폭 계약을 훼손하지 않는다).
+
+    범위(scope)는 `"figure"`(상자 자신) 또는 `"descendant"`(figure 안의 `<svg>`/`<img>`).
+    자손 축은 W5 판정 K7-ⓑ가 실측한 제2의 진리원이며(figure 130mm · svg 170mm),
+    파생값인 퍼센트를 잡지 않도록 절대 길이만 본다.
     """
     out = []
     for sel, body in _CSS_RULE.findall(_css_code(css_text)):
         s = sel.strip()
         if not s or s.startswith("@"):
             continue
-        if not any(_FIG_SEL.search(p.strip()) for p in s.split(",")):
+        parts = [p.strip() for p in s.split(",")]
+        own = any(_FIG_SEL.search(p) for p in parts)
+        desc = any(_FIG_ANY.search(p) and _FIG_DESC_TAIL.search(p) for p in parts)
+        if not (own or desc):
             continue
-        for prop, val in re.findall(r"(?<![\w-])(width|max-width)\s*:\s*([^;{}]+)", body):
+        scope = "figure" if own else "descendant"
+        for prop, val in _FIG_WIDTH_PROP_RE.findall(body):
             v = val.strip()
             if "$" in v:          # 치환 자리는 계약 성립 — 이 축이 요구하는 형태다
                 continue
-            rx = _ANY_LEN if prop == "width" else _ABS_LEN
+            rx = _ANY_LEN if (own and prop in _FIG_WIDTH_PROPS_ANY) else _ABS_LEN
             if rx.search(v):
-                out.append((" ".join(s.split()), prop, v))
+                out.append((" ".join(s.split()), prop, v, scope))
     return out
 
 
@@ -614,6 +660,21 @@ _TYP_TRIM_W = re.compile(r"trim\s*:\s*\(\s*w\s*:\s*([\d.]+)\s*mm")
 _TYP_MARGIN = re.compile(r"margin\s*:\s*\(([^()]*)\)")
 _TYP_SIDE = {s: re.compile(r"(?<![\w-])%s\s*:\s*([\d.]+)\s*mm" % s) for s in ("left", "right")}
 _TYP_BFFIG_W = re.compile(r"#let\s+bf-fig\s*\([^)]*\bwidth\s*:")
+# 시그니처에 `width:`가 있는지만 보면 **받고 버려도** 통과한다(W5 판정 K8 — practical
+# 사본에서 `bookfig(…, width: width, …)`를 `width: 90mm`로 바꿔도 TOTAL FAIL=0이었다).
+# 3단계가 고친 결함(md2typ가 width를 안 넘김)이 함수 한 줄 안쪽으로 이동한 것과 동치다.
+# 그래서 **본문이 그 인자를 실제로 소비하는가**(`width: width`)를 함께 본다.
+_TYP_BFFIG_DEF = re.compile(r"#let\s+bf-fig\s*\(")
+_TYP_BFFIG_CONSUME = re.compile(r"\bwidth\s*:\s*width\b")
+
+
+def typ_bffig_body(code):
+    """`#let bf-fig(...)` 정의 본문(다음 최상위 `#let`까지). 없으면 None."""
+    m = _TYP_BFFIG_DEF.search(code)
+    if not m:
+        return None
+    nxt = re.search(r"\n#let\s", code[m.end():])
+    return code[m.start(): m.end() + (nxt.start() if nxt else len(code))]
 
 
 def typ_code(text):
@@ -641,6 +702,54 @@ def typ_body_width_mm(theme_typ_text):
             return None
         sides[side] = float(ms.group(1))
     return round(float(mt.group(1)) - sides["left"] - sides["right"], 6)
+
+
+def widths_relation_findings(style, tokens, widths):
+    """G16-SYNC widths **값** 축 — 관계 불변식 `0 < twothirds ≤ full ≤ trim_mm[0]`. HARD.
+
+    W5 판정 K1(치명)의 봉합이다. `diagram.widths`는 pt 환산의 유일 기준이고 6단계 라벨
+    급수 주입은 그 기준으로 목표 pt를 **역산**한다. 그래서 값이 틀리면 주입이 그 틀린
+    값에 정확히 맞춰 라벨을 줄이고, 하한·상한 두 판정도 같은 틀린 값으로 재므로
+    **셋이 사이좋게 통과한다** — 셋이 같은 입력을 공유하기 때문에 서로를 견제하지 못한다
+    (실측: insight `twothirds` 106 → 400에서 게이트 전건 초록, 산출 SVG의 실 급수는 2.3~2.9pt).
+
+    값의 "옳음"은 정적으로 증명할 수 없지만 **관계**는 증명할 수 있다. 이 세 부등식은
+    tokens 안에서 닫히므로(trim_mm은 판형 선언이고 widths와 독립적으로 쓰인다) html·typst
+    양 트랙 공통으로 성립한다 — typst ③'(판면폭 대조)이 `full`만 보고 `twothirds`를
+    어느 트랙에서도 보지 않던 좌표(K9)가 이 축으로 닫힌다.
+
+      · `twothirds ≤ full` — 2/3폭이 전폭보다 넓을 수는 없다(이름 자체의 계약).
+      · `full ≤ trim_mm[0]` — 판면폭은 재단 폭을 넘을 수 없다(여백이 0 이상이므로).
+    등호를 허용하는 이유: 여백 0(전면 도해)·full == twothirds(2/3폭 미사용) 스타일을
+    이 축이 발명해서 막지 않기 위해서다. 실 6스타일은 전부 강부등식으로 통과한다.
+    """
+    out = []
+
+    def _num(x):
+        return isinstance(x, (int, float)) and not isinstance(x, bool)
+
+    full_v, tt_v = widths.get("full"), widths.get("twothirds")
+    trim = tokens.get("trim_mm")
+    trim_w = trim[0] if (isinstance(trim, list) and len(trim) == 2 and _num(trim[0])) else None
+    if _num(tt_v) and _num(full_v) and tt_v > 0 and full_v > 0 and tt_v > full_v:
+        out.append(_f("SYNC", "FAIL",
+                      f"diagram.widths.twothirds {tt_v}mm > full {full_v}mm — 2/3폭이 전폭보다 넓다. "
+                      f"widths는 도해 pt 환산의 유일 기준이고 라벨 급수 주입이 이 값으로 목표 pt를 "
+                      f"역산하므로, 값이 틀리면 밴드·하한·주입이 **같은 거짓 기준으로 자기정합**해 "
+                      f"전건 통과한다(W5 K1)"))
+    if trim_w is None:
+        if _num(full_v):
+            out.append(_f("SYNC", "WARN",
+                          f"trim_mm 부재/형식 오류 — diagram.widths.full({full_v}) 상한 대조 생략, "
+                          f"수동 감사 항목"))
+    else:
+        for key, v in (("full", full_v), ("twothirds", tt_v)):
+            if _num(v) and v > 0 and v > trim_w:
+                out.append(_f("SYNC", "FAIL",
+                              f"diagram.widths.{key} {v}mm > trim_mm[0] {trim_w:g}mm(재단 폭) — "
+                              f"판면폭이 판형을 넘을 수 없다. 도해 pt 환산 기준이 물리적으로 불가능한 "
+                              f"값이면 밴드·하한·주입이 전부 그 값으로 재므로 조용히 통과한다(W5 K1·K9)"))
+    return out
 
 
 def widths_findings(style, tokens, theme_text, engine, style_dir=None):
@@ -688,6 +797,7 @@ def widths_findings(style, tokens, theme_text, engine, style_dir=None):
                           f"bf.width={key} 도해의 pt 환산 기준이 사라진다"))
         elif v <= 0:
             out.append(_f("SYNC", "FAIL", f"diagram.widths.{key} = {v} — 양수(mm)여야 한다"))
+    out += widths_relation_findings(style, tokens, widths)
     if engine != "html" or theme_text is None:
         # ---- typst 트랙: theme.typ 배선 + 판면폭 대조 ----
         sd = Path(style_dir) if style_dir else (SKILL / "styles" / style)
@@ -695,11 +805,20 @@ def widths_findings(style, tokens, theme_text, engine, style_dir=None):
         if not tp.exists():
             return out                  # 팩 실물이 없다 — 다른 축이 다룰 문제다
         typ = tp.read_text(encoding="utf-8")
-        if not _TYP_BFFIG_W.search(typ_code(typ)):
+        typ_src = typ_code(typ)
+        if not _TYP_BFFIG_W.search(typ_src):
             out.append(_f("SYNC", "FAIL",
                           f"styles/{style}/theme.typ의 bf-fig가 width 인자를 받지 않는다 — "
                           f"md2typ가 발행하는 `#bf-fig(..., width: Nmm)`이 도달하지 못하고 "
                           f"(unknown argument로 typst 컴파일이 죽는다) bf.width 선언이 무시된다"))
+        else:
+            body = typ_bffig_body(typ_src)
+            if body is not None and not _TYP_BFFIG_CONSUME.search(body):
+                out.append(_f("SYNC", "FAIL",
+                              f"styles/{style}/theme.typ의 bf-fig가 width 인자를 **받고 버린다** — "
+                              f"본문에 `width: width` 전달이 없다. 시그니처만 맞추면 md2typ가 발행한 "
+                              f"폭이 조용히 무시되고 도해가 다른 폭으로 그려진다"
+                              f"(render_diagrams는 여전히 tokens.diagram.widths로 pt를 환산한다)"))
         body_mm = typ_body_width_mm(typ)
         full = widths.get("full")
         if body_mm is None:
@@ -725,9 +844,12 @@ def widths_findings(style, tokens, theme_text, engine, style_dir=None):
                           f"theme.css에 ${ph} 플레이스홀더 부재 — diagram.widths.{key}"
                           f"({widths.get(key)})가 실렌더에 도달하지 못한다. "
                           f"figure 폭은 CSS 리터럴이 아니라 이 치환으로 받을 것"))
-    for sel, prop, val in figure_width_literals(theme_text):
+    for sel, prop, val, scope in figure_width_literals(theme_text):
+        where = ("figure 폭 리터럴 잔존" if scope == "figure"
+                 else "figure 안 그림(<svg>/<img>) 폭 리터럴 — 지면에서 도해의 실폭을 정하는 것은 "
+                      "figure 상자가 아니라 그 안의 그림이다")
         out.append(_f("SYNC", "FAIL",
-                      f"theme.css `{sel}`의 {prop}: {val} — figure 폭 리터럴 잔존. "
+                      f"theme.css `{sel}`의 {prop}: {val} — {where}. "
                       f"tokens.diagram.widths와 갈라지는 제2의 진리원이다"
                       f"(${FIG_WIDTH_KEYS['full']}/${FIG_WIDTH_KEYS['twothirds']}로 받을 것)"))
     return out
@@ -786,7 +908,19 @@ def g16_sync(style, tokens, theme_text, brand=None, style_dir=None):
     # false로 읽으면 "아직 판단하지 않았다"와 "false로 판단했다"가 구별되지 않는다.
     # maxRatio도 함께 못박는다 — 미선언이면 render_diagrams의 상한 검사가 통째로 꺼진다.
     lb = dg.get("labelBand")
-    if lb is not None:
+    if lb is None:
+        # **부재도 malformed다.** 이 줄이 `if lb is not None:` 가드였던 동안 `labelBand`
+        # 키를 통째로 지우면 G16-SYNC가 침묵하고 렌더는 WARN 1행 뒤 통과했다 —
+        # 라벨 상한 판정과 6단계 급수 주입이 **함께** 죽는데(labelScalePlan이 null을
+        # 돌려 주입 자체가 없다) 키 한 줄 삭제가 W5 5·6·8단계 성과를 조용히 되돌렸다
+        # (W5 판정 K2). 주석·문서(extending.md)는 이미 "부재도 malformed"라고 선언하고
+        # 있었으므로 이것은 **구현을 문서에 맞추는** 수정이다. palette가 필수인 것과 같은 취급.
+        out.append(_f("SYNC", "FAIL",
+                      f"diagram.labelBand 부재 — {{maxRatio: 수치, enforce: bool}}는 스타일 팩의 "
+                      f"필수 계약이다(palette와 같은 취급). 부재 시 render_diagrams의 라벨 상한 "
+                      f"판정과 6단계 급수 주입이 함께 꺼지고, '아직 판단하지 않았다'와 "
+                      f"'검사 불필요로 판단했다'가 구별되지 않는다"))
+    else:
         if not isinstance(lb, dict):
             out.append(_f("SYNC", "FAIL",
                           f"diagram.labelBand가 객체가 아님({type(lb).__name__}) — "
@@ -797,6 +931,11 @@ def g16_sync(style, tokens, theme_text, brand=None, style_dir=None):
                 out.append(_f("SYNC", "FAIL",
                               f"diagram.labelBand.maxRatio={mr!r} — 양수 수치여야 한다. "
                               f"부재 시 render_diagrams의 라벨 상한 검사가 통째로 꺼진다"))
+            elif not (LABEL_BAND_MIN_RATIO <= mr <= LABEL_BAND_MAX_RATIO):
+                out.append(_f("SYNC", "FAIL",
+                              f"diagram.labelBand.maxRatio={mr} — 타당성 대역 "
+                              f"[{LABEL_BAND_MIN_RATIO}, {LABEL_BAND_MAX_RATIO}] 밖(malformed). "
+                              f"{LABEL_BAND_RATIO_RATIONALE}"))
             if not isinstance(lb.get("enforce"), bool):
                 out.append(_f("SYNC", "FAIL",
                               f"diagram.labelBand.enforce={lb.get('enforce')!r} — true/false(JSON bool) "

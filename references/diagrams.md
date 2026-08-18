@@ -94,10 +94,24 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
     말하지 않으므로 통과시키고 ②에 맡긴다 — 팔레트 밖 **유채색** 글자는 양 트랙 모두 위반.
   - ② 대비 — 글자색 × **그 글자 밑에 실제로 깔린 색**의 대비가 `contrast_floor(pt, bold)`
     (WCAG 2.x: 18pt 이상 또는 14pt 이상 볼드면 3.0, 그 외 4.5) 이상이어야 한다. 배경은
-    글자 bbox 중심점에서 **문서 순서상 앞서 그려진 채움 도형**을 알파 합성해 결정한다
-    (8% 틴트 띠 같은 반투명 면이 실제로 만드는 색을 그대로 본다).
+    **문서 순서상 앞서 그려진 도형**을 알파 합성해 결정한다(8% 틴트 띠 같은 반투명 면이
+    실제로 만드는 색을 그대로 본다). 실배경 산출 규칙 넷 — 전부 **낙관하지 않는 방향**이다:
+    - **표본은 글자 bbox 가로 5점**(10/30/50/70/90%)이고 판정은 그 **최악값**이다. 중심점
+      1표본은 경계에 걸친 라벨(오른쪽 절반만 어두운 면 위)을 통째로 놓쳤다.
+    - **`fill:none` + 굵은 stroke 도형도 배경 후보**다(`isPointInStroke`). 지면에서 그
+      stroke는 실색 띠이고, 한 요소 안에서 stroke는 fill 위에 얹힌다.
+    - **`url(#…)` 그라데이션은 stop 전량을 해석**해(`stop-opacity` 포함) stop 하나마다
+      배경 후보를 만들고 그중 최악 대비를 쓴다. 버리면 그 면이 판면 백색으로 둔갑한다.
+    - **해석 불가한 페인트서버**(pattern·미존재 참조) 위 글자는 배경을 산출할 수 없으므로
+      통과가 아니라 **판정 불가로 반려**한다.
   - **백색 knockout에 대비 면제는 없다.** ①이 백색을 통과시키는 것은 역할표가 백색을
     말하지 않는다는 뜻일 뿐이고, 밝은 면 위의 백색 글자는 ②가 반려한다.
+  - **AntV 벤더 폴백색 `#ff356a`는 HARD 반려다.** 이 색은 번들의 `colorPrimary` 미도달
+    폴백(`createBaseTheme`·`getColorPrimary`·화살표 컴포넌트 기본 prop 등 8지점)이므로,
+    산출에 남았다는 것은 **그 요소에 스타일 팔레트가 도달하지 못했다**는 증거다. antv
+    트랙에 `alienColors`(strict)를 걸지 않는 이유는 템플릿이 팔레트 색에서 정당하게
+    파생한 틴트를 쓰기 때문이고(실측 `#1e7aad` → `#78afce`), 그래서 "팔레트 밖 색 전량"이
+    아니라 **팔레트가 닿지 않았음을 스스로 증명하는 색**만 잡는다. 처방은 템플릿 교체다.
   - AntV 트랙은 `theme.palette`가 **항목별 강조 채움**(배지·화살표) 채널이라, 백색을 얹을 수
     없는 밝은 슬롯이 들어가면 항목이 그 슬롯에 닿는 순간 반드시 대비 미달이 된다. 그래서
     빌드는 이 채널에 **knockout 안전한 슬롯만**(0번 브랜드 슬롯은 항상 유지) 넘긴다 —
@@ -128,12 +142,15 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
 
 ## 템플릿 선택 지침 (전량 목록은 infographic-creator 스킬)
 
-| 정보 구조 | 템플릿 계열 |
+이 표의 이름은 **전부 원장 v3에서 `verdict: ok`로 실측된 등록 템플릿**이다(계열 와일드카드가
+아니라 실명 — bare name은 `getTemplate`이 해석하지 못해 즉시 반려된다).
+
+| 정보 구조 | 템플릿 (원장 v3 ok) |
 |---|---|
-| 병렬 요점 | `list-column-*` `list-grid-*` |
-| 순서·단계 | `sequence-timeline-simple` · `sequence-ascending-steps` · `sequence-snake-steps-simple` |
-| 비교·SWOT | `compare-binary-*` `compare-swot` |
-| 계층·트리 | `hierarchy-tree-*` `hierarchy-mindmap-*` |
+| 병렬 요점 | `list-column-simple-vertical-arrow` · `list-grid-simple` · `list-row-horizontal-icon-arrow` |
+| 순서·단계 | `sequence-timeline-simple` · `sequence-ascending-steps` |
+| 비교 | `compare-quadrant-quarter-circular` (※ `compare-swot`·`compare-binary-*-vs`는 원장 blocked) |
+| 계층·구조 | `hierarchy-structure` · `hierarchy-mindmap-*-gradient-*` |
 | 수치 추이 | `chart-line-plain-text` `chart-bar-plain-text` (본문 실재 수치만) |
 
 판형이 좁은 스타일(essay 88mm)은 가로형 템플릿(`list-row-*`, 가로 타임라인)을 피한다.
@@ -143,12 +160,19 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
 `min_pt`(8pt 하한) · `max_ratio`(밴드 상한) · `frame_slack`(도형이 명목 폭을 채우는가) ·
 `label_paint`(역할·대비). 읽을 때 알아 둘 것:
 
-- **하한(8pt) 축으로 차단된 템플릿은 이제 없다.** 6단계 라벨 급수 강제 이후 등록 변형
-  28건 실측에서 하한 미달이 0건이다(최소 8.031pt). 원장 v1의 blocked 3건(4.7 / 5.8 / 6.4pt)은
-  전부 강제 이전 수치였다.
-- **차단은 `label_paint` 축으로 옮겨갔다** — 채움 카드 위에 기본 잉크 라벨을 얹는 템플릿
-  (`*-badge-card` · `*-pill-badge` · `*-candy-card-lite` 계열)은 팔레트 값과 무관하게 대비
-  상한이 3.24로 4.5를 넘을 수 없어 구조적으로 반려된다. 원장 `blocked_prefixes`가 SSR 전에 막는다.
+- **원장 v3는 등록 123종을 전건 판정한다**(v2는 25종·21%였다). 결과: ok 87 · blocked 26 ·
+  content-sensitive 7 · palette-sensitive 3.
+- **하한(8pt) 축으로 차단된 템플릿은 없다.** 6단계 라벨 급수 강제 이후 하한 미달이 0건이다.
+- **차단 축은 둘이다.** ① `palette_reach`(17종) — 템플릿의 일부 요소가 `theme.palette`를
+  소비하지 않아 벤더 기본색(`#ff356a`·`#1677ff`)이 지면에 남는다(실측: `sequence-snake-steps-simple`
+  화살표가 청록 팔레트 책에 연분홍 픽셀을 찍는다). ② `label_paint`(9종) — 백색 knockout이 팔레트의
+  밝은 틴트 위에 얹히거나, 텍스트 fill이 그라데이션이거나, 템플릿이 팔레트 밖 파생색을 글자로 쓴다.
+- **v2가 차단했던 `*-badge-card`·`*-pill-badge`·`*-candy-card-lite` 4종은 해제됐다.** v2의 근거
+  `#262626 on #1e7aad = 3.201`은 채움 카드의 알파(8~12%)를 무시한 오탐이었다 — 실배경은 `#e8f1f7`,
+  실대비 13.3이며 Chromium 실픽셀과 1/255 안에서 일치한다.
+- **`palette-sensitive` 3종은 사전 차단하지 않는다.** insight에서 4.0~4.2로 근소 미달인데, 대비가
+  `contrast(label,#ffffff) × 약 0.88`로 결정되므로 label 슬롯이 백색 대비 5.2 이상인 팔레트에서는
+  통과한다 — 렌더 시 역할·대비 HARD가 스타일별로 판정한다.
 - **세로형·항목 적은 템플릿은 `frame_slack`을 본다.** `sequence-timeline-simple`은 130mm에서
   여백 49%로, 도형이 명목 폭의 절반만 채운다 — `bf.width`를 `twothirds`로 내리거나 항목을 늘릴 것.
 
@@ -162,7 +186,8 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
 직전 성공 SVG 옆에 실패 회차의 metrics가 남고, 소스를 되돌리면 SVG 해시는 맞아
 캐시가 히트하면서 **옛 위반 판정이 재생**된다(W5 8단계에서 실측으로 잡은 오탐).
 DSL·팔레트·변환기 버전, 그리고 **판정 파라미터**(해당 폭의 실검사 `widthMm` ·
-`minFontPt` · `labelBand` · `body_pt` · `palette_roles` · 도장 판정 정책)가 바뀌면 자동 재렌더 — 검사 기준이 바뀐 도해가 옛 캐시로
+`minFontPt` · `labelBand` · `body_pt` · `palette_roles` · 도장 판정 정책 ·
+**`wcag.mjs`·`fo2text.mjs`의 내용 해시**)가 바뀌면 자동 재렌더 — 검사 기준이 바뀐 도해가 옛 캐시로
 조용히 통과하는 일이 없다. DSL 트랙 해시에는 **라벨 급수 주입 정책**(역할별 배수·목표 pt)도
 실린다. 이 정책은 authored 트랙 해시에 없으므로, 정책을 바꾸면 DSL 도해만 재렌더된다.
 
@@ -186,10 +211,16 @@ AntV 카탈로그는 "인포그래픽형 요점 시각화"에 강하고, **UML �
 ### 파이프라인 (antv 트랙과 동일 산출 계약)
 
 빌드(P1.5)가 소스를 Chromium 하네스에 실측 마운트해 정규화한다:
-① 폰트는 **Pretendard로 강제 베이크**(font-family 속성 재작성 — 다른 지정은 조용히 교정)
+① 폰트는 **Pretendard로 강제 베이크**(font-family 속성 재작성 — 다른 지정은 조용히 교정).
+  급수도 **DOM 실측(computed)을 `<text>`·`<tspan>` 전부에 속성으로 굽는다** — `<style>`
+  블록·CSS 클래스로 준 급수가 정규식 스캔의 사각지대가 되어 밴드 축과 도장 축이 같은
+  글자에 다른 pt를 기록하는 이중 진리를 없앤다(표현 속성은 CSS 선언에 지므로 외형 불변)
 ② 렌더 실측 라벨 수집 → `labels.json` (G13 대조 정본 — antv와 동일)
 ③ 회전·전단 라벨 즉시 실패 ④ 텍스트 겹침 실측 감지 즉시 실패
-⑤ 팔레트 강제: `tokens.diagram.palette` + 뉴트럴(무채색 램프) 밖 유채색 즉시 실패
+⑤ 팔레트 강제(**strict**): `tokens.diagram.palette` + `#ffffff` 밖의 색은 **무채색이라도** 즉시 실패
+  (실측: `#808080` 괘선 1줄 → `DIAGRAM FAIL: 팔레트 밖 색 #808080`). 뉴트럴 램프 허용은 antv
+  트랙 전용이다 — 두 트랙의 색 계약이 다르다. `fill`/`stroke` 속성·인라인 `style`뿐 아니라
+  **`stop-color`(그라데이션 스톱)·`flood-color`·`lighting-color`와 `<style>` 블록 선언**까지 훑는다
 ⑥ 글자 하한(minFontPt) 검사(HARD) + 상한(labelBand.maxRatio) 판정(강도는 labelBand.enforce)
   + 라벨 역할·실배경 대비 검사(HARD) ⑦ 외부 참조(CDN·원격) 즉시 실패
 ⑧ 원본↔정규화 pixelmatch 자기검증 ⑨ `<!--bf:authored=sha256:…-->` 해시 캐시.

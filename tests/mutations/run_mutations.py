@@ -53,13 +53,32 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
                          ㉢enforce:true + 밴드 안 → exit 0·verdict=ok(승격이 오탐을 만들지
                          않는다), ㉣enforce가 문자열 "false" → malformed FAIL(truthy 오독
                          차단, contrast_contract.enforce와 같은 계약), ㉤enforce:true인데
-                         body_pt 미선언으로 검사가 꺼짐 → FAIL(조용한 무력화 차단).
+                         body_pt 미선언으로 검사가 꺼짐 → FAIL(조용한 무력화 차단),
+                         ㉥`labelBand` **키 통삭제** → malformed FAIL(W5 판정 K2 — 종전
+                         구현은 부재를 면제해 한 줄 삭제로 상한 판정과 급수 주입이 함께
+                         죽었다), ㉦`maxRatio` 극대값 999 → 타당성 대역 밖 FAIL(K3 — 종전
+                         검사가 "양수인가" 하나여서 경고 한 줄도 없이 통과했다),
+                         ㉧`widths.twothirds` **값 위조**(> full) → G16-SYNC FAIL + 렌더
+                         이중 방어 FAIL(K1·K9 — widths는 밴드·하한·주입이 공유하는 유일
+                         기준이라 값이 틀리면 셋이 같은 거짓 기준으로 자기정합한다),
+                         ㉨`<style>` 블록 + `<tspan class>`로 준 **CSS 급수** → 밴드 FAIL
+                         (K6 — 정규식 스캔의 사각지대였고, metrics 안에서 `sizesPt`와
+                         `labelPaint.pt`가 다른 값을 말하는 이중 진리를 만들었다).
   M16 라벨 역할·대비   — 임시 책 사본에 **합성 authored 도해**를 심어 색만 결함으로 만든다
                          (급수는 밴드 안·하한 위에 정확히 앉혀 다른 축을 밟지 않는다).
                          ㉠role이 `label`이 아닌 팔레트 슬롯을 글자색으로(대비는 ≥4.5로 깔아
                          역할 축만 겨눔) → render_diagrams **HARD**(exit≠0), ㉡role은 label인데
                          실배경 대비가 4.5 미만 → HARD, ㉢대조군(label × 백색) → exit 0 ·
-                         metrics.labelPaint 위반 0(오탐 없음 + 검사가 실제로 돌았다는 증거).
+                         metrics.labelPaint 위반 0(오탐 없음 + 검사가 실제로 돌았다는 증거),
+                         ㉣**그라데이션 배경**(`fill="url(#g)"`) 위 저대비 라벨 → HARD
+                         (W5 판정 K4-ⓐ — 종전엔 `normHex("url(#g)")`가 null이라 레이어를
+                         통째로 버려 "판면 백색 위"로 판정했다) + 대조군: 같은 그라데이션
+                         구조인데 stop이 전부 어두운 표본은 통과(오탐 0 — 벤더 3D·mindmap
+                         gradient 계열이 이 방향으로 9건 오탐 반려됐던 것의 회귀 고정),
+                         ㉤**`fill:none` + 굵은 stroke 면** 위 저대비 라벨 → HARD(K4-ⓑ —
+                         종전엔 `fill === "none"` 도형이 후보에서 탈락했다),
+                         ㉥**경계 걸침**: 중심점은 백색인데 bbox 오른쪽 절반이 어두운 면
+                         위인 라벨 → HARD(K4-ⓒ — 중심점 1표본이 놓치던 형태).
                          M15와 반대로 이 축은 **HARD여야** 정상이다 — WARN으로 미끄러지면 회귀다.
   M0  무변조 대조군     — 원본은 G14 전 축 + G1-SCALE + G3-COLLIDE/FIT + G16(SYNC/CONTRAST/
                          BRAND 전 축, 원본 스타일 팩) PASS (오탐 없음 확인)
@@ -300,6 +319,42 @@ def band_probe_book(root, style, tokens, ratio_of_cap):
     return {"cap_pt": cap, "floor_pt": floor, "expect_max_pt": big * scale}
 
 
+def tspan_band_probe_book(root, style, tokens):
+    """합성 authored 도해 — **`<style>` 블록 + `<tspan class>`로만 준 급수**(W5 판정 K6).
+
+    `band_probe_book`과 같은 환산 트릭을 쓰되, 상한을 넘는 급수를 `font-size` 속성이
+    아니라 CSS 클래스로 준다. 종전 파이프라인은 `<text>`에만 computed 급수를 굽고
+    `scanLabelPt`는 속성/인라인 style만 정규식으로 훑어서 이 글자를 **못 봤다** —
+    같은 metrics 안에서 `sizesPt`(9.974)와 `labelPaint.pt`(30.83)가 갈렸다.
+    """
+    dg = tokens["diagram"]
+    body = tokens["body_pt"]
+    cap = body * dg["labelBand"]["maxRatio"]
+    floor = dg["minFontPt"]
+    vb_w = dg["widths"]["full"] * MM2PT
+    vb_h = 200.0
+    pad = max(2.0, 0.008 * max(vb_w, vb_h))
+    scale = vb_w / (vb_w + 2 * pad)
+    big = (cap * 1.8) / scale                    # 상한의 1.8배 — CSS로만 준다
+    small = (floor * 1.15) / scale
+    ink = dg["palette"][0]
+    d = Path(root)
+    (d / "diagrams").mkdir(parents=True, exist_ok=True)
+    (d / "book.json").write_text(json.dumps({"style": style, "title": "tspan 급수 프로브"},
+                                            ensure_ascii=False), encoding="utf-8")
+    (d / "diagrams" / "fig-01.json").write_text(
+        json.dumps({"kind": "authored", "bf": {"width": "full"}}), encoding="utf-8")
+    (d / "diagrams" / "fig-01.svg").write_text(
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {vb_w:.2f} {vb_h:.2f}">'
+        f'<style>.bigcss{{font-size:{big:.3f}px}}</style>'
+        f'<rect x="0" y="0" width="{vb_w:.2f}" height="{vb_h:.2f}" fill="none" stroke="none"/>'
+        f'<text x="4" y="60" font-size="{small:.3f}" fill="{ink}">하한 표본</text>'
+        f'<text x="4" y="170" font-size="{small:.3f}" fill="{ink}">'
+        f'<tspan class="bigcss">CSS급수</tspan></text>'
+        f'</svg>', encoding="utf-8")
+    return {"cap_pt": cap, "floor_pt": floor, "expect_max_pt": big * scale}
+
+
 def _rgb(hex_):
     return tuple(int(hex_[1 + 2 * i:3 + 2 * i], 16) for i in range(3))
 
@@ -317,8 +372,21 @@ def paint_probe_book(root, style, tokens, mode):
       "contrast" — role `label` 슬롯을 글자색으로 쓰되(역할 축은 통과) 대비가 4.5 미만이
                    되는 팔레트 색을 배경으로 깔아 **대비 축만** 겨눈다.
       "control"  — label 슬롯 × 백색 배경(대조군, 오탐 0 확인).
+    W5 재작업이 더한 세 모드(판정 K4의 세 결함을 하나씩 겨눈다 — 전부 **배경 산출**의
+    문제이고 색 자체는 `contrast`와 같은 쌍을 쓴다):
+      "gradient"    — 배경이 `fill="url(#g)"` 그라데이션이고 stop 하나가 저대비 색.
+                      종전엔 `normHex("url(#g)") → null`이라 레이어를 통째로 버려
+                      "판면 백색 위"로 판정했다(K4-ⓐ 위음성).
+      "gradient-ok" — **대조군**: 같은 그라데이션 구조인데 stop이 전부 합법 대비.
+                      그라데이션을 통째로 반려하지 않는다는 증거다(같은 결함이 벤더
+                      3D·mindmap gradient 계열을 9건 오탐 반려시켰던 방향의 회귀 고정).
+      "stroke"      — 배경이 `fill:none` + 굵은 stroke 면. 종전엔 후보에서 탈락했다(K4-ⓑ).
+      "edge"        — 글자 bbox **중심은 백색**인데 오른쪽 절반이 저대비 면 위.
+                      중심점 1표본이 놓치던 형태다(K4-ⓒ). `textLength`로 글자 폭을
+                      못 박아 면 경계를 결정론적으로 놓는다.
     색은 전부 스타일 팔레트에서 고른다 — authored 트랙 alienColors(strict)가 팔레트 밖
-    색을 먼저 죽이기 때문이다. 고를 수 없으면 None을 돌려 그 스타일에서 건너뛴다.
+    색을 먼저 죽이기 때문이다(그라데이션 `stop-color`도 같은 검사를 받는다).
+    고를 수 없으면 None을 돌려 그 스타일에서 건너뛴다.
     """
     dg = tokens["diagram"]
     pal = dg["palette"]
@@ -337,9 +405,12 @@ def paint_probe_book(root, style, tokens, mode):
         bg = max(labels, key=lambda c: g16.contrast_ratio(_rgb(fg), _rgb(c)))
         if g16.contrast_ratio(_rgb(fg), _rgb(bg)) < 4.5:
             return None
-    elif mode == "contrast":
+    elif mode in ("contrast", "gradient", "stroke", "edge"):
         pair = None
         for f in labels:                     # 역할은 합법(label), 대비만 깬다
+            # edge/gradient는 "백색 위에서는 합법"이 표본의 전제다(중심점·나머지 stop)
+            if mode in ("edge", "gradient") and g16.contrast_ratio(_rgb(f), (255, 255, 255)) < 4.5:
+                continue
             for b in pal:
                 # 같은 색끼리(대비 1.0)는 퇴화 표본이다 — 서로 다른 두 색으로 하한을 깬다
                 if b.lower() == f.lower():
@@ -352,6 +423,19 @@ def paint_probe_book(root, style, tokens, mode):
         if not pair:
             return None
         fg, bg = pair
+    elif mode == "gradient-ok":
+        # 대조군: 글자색과 대비가 **전부** 합법인 stop 둘. 없으면 백색 2점으로 퇴화시키지
+        # 않고 건너뛴다 — 퇴화 표본은 "그라데이션을 해석했다"를 증명하지 못한다.
+        ok = None
+        for f in labels:
+            cands = [c for c in list(pal) + ["#FFFFFF"]
+                     if c.lower() != f.lower() and g16.contrast_ratio(_rgb(f), _rgb(c)) >= 4.5]
+            if len(cands) >= 2:
+                ok = (f, cands[0], cands[1])
+                break
+        if not ok:
+            return None
+        fg, bg, bg2 = ok
     else:
         fg, bg = labels[0], "#FFFFFF"
     body = tokens["body_pt"]
@@ -367,11 +451,39 @@ def paint_probe_book(root, style, tokens, mode):
                                             ensure_ascii=False), encoding="utf-8")
     (d / "diagrams" / "fig-01.json").write_text(
         json.dumps({"kind": "authored", "bf": {"width": "full"}}), encoding="utf-8")
-    (d / "diagrams" / "fig-01.svg").write_text(
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {vb_w:.2f} {vb_h:.2f}">'
-        f'<rect x="0" y="0" width="{vb_w:.2f}" height="{vb_h:.2f}" fill="{bg}"/>'
-        f'<text x="8" y="70" font-size="{size:.3f}" fill="{fg}">도장 표본</text>'
-        f'</svg>', encoding="utf-8")
+    head = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {vb_w:.2f} {vb_h:.2f}">'
+    label = "도장 표본"
+    if mode in ("gradient", "gradient-ok"):
+        # 백색 판면 위에 그라데이션 면 하나. 저대비 stop을 **왼쪽 끝**에 둬서 종전
+        # 중심점 판정이었다면 백색으로 보였을 자리에도 실색이 있게 한다.
+        stop2 = bg2 if mode == "gradient-ok" else "#FFFFFF"
+        body_svg = (
+            f'<defs><linearGradient id="pg" x1="0" y1="0" x2="1" y2="0">'
+            f'<stop offset="0" stop-color="{bg}"/><stop offset="1" stop-color="{stop2}"/>'
+            f'</linearGradient></defs>'
+            f'<rect x="0" y="0" width="{vb_w:.2f}" height="{vb_h:.2f}" fill="#FFFFFF"/>'
+            f'<rect x="0" y="30" width="{vb_w:.2f}" height="60" fill="url(#pg)"/>'
+            f'<text x="8" y="70" font-size="{size:.3f}" fill="{fg}">{label}</text>')
+    elif mode == "stroke":
+        body_svg = (
+            f'<rect x="0" y="0" width="{vb_w:.2f}" height="{vb_h:.2f}" fill="#FFFFFF"/>'
+            f'<path d="M0 65 L{vb_w:.2f} 65" stroke="{bg}" stroke-width="56" fill="none"/>'
+            f'<text x="8" y="70" font-size="{size:.3f}" fill="{fg}">{label}</text>')
+    elif mode == "edge":
+        # textLength로 글자 폭을 못 박아 면 경계를 결정론적으로 놓는다: 글자는 [8, 8+tw],
+        # 저대비 면은 그 **오른쪽 45%**만 덮는다 → 중심점(50%)은 백색, 70·90% 표본만 실색.
+        tw = min(vb_w * 0.5, size * len(label) * 1.1)
+        cut = 8 + tw * 0.55
+        body_svg = (
+            f'<rect x="0" y="0" width="{vb_w:.2f}" height="{vb_h:.2f}" fill="#FFFFFF"/>'
+            f'<rect x="{cut:.2f}" y="40" width="{vb_w - cut:.2f}" height="50" fill="{bg}"/>'
+            f'<text x="8" y="70" font-size="{size:.3f}" fill="{fg}" '
+            f'textLength="{tw:.2f}" lengthAdjust="spacingAndGlyphs">{label}</text>')
+    else:
+        body_svg = (
+            f'<rect x="0" y="0" width="{vb_w:.2f}" height="{vb_h:.2f}" fill="{bg}"/>'
+            f'<text x="8" y="70" font-size="{size:.3f}" fill="{fg}">{label}</text>')
+    (d / "diagrams" / "fig-01.svg").write_text(head + body_svg + "</svg>", encoding="utf-8")
     return {"fg": fg, "bg": bg, "expect_pt": size * scale,
             "ratio": g16.contrast_ratio(_rgb(fg), _rgb(bg)),
             "role": dict(zip(pal, roles)).get(fg)}
@@ -745,14 +857,19 @@ def main():
                 and (dgm.get("widths") or {}).get("full") and dgm.get("palette")):
             print("      (M15 건너뜀 — 이 스타일에 diagram.labelBand/body_pt/widths.full 미선언)")
         else:
-            def band_style(tag, enforce, drop_body_pt=False):
-                """스타일 팩 임시 사본에 enforce를 강제로 심는다. (dir, tokens) 반환."""
+            def band_style(tag, enforce, drop_body_pt=False, mutate=None):
+                """스타일 팩 임시 사본에 enforce를 강제로 심는다. (dir, tokens) 반환.
+
+                mutate: tokens dict를 직접 손대는 콜백(키 삭제·극대값·폭 위조용).
+                """
                 sd = Path(td) / f"m15-style-{tag}"
                 shutil.copytree(SKILL / "styles" / style, sd)
                 tk = json.loads((sd / "tokens.json").read_text(encoding="utf-8"))
                 tk["diagram"]["labelBand"] = dict(tk["diagram"]["labelBand"], enforce=enforce)
                 if drop_body_pt:
                     tk.pop("body_pt", None)
+                if mutate:
+                    mutate(tk)
                 (sd / "tokens.json").write_text(json.dumps(tk, ensure_ascii=False, indent=2),
                                                 encoding="utf-8")
                 return sd, tk
@@ -769,12 +886,35 @@ def main():
             sd_on, _ = band_style("on", True)
             sd_bad, _ = band_style("bad", "false")           # 문자열 — malformed
             sd_off2, _ = band_style("nobody", True, drop_body_pt=True)
+            # ㉥키 통삭제 ㉦극대값 ㉧폭 위조 — 전부 "판정을 무력화하는 선언"이다
+            sd_del, _ = band_style("delband", True, mutate=lambda t: t["diagram"].pop("labelBand"))
+            sd_999, _ = band_style("ratio999", True,
+                                   mutate=lambda t: t["diagram"].update(
+                                       labelBand={"maxRatio": 999, "enforce": True}))
+            fake_w = max(tokens["trim_mm"][0], dgm["widths"]["full"]) * 3
+            sd_wfake, _ = band_style("widthfake", True,
+                                     mutate=lambda t: t["diagram"]["widths"].update(twothirds=fake_w))
 
             _, rc_w, out_w, met_w = band_run("warn", 1.8, sd_off)     # ㉠
             _, rc_h, out_h, met_h = band_run("hard", 1.8, sd_on)      # ㉡
             _, rc_c, out_c, met_c = band_run("control", 0.9, sd_on)   # ㉢
             _, rc_m, out_m, _ = band_run("malformed", 0.9, sd_bad)    # ㉣
             _, rc_o, out_o, _ = band_run("off-axis", 0.9, sd_off2)    # ㉤
+            _, rc_d, out_d, _ = band_run("delband", 0.9, sd_del)      # ㉥
+            _, rc_9, out_9, _ = band_run("ratio999", 1.8, sd_999)     # ㉦
+            _, rc_f, out_f, _ = band_run("widthfake", 0.9, sd_wfake)  # ㉧(렌더 이중 방어)
+            # ㉧의 **정본 판정**은 렌더 전 정적 게이트다 — G16-SYNC를 직접 돌려 어서션한다.
+            g16_wfake = [x for fs in g16.run(style, json.loads(
+                (sd_wfake / "tokens.json").read_text(encoding="utf-8")),
+                (sd_wfake / "theme.css").read_text(encoding="utf-8")
+                if (sd_wfake / "theme.css").exists() else None,
+                None, style_dir=str(sd_wfake)).values() for x in fs if x["level"] == "FAIL"]
+            # ㉨ tspan CSS 급수 — 승격 스타일(enforce:true)에서 밴드 HARD로 잡혀야 한다.
+            bd_ts = Path(td) / "m15-tspan"
+            spec_ts = tspan_band_probe_book(bd_ts, style, tokens)
+            rc_t, out_t = run_render_diagrams(bd_ts, style, style_dir=sd_on)
+            mp_ts = bd_ts / "assets" / "fig-01.metrics.json"
+            met_t = json.loads(mp_ts.read_text(encoding="utf-8")) if mp_ts.exists() else None
 
             if met_w and met_h and met_c:
                 # ㉠ WARN 강도: 검출되고, metrics가 강도를 WARN이라 말하고, **exit 0**이다.
@@ -799,15 +939,38 @@ def main():
                 ok_mal = rc_m != 0 and "enforce" in out_m and "bool" in out_m.lower()
                 # ㉤ 승격 스타일에서 검사가 꺼지면 그 자체가 반려다.
                 ok_off = rc_o != 0 and "검사 꺼짐" in out_o
+                # ㉥ 키 통삭제 = malformed(부재도 위반) — WARN 뒤 통과가 아니라 실행 중단.
+                ok_del = rc_d != 0 and "labelBand 부재" in out_d
+                # ㉦ 극대값 = 타당성 대역 밖 malformed — 상한 검사와 급수 주입을 동시에 끈다.
+                ok_999 = rc_9 != 0 and "타당성 대역" in out_9 and "999" in out_9
+                # ㉧ 폭 위조 — 정본은 G16-SYNC(렌더 전), 렌더는 이중 방어.
+                ok_wf = (any("widths.twothirds" in x["msg"] for x in g16_wfake)
+                         and rc_f != 0 and "widths.twothirds" in out_f)
+                # ㉨ tspan CSS 급수 — 밴드 HARD + **metrics 두 축이 같은 글자에 같은 pt**를
+                #    말한다(sizesPt 최댓값 == labelPaint 최댓값). 이중 진리가 없어졌다는 증거.
+                if met_t:
+                    lp_pts = [r["pt"] for r in (met_t.get("labelPaint") or {}).get("labels", [])
+                              if isinstance(r.get("pt"), (int, float))]
+                    ok_tspan = (rc_t != 0 and "라벨 밴드 상한" in out_t
+                                and met_t["band"]["verdict"] == "violation"
+                                and met_t["maxPt"] > met_t["capPt"]
+                                and bool(lp_pts) and abs(max(lp_pts) - met_t["maxPt"]) < 0.05)
+                else:
+                    ok_tspan = False
                 results["M15-label-band"] = bool(ok_warn and ok_hard and ok_ctl
-                                                 and ok_mal and ok_off)
+                                                 and ok_mal and ok_off
+                                                 and ok_del and ok_999 and ok_wf and ok_tspan)
                 print(f"      (M15 위반본 max {met_w['maxPt']}pt = 본문 {met_w['bodyPt']}pt × "
                       f"{met_w['ratio']} > 상한 {met_w['maxRatio']}×({met_w['capPt']}pt) "
                       f"· 최소 {met_w['minPt']}pt ≥ 하한 {met_w['minFontPt']}pt → "
                       f"enforce:false exit {rc_w}/WARN {ok_warn} · enforce:true exit {rc_h}/HARD "
                       f"{ok_hard} · 대조군(enforce:true) max {met_c['maxPt']}pt ≤ {met_c['capPt']}pt "
                       f"exit {rc_c} {ok_ctl} · enforce=\"false\"(문자열) exit {rc_m} {ok_mal} · "
-                      f"enforce:true+body_pt 미선언 exit {rc_o} {ok_off})")
+                      f"enforce:true+body_pt 미선언 exit {rc_o} {ok_off} · "
+                      f"labelBand 키 삭제 exit {rc_d} {ok_del} · maxRatio 999 exit {rc_9} {ok_999} · "
+                      f"widths.twothirds {fake_w}mm 위조 → G16-SYNC FAIL {len(g16_wfake)}건/렌더 exit "
+                      f"{rc_f} {ok_wf} · tspan CSS 급수 exit {rc_t} "
+                      f"max {(met_t or {}).get('maxPt')}pt {ok_tspan})")
             else:
                 results["M15-label-band"] = False
                 head = (out_w or out_h or out_c).strip().splitlines()[-1:] or [""]
@@ -835,6 +998,11 @@ def main():
             spec_r, rc_r, out_r, _ = paint_run("role", "role")
             spec_x, rc_x, out_x, _ = paint_run("contrast", "contrast")
             spec_c, rc_c, out_c, met_c = paint_run("control", "control")
+            # W5 재작업 — 배경 산출 3결함(K4)을 갈라서 겨눈다 + 그라데이션 대조군.
+            spec_g, rc_g, out_g, _ = paint_run("gradient", "gradient")
+            spec_go, rc_go, out_go, met_go = paint_run("gradient-ok", "gradient-ok")
+            spec_s, rc_s, out_s, _ = paint_run("stroke", "stroke")
+            spec_e, rc_e, out_e, _ = paint_run("edge", "edge")
             if spec_c is None or (spec_r is None and spec_x is None):
                 print("      (M16 건너뜀 — 이 팔레트에서 역할/대비 결함 색쌍을 만들 수 없다)")
             else:
@@ -850,7 +1018,26 @@ def main():
                 lp = (met_c or {}).get("labelPaint") or {}
                 ok_c = (rc_c == 0 and lp.get("checked", 0) >= 1
                         and lp.get("roleViolations") == 0 and lp.get("contrastViolations") == 0)
-                results["M16-label-paint"] = bool(ok_r and ok_x and ok_c)
+                # ㉣그라데이션 배경 — stop을 해석하지 않으면 "판면 백색 위"로 통과한다
+                ok_g = spec_g is None or (rc_g != 0 and "대비" in out_g
+                                          and spec_g["bg"].lower() in out_g.lower())
+                # ㉣' 대조군 — 그라데이션이라고 통째로 반려하지 않는다(오탐 0)
+                lpg = (met_go or {}).get("labelPaint") or {}
+                ok_go = spec_go is None or (rc_go == 0 and lpg.get("checked", 0) >= 1
+                                            and lpg.get("contrastViolations") == 0)
+                # ㉤stroke 면 — fill:none 도형이 후보에서 탈락하면 백색 위로 통과한다
+                ok_s = spec_s is None or (rc_s != 0 and "대비" in out_s
+                                          and spec_s["bg"].lower() in out_s.lower())
+                # ㉥경계 걸침 — **중심 아닌 표본이 최악**이었다는 사실까지 어서션한다
+                #    (중심점 1표본이었다면 백색 위로 통과했을 표본이다)
+                ok_e = spec_e is None or (rc_e != 0 and "대비" in out_e
+                                          and spec_e["bg"].lower() in out_e.lower()
+                                          and "표본이 최악" in out_e)
+                results["M16-label-paint"] = bool(ok_r and ok_x and ok_c
+                                                  and ok_g and ok_go and ok_s and ok_e)
+                print(f"      (M16-K4 그라데이션 exit {rc_g} {ok_g} / 그라데이션 대조군 exit "
+                      f"{rc_go} 위반 {lpg.get('contrastViolations')} {ok_go} / stroke 면 exit "
+                      f"{rc_s} {ok_s} / 경계 걸침 exit {rc_e} {ok_e})")
                 print(f"      (M16 역할본 fg {spec_r['fg']}(role={spec_r['role']}) on {spec_r['bg']} "
                       f"대비 {spec_r['ratio']:.2f}(≥4.5, 역할만 결함) → exit {rc_r} 검출 {ok_r} / "
                       f"대비본 fg {spec_x['fg']}(role=label) on {spec_x['bg']} 대비 "
