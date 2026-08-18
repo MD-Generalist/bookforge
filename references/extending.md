@@ -81,7 +81,13 @@ python3 scripts/contact_sheet.py /tmp/smoke/draft/book.pdf /tmp/smoke/qc --dpi 8
 # MISSING까지 0으로 만든다 — 그 축이 강제력을 갖는 자리가 여기다:
 python3 tests/lint_contrast.py /tmp/smoke
 python3 tests/mutations/run_mutations.py /tmp/smoke   # 게이트 감도 회귀
+python3 tests/test_wcag_parity.py                    # wcag.mjs ↔ g16_tokens.py 동치(대비 산술 복제본)
 ```
+
+`scripts/wcag.mjs`는 `scripts/g16_tokens.py`의 대비 산술(`contrast_floor`·`is_bold_font`·
+상대휘도)을 **복제**한 것이다 — 도해 렌더는 node에서 돌아 python을 import할 수 없다.
+둘 중 한쪽 값을 고치면 반드시 다른 쪽도 고치고 위 동치 테스트를 돌릴 것(G16-SYNC는
+이 어긋남을 보지 못한다).
 
 렌더 PNG를 눈으로 확인하기 전까지 완료가 아니다.
 

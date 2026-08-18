@@ -13,6 +13,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { convertForeignObjectText, fontFaceCss, normalizeAuthoredSvg, pixelSelfCheck } from "./fo2text.mjs";
+import { contrastFloor, contrastRatio, isBoldSvgText } from "./wcag.mjs";
 
 const SKILL = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FONT_DIR = path.join(SKILL, "assets", "fonts");
@@ -124,6 +125,62 @@ function alienColors(svg, palette, strict = false) {
     for (const d of s[1].matchAll(/(?:^|;)\s*(?:fill|stroke)\s*:\s*([^;]+)/gi)) check(d[1]);
   }
   return [...out];
+}
+
+// ---- 팔레트 역할(palette_roles) 색인 — 7단계 「역할·대비 HARD」의 기준 ----
+//
+// 기준 팔레트는 **해석 팔레트(pal_res)**다: book.json.brand가 있으면 0번 슬롯이 치환된
+// 뒤의 팔레트(:38). g16_tokens.g16_sync가 팔레트↔CSS를 양방향 모두 pal_res로 대조하는
+// 것과 같은 기준이다(W4-A 3단계 §3b — 한쪽만 치환하면 브랜드 지정 책에서 오탐이 난다).
+//
+// 같은 hex가 여러 슬롯에 있으면(브랜드가 기존 슬롯과 겹치는 경우) **역할의 합집합**을
+// 갖는다 — 그 색이 어느 슬롯에서든 label로 선언돼 있으면 라벨로 쓸 수 있다.
+const PAPER_HEX = "#ffffff"; // 판면 바탕. alienColors(:108)가 팔레트 밖이어도 허용하는 유일한 색
+const paletteRoles = Array.isArray(dg.palette_roles) ? dg.palette_roles : null;
+const roleOf = new Map();
+if (paletteRoles) {
+  palette.forEach((c, i) => {
+    const h = normHex(c);
+    if (!h) return;
+    if (!roleOf.has(h)) roleOf.set(h, new Set());
+    roleOf.get(h).add(paletteRoles[i] ?? null);
+  });
+}
+const isNeutral = (hex) => {
+  // alienColors 비-strict 분기(:118)와 **같은 임계**. 두 곳이 갈리면 색 게이트가 허용한
+  // 색을 역할 게이트가 죽이는(또는 그 반대) 모순이 생긴다.
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  return Math.max(r, g, b) - Math.min(r, g, b) <= 16;
+};
+
+// ---- AntV 트랙에 넘길 팔레트 채널 (7단계 수리) ----
+//
+// AntV의 `theme.palette`는 시리즈 색이 아니라 **항목별 강조 채움(colorPrimary)** 채널이다
+// (vendor 번들 `getPaletteColors`/`getPaletteColor` — palette[i % len]). 템플릿은 그 채움 위에
+// **백색 knockout 라벨**(단계번호 배지 `01/02/03`, `themeColors.colorWhite`)을 얹는다.
+// 그래서 백색을 얹을 수 없는 밝은 슬롯(role `fill`의 틴트, `stroke`의 괘선색)을 이 채널에
+// 넣으면 **항목이 그 슬롯에 닿는 순간 반드시 대비 미달**이 된다 — 실측: insight
+// palette[2] `#5ec6dc` 위 백색 = 1.98(코퍼스 dsl 4건 전건 FAIL, G14-C도 같은 값 1.99를
+// PDF에서 독립 실측했다).
+//
+// 이것은 W4-A 3단계 §5 인계 1 「AntV 트랙은 role을 지키지 않는다」의 본체다. 팔레트 **값**은
+// 건드리지 않고(스타일 토큰 불변조), 이 채널에 넣을 **슬롯만** 고른다:
+//   · 0번(브랜드·키색)은 정체성이라 **항상 남긴다** — 밝아서 위험하면 조용히 빼는 대신
+//     새 대비 HARD가 소리내어 반려하는 쪽이 옳다(미선언이 위반보다 조용해서는 안 된다).
+//   · 나머지는 백색 knockout이 가능한 슬롯만. 판정식은 대비의 대칭성 덕에 한 줄이다 —
+//     contrast(slot, #ffffff) ≥ 4.5는 "백색 글자를 얹을 수 있다"와 "백색 위 글자로 쓸 수
+//     있다"를 동시에 뜻한다. 하한이 4.5 고정인 이유: 도해 라벨은 밴드 상한
+//     (body_pt × maxRatio ≈ 11.4pt)이 14pt 미만이라 contrast_floor가 언제나 4.5다.
+const KNOCKOUT_SAFE_MIN = 4.5;
+function knockoutSafe(hex) {
+  const h = normHex(hex);
+  if (!h) return false;
+  const rgb = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  return contrastRatio(rgb, [255, 255, 255]) >= KNOCKOUT_SAFE_MIN;
+}
+function antvPaletteChannel(pal) {
+  const out = pal.filter((c, i) => i === 0 || knockoutSafe(c));
+  return out.length ? out : pal; // 빈 채널은 AntV가 기본색(#FF356A)으로 폴백한다 — 방지
 }
 
 const diagramsDir = path.join(bookDir, "diagrams");
@@ -296,12 +353,18 @@ function sortDefsSymbols(svg) {
 // frameW: 트림 폭의 **하한**(user unit). 6단계 라벨 급수 강제가 쓴다 — 글자만 줄이면
 // 트림이 같이 좁아져 pt/u가 커지므로(= 도형이 지면에서 커지고 종횡비가 무너진다),
 // 폭 프레임을 무주입 회차 값으로 고정해 pt/u를 보존한다. 세로는 그대로 밀착 트림한다.
-async function trimViewBox(page, svg, frameW = null) {
-  const harness = `<!doctype html><html><head><meta charset="utf-8"><style>
+// 트림·대비 실측이 **같은 하네스**를 보게 한다(배경 #fff·Pretendard 강제). 두 벌이 갈리면
+// 측정한 지면과 판정한 지면이 달라진다.
+function stageHtml(svg) {
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
 ${fontFaceCss(FONT_DIR)}
 html,body{margin:0;padding:0;background:#fff;}
 #stage svg text, #stage svg tspan { font-family:'Pretendard' !important; }
 </style></head><body><div id="stage">${svg}</div></body></html>`;
+}
+
+async function trimViewBox(page, svg, frameW = null) {
+  const harness = stageHtml(svg);
   await page.setContent(harness, { waitUntil: "networkidle" });
   await page.evaluate(() => document.fonts.ready);
   return page.evaluate((fw) => {
@@ -320,6 +383,184 @@ html,body{margin:0;padding:0;background:#fff;}
     el.removeAttribute("height");
     return { svg: new XMLSerializer().serializeToString(el), tightW: tight };
   }, frameW);
+}
+
+// ---- 라벨 도장(塗裝) 실측 — 글자색과 **그 글자 밑에 실제로 깔린 색** ----
+//
+// 왜 SVG 문자열 파싱이 아니라 렌더 DOM인가: 배경은 마크업이 아니라 **겹침 순서**가 정한다
+// (SVG는 z-index가 없고 문서 순서가 곧 도장 순서). 색만 긁으면 "어느 면 위의 글자인지"를
+// 영영 알 수 없다. 그래서 S0에서 쓴 SSR 하네스를 그대로 재사용해 실좌표에서 찍는다.
+//
+// 배경 결정 규칙(결정론):
+//   1. 대상 = 그 요소가 **직접 품은** 텍스트 노드들의 합집합 bbox 중심점 1개.
+//   2. 후보 = 문서 순서상 **글자보다 앞서 그려진**(= 밑에 깔린) 채움 도형만.
+//      `<defs>/<symbol>/<clipPath>/<mask>/<marker>/<pattern>` 안은 그려지지 않으므로 제외.
+//   3. 각 후보에 `isPointInFill`(요소 로컬 좌표)로 명중 판정 — elementsFromPoint는 뷰포트
+//      밖(1600×1200을 넘는 세로 긴 도해의 아래쪽)에서 빈 배열을 돌려주므로 쓸 수 없다
+//      (실측: 배지 02/03이 배경 없음으로 잡혀 백색 위 백색 = 대비 1.0 오탐이 났다).
+//   4. 명중한 도형들을 **도장 순서대로** 판면 백색 위에 알파 합성(fill-opacity × opacity
+//      누적)한다. 8% 틴트 띠 같은 반투명 면이 실제로 만드는 색을 그대로 얻는다.
+// `<use>`로 심긴 아이콘 내부는 shadow tree라 후보에 잡히지 않는다 — 아이콘은 라벨 배경이
+// 아니므로(라벨과 겹치면 fo2text 겹침 검사가 먼저 죽인다) 미검출 방향이라 안전하다.
+async function measureLabelPaint(page, svg) {
+  await page.setContent(stageHtml(svg), { waitUntil: "networkidle" });
+  await page.evaluate(() => document.fonts.ready);
+  return page.evaluate(() => {
+    const root = document.querySelector("#stage svg");
+    if (!root) return null;
+    const painted = [...root.querySelectorAll("path,rect,circle,ellipse,polygon,polyline,line")]
+      .filter((g) => !g.closest("defs,symbol,clipPath,mask,marker,pattern"));
+    const alphaOf = (el, stop) => {
+      let a = 1;
+      for (let n = el; n && n !== stop; n = n.parentElement) {
+        const o = parseFloat(getComputedStyle(n).opacity);
+        if (!isNaN(o)) a *= o;
+      }
+      return a;
+    };
+    const out = [];
+    for (const el of root.querySelectorAll("text,tspan")) {
+      const cs = getComputedStyle(el);
+      if (cs.display === "none" || cs.visibility === "hidden") continue;
+      // 이 요소가 **직접** 품은 텍스트 노드만 — 자식 tspan은 자기 차례에 따로 잰다
+      let box = null;
+      for (const node of el.childNodes) {
+        if (node.nodeType !== 3 || !node.textContent.trim()) continue;
+        const r = document.createRange();
+        r.selectNodeContents(node);
+        const b = r.getBoundingClientRect();
+        if (!b.width && !b.height) continue;
+        box = box
+          ? { left: Math.min(box.left, b.left), right: Math.max(box.right, b.right),
+              top: Math.min(box.top, b.top), bottom: Math.max(box.bottom, b.bottom),
+              text: box.text + node.textContent }
+          : { left: b.left, right: b.right, top: b.top, bottom: b.bottom, text: node.textContent };
+      }
+      if (!box) continue;
+      const cx = (box.left + box.right) / 2, cy = (box.top + box.bottom) / 2;
+      const layers = [];
+      for (const g of painted) {
+        if (!(el.compareDocumentPosition(g) & Node.DOCUMENT_POSITION_PRECEDING)) continue;
+        const gcs = getComputedStyle(g);
+        if (gcs.display === "none" || gcs.visibility === "hidden") continue;
+        if (!gcs.fill || gcs.fill === "none") continue;
+        const m = g.getScreenCTM();
+        if (!m) continue;
+        let hit = false;
+        try { hit = g.isPointInFill(new DOMPoint(cx, cy).matrixTransform(m.inverse())); } catch { hit = false; }
+        if (!hit) continue;
+        const fo = parseFloat(gcs.fillOpacity);
+        layers.push({ tag: g.tagName.toLowerCase(), fill: gcs.fill,
+          alpha: (isNaN(fo) ? 1 : fo) * alphaOf(g, root.parentNode) });
+      }
+      const tfo = parseFloat(cs.fillOpacity);
+      out.push({
+        text: box.text.replace(/\s+/g, " ").trim().slice(0, 24),
+        tag: el.tagName.toLowerCase(),
+        fill: cs.fill,
+        alpha: (isNaN(tfo) ? 1 : tfo) * alphaOf(el, root.parentNode),
+        weight: cs.fontWeight,
+        family: el.getAttribute("font-family") || cs.fontFamily,
+        fontUser: parseFloat(cs.fontSize), // SVG 유저 단위(= scanLabelPt의 font-size와 같은 계)
+        layers,
+      });
+    }
+    return out;
+  });
+}
+
+// 판면 백색 위에 도장 순서대로 알파 합성 — 배경 실색 1개를 낸다.
+function compositeOver(layers, base = [255, 255, 255]) {
+  let bg = base;
+  for (const L of layers) {
+    const hex = normHex(L.fill);
+    if (!hex) continue; // 해석 불가 색은 배경 기여를 셈하지 않는다(대비를 낙관하지 않는 쪽)
+    const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    const a = Math.max(0, Math.min(1, L.alpha));
+    bg = bg.map((v, i) => Math.round(c[i] * a + v * (1 - a)));
+  }
+  return bg;
+}
+const toHex = (rgb) => "#" + rgb.map((v) => v.toString(16).padStart(2, "0")).join("");
+
+// ---- 7단계 HARD: 역할 · 대비 ----
+//
+// ① 역할 — 글자의 fill은 **palette_roles가 `label`이라 선언한 색**이거나 **백색 knockout**
+//    이어야 한다. 팔레트 밖 색은 트랙별 색 계약을 그대로 따른다: authored는
+//    alienColors(strict)가 이미 죽였으므로 여기 오면 위반, antv는 무채색 램프가 허용되므로
+//    (:118과 같은 임계) 무채색만 통과시키고 대비 검사에 넘긴다. **유채색 팔레트 밖 글자는
+//    양 트랙 모두 위반** — antv 트랙에는 alienColors가 걸려 있지 않아(현재 호출 지점은
+//    authored 한 곳뿐) 이 축이 유일한 방어선이다.
+// ② 대비 — 글자색 × 실배경색의 대비가 contrast_floor(pt, bold) 이상이어야 한다.
+//    **백색 knockout에 면제는 없다.** ①이 백색을 통과시키는 것은 "역할표가 백색을
+//    말하지 않는다"는 뜻일 뿐이고, 백색 글자가 밝은 면에 얹혔는지는 ②가 본다
+//    (실측 참양성: `#ffffff` on `#5ec6dc` = 1.98).
+//
+// 강도는 **HARD**다. 다만 렌더 전 정적 게이트가 아니라 렌더 파이프라인 내부이므로
+// die가 아니라 해당 도해의 `fail()` 관례를 따른다(호출부에서 fail).
+function labelPaintReport(measures, scan, { name, kind, widthKey }) {
+  const rows = [];
+  const roleV = [], contrastV = [];
+  const notes = [];
+  if (!paletteRoles) notes.push("tokens.diagram.palette_roles 미선언 — 역할 검사 꺼짐");
+  if (scan.scalePt === null) notes.push(`pt 환산 불가(widths.${widthKey} 또는 viewBox 폭 부재) — 대비 검사 꺼짐`);
+  for (const m of measures || []) {
+    const hex = normHex(m.fill);
+    const bgRgb = compositeOver(m.layers);
+    const bg = toHex(bgRgb);
+    // 반투명 글자는 배경과 먼저 합성한다(=실제로 보이는 색). 대비를 낙관하지 않는 방향.
+    const fgRgb = hex ? compositeOver([{ fill: hex, alpha: m.alpha }], bgRgb) : null;
+    const pt = scan.scalePt === null ? null : m.fontUser * scan.scalePt;
+    const bold = isBoldSvgText(m.weight, m.family);
+    const roles = hex && roleOf.has(hex) ? [...roleOf.get(hex)] : null;
+    const row = {
+      text: m.text, tag: m.tag, fill: hex || m.fill, knockout: hex === PAPER_HEX,
+      role: roles, bg, bgLayers: m.layers.length,
+      pt: r3(pt), bold, ratio: null, floor: null, verdict: "ok",
+    };
+    // ① 역할
+    if (paletteRoles && hex !== PAPER_HEX) {
+      if (!hex) {
+        roleV.push(`'${m.text}' 색 '${m.fill}' 해석 불가 — 글자색은 hex/rgb()/명명색으로 지정할 것`);
+        row.verdict = "role";
+      } else if (roles) {
+        if (!roles.includes("label")) {
+          roleV.push(`'${m.text}' ${hex}은 palette_roles상 '${roles.join("/")}' 역할 — `
+            + `글자에는 role 'label' 슬롯 또는 백색 knockout만 허용`);
+          row.verdict = "role";
+        }
+      } else if (kind === "authored" || !isNeutral(hex)) {
+        roleV.push(`'${m.text}' ${hex}은 styles/${style} tokens.diagram.palette 밖의 색 — `
+          + `글자에는 role 'label' 슬롯 또는 백색 knockout만 허용`);
+        row.verdict = "role";
+      }
+    }
+    // ② 대비 (역할 위반이어도 함께 잰다 — 반려 메시지가 두 사실을 다 말하게)
+    if (pt !== null && fgRgb) {
+      const ratio = contrastRatio(fgRgb, bgRgb);
+      const floor = contrastFloor(pt, bold);
+      row.ratio = Math.round(ratio * 1000) / 1000;
+      row.floor = floor;
+      if (ratio < floor) {
+        contrastV.push(`'${m.text}' ${hex} on ${bg} 대비 ${row.ratio} < ${floor} `
+          + `(${row.pt}pt${bold ? " bold" : ""}${m.layers.length ? "" : " · 배경 = 판면 백색"})`);
+        if (row.verdict === "ok") row.verdict = "contrast";
+      }
+    }
+    rows.push(row);
+  }
+  const ratios = rows.map((r) => r.ratio).filter((v) => typeof v === "number");
+  const metrics = {
+    checked: rows.length,
+    knockout: rows.filter((r) => r.knockout).length,
+    roleViolations: roleV.length,
+    contrastViolations: contrastV.length,
+    minRatio: ratios.length ? Math.min(...ratios) : null,
+    notes,
+    labels: rows,
+  };
+  const lines = notes.map((n) => `WARN DIAGRAM-PAINT ${name}: ${n}`);
+  return { metrics, lines, violations: [...roleV, ...contrastV] };
 }
 
 // 캐시 해시에 실리는 「판정 파라미터」 — 도해 SVG는 이 값들로 검사·환산되므로
@@ -341,6 +582,13 @@ function gateParams(widthKey) {
     widthMm: (dg.widths || {})[widthKey] ?? null,
     minFontPt: dg.minFontPt ?? null,
     labelBand: dg.labelBand ?? null,
+    // 7단계: 역할·대비 HARD의 판정 입력. **팔레트 값은 이미 양 트랙 해시에 있었지만
+    // palette_roles는 없었다** — roles만 고쳐도 판정이 뒤집히는데 캐시가 히트해
+    // 옛 판정이 남는 구멍이었다. paintPolicy는 검사 자체의 지문(판정식이 바뀌면
+    // 재검사가 필요하다) — 대비 하한은 wcag.mjs(=g16_tokens.contrast_floor) 소관이라
+    // 여기엔 버전만 싣는다.
+    paletteRoles: dg.palette_roles ?? null,
+    paintPolicy: 1,
     // 5단계: 상한이 body_pt에 상대적이므로 본문 급수도 판정 파라미터다. 이게 없으면
     // body_pt만 바뀐 스타일에서 캐시된 metrics의 밴드 판정이 옛 기준으로 남는다.
     bodyPt: tokens.body_pt ?? null,
@@ -491,7 +739,11 @@ function bandSummary(m) {
     + (m.band && m.band.verdict === "violation" ? ` **상한 ${m.maxRatio}× 초과**` : "");
   const s = m.labelScale && m.labelScale.applied
     ? `, 급수 강제 적용(${m.labelScale.passes}회 수렴, 하드코딩 클램프 ${m.labelScale.nativeClamped}건)` : "";
-  return `라벨 ${m.minPt}~${m.maxPt}pt${r}${s}`;
+  // 7단계: 통과한 대비도 소리내어 남긴다 — "검사가 돌았고 최악이 얼마였다"가 안 보이면
+  // 꺼진 검사와 구별되지 않는다(8단계 원장의 입력이기도 하다).
+  const p = m.labelPaint
+    ? `, 대비 최악 ${m.labelPaint.minRatio ?? "—"}(knockout ${m.labelPaint.knockout}/${m.labelPaint.checked})` : "";
+  return `라벨 ${m.minPt}~${m.maxPt}pt${r}${s}${p}`;
 }
 function replayBand(outMetricsPath, name) {
   if (!existsSync(outMetricsPath)) return null;
@@ -594,7 +846,16 @@ for (const file of sidecars) {
     const scanA = scanLabelPt(normalized, widthKey);
     const floorsA = fontFloorViolations(scanA);
     if (floorsA.length) fail(`${name}: 글자 크기 하한 위반 — ${floorsA.join("; ")} (bf.width=${widthKey})`);
-    const bandA = emitBand(labelBandReport(scanA, { name, kind, widthKey }), outMetricsA);
+    // 7단계 HARD — 역할·대비. 트림 후 최종 좌표계에서 재고, 위반이면 이 도해를 반려한다.
+    const paintA = labelPaintReport(await measureLabelPaint(page, normalized), scanA,
+      { name, kind, widthKey });
+    for (const l of paintA.lines) console.log(l);
+    if (paintA.violations.length) {
+      fail(`${name}: 도해 라벨 역할·대비 위반 ${paintA.violations.length}건 — ${paintA.violations.join("; ")}`);
+    }
+    const reportA = labelBandReport(scanA, { name, kind, widthKey });
+    reportA.metrics.labelPaint = paintA.metrics;
+    const bandA = emitBand(reportA, outMetricsA);
     writeFileSync(outSvgA, `<!--bf:authored=sha256:${hashA}-->\n${normalized}`);
     writeFileSync(outLabelsA, JSON.stringify(labelsA, null, 2));
     rendered++;
@@ -621,7 +882,11 @@ for (const file of sidecars) {
   if (wantIcons && !dg.iconsAllowed) fail(`${name}: 이 스타일(${style})은 icons 미허용`);
   if (!wantIcons) dsl = stripIconLines(dsl);
   const dslBase = dsl;
-  dsl = applyTheme(dslBase, palette, null); // 해시 입력 = 주입 이전의 결정론적 DSL
+  // AntV에 넘기는 팔레트는 **knockout 안전 슬롯만**(antvPaletteChannel 참조) — 밝은
+  // fill/stroke 슬롯이 배지 채움으로 순환하면 백색 라벨이 반드시 대비 미달이 된다.
+  // 이 값은 dsl 문자열에 그대로 박히므로 캐시 해시(:hash)가 자동으로 정확히 무효화한다.
+  const antvPalette = antvPaletteChannel(palette);
+  dsl = applyTheme(dslBase, antvPalette, null); // 해시 입력 = 주입 이전의 결정론적 DSL
 
   const hash = createHash("sha256")
     // scale: 6단계 주입 정책 지문. **dsl 트랙에만** 실어 authored 캐시를 흔들지 않는다.
@@ -652,7 +917,7 @@ for (const file of sidecars) {
   const iterLog = [];
   for (let iter = 0; ; iter++) {
     passes = iter + 1;
-    raw = await ssrWithRetry(inject ? applyTheme(dslBase, palette, inject) : dsl, name);
+    raw = await ssrWithRetry(inject ? applyTheme(dslBase, antvPalette, inject) : dsl, name);
     if (wantIcons) {
       const symbols = (raw.match(/<symbol\b/g) || []).length;
       if (!symbols) fail(`${name}: icons:true인데 <symbol> 0개 — 아이콘 API 미도달(오프라인?). 조용한 탈락 금지`);
@@ -713,7 +978,15 @@ for (const file of sidecars) {
   // 하한 = HARD(빌드 중단), 상한 = WARN(5단계 출생 강도).
   const floors = fontFloorViolations(scan);
   if (floors.length) fail(`${name}: 도해 내 글자 크기 하한 위반 — ${floors.join("; ")} (bf.width=${widthKey} 기준)`);
+  // 7단계 HARD — 역할·대비. 트림 후 최종 좌표계에서 재고, 위반이면 이 도해를 반려한다.
+  const paintD = labelPaintReport(await measureLabelPaint(page, converted), scan,
+    { name, kind, widthKey });
+  for (const l of paintD.lines) console.log(l);
+  if (paintD.violations.length) {
+    fail(`${name}: 도해 라벨 역할·대비 위반 ${paintD.violations.length}건 — ${paintD.violations.join("; ")}`);
+  }
   const reportD = labelBandReport(scan, { name, kind, widthKey, scaled: !!inject });
+  reportD.metrics.labelPaint = paintD.metrics;
   reportD.metrics.labelScale = plan ? {
     version: LABEL_SCALE.version, applied: !!inject, passes,
     targetPt: { title: r3(plan.titlePt), text: r3(plan.textPt), desc: r3(plan.descPt) },

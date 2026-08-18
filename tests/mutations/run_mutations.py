@@ -50,6 +50,13 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
                          이 축은 **HARD가 아니어야** 정상이다(설계 report/w5-design.md 리스크 1
                          — 0.92 HARD는 코퍼스 68/92를 폭으로 구제 불가 상태로 반려해 릴리스를
                          세운다). rc!=0이면 그 자체가 회귀다.
+  M16 라벨 역할·대비   — 임시 책 사본에 **합성 authored 도해**를 심어 색만 결함으로 만든다
+                         (급수는 밴드 안·하한 위에 정확히 앉혀 다른 축을 밟지 않는다).
+                         ㉠role이 `label`이 아닌 팔레트 슬롯을 글자색으로(대비는 ≥4.5로 깔아
+                         역할 축만 겨눔) → render_diagrams **HARD**(exit≠0), ㉡role은 label인데
+                         실배경 대비가 4.5 미만 → HARD, ㉢대조군(label × 백색) → exit 0 ·
+                         metrics.labelPaint 위반 0(오탐 없음 + 검사가 실제로 돌았다는 증거).
+                         M15와 반대로 이 축은 **HARD여야** 정상이다 — WARN으로 미끄러지면 회귀다.
   M0  무변조 대조군     — 원본은 G14 전 축 + G1-SCALE + G3-COLLIDE/FIT + G16(SYNC/CONTRAST/
                          BRAND 전 축, 원본 스타일 팩) PASS (오탐 없음 확인)
 
@@ -287,6 +294,83 @@ def band_probe_book(root, style, tokens, ratio_of_cap):
         f'<text x="4" y="170" font-size="{small:.3f}" fill="{ink}">하한 표본</text>'
         f'</svg>', encoding="utf-8")
     return {"cap_pt": cap, "floor_pt": floor, "expect_max_pt": big * scale}
+
+
+def _rgb(hex_):
+    return tuple(int(hex_[1 + 2 * i:3 + 2 * i], 16) for i in range(3))
+
+
+def paint_probe_book(root, style, tokens, mode):
+    """합성 authored 도해 1건짜리 최소 책 — **7단계 역할·대비 HARD 전용**.
+
+    `band_probe_book`과 같은 트릭(viewBox 폭 = widths.full × MM2PT → 1pt ≈ 1 user unit)으로
+    라벨 pt를 밴드 안(하한 위)에 정확히 앉히고, **색만** 결함으로 만든다. 그래야 검출된
+    FAIL이 색 축의 것임이 증명된다(급수 하한 HARD를 밟으면 다른 축을 재게 된다).
+
+    mode:
+      "role"     — role이 `label`이 **아닌** 팔레트 슬롯을 글자색으로. 대비는 충분히
+                   확보되도록(≥ 4.5) 어두운 label 슬롯을 배경으로 깔아 **역할 축만** 겨눈다.
+      "contrast" — role `label` 슬롯을 글자색으로 쓰되(역할 축은 통과) 대비가 4.5 미만이
+                   되는 팔레트 색을 배경으로 깔아 **대비 축만** 겨눈다.
+      "control"  — label 슬롯 × 백색 배경(대조군, 오탐 0 확인).
+    색은 전부 스타일 팔레트에서 고른다 — authored 트랙 alienColors(strict)가 팔레트 밖
+    색을 먼저 죽이기 때문이다. 고를 수 없으면 None을 돌려 그 스타일에서 건너뛴다.
+    """
+    dg = tokens["diagram"]
+    pal = dg["palette"]
+    roles = dg.get("palette_roles") or []
+    if len(roles) != len(pal):
+        return None
+    labels = [c for c, r in zip(pal, roles) if r == "label"]
+    others = [c for c, r in zip(pal, roles) if r != "label"]
+    if not labels:
+        return None
+    if mode == "role":
+        if not others:
+            return None
+        # 역할 위반 색 × 그 색과 대비가 가장 큰 label 배경 — 대비 축은 통과시킨다
+        fg = others[0]
+        bg = max(labels, key=lambda c: g16.contrast_ratio(_rgb(fg), _rgb(c)))
+        if g16.contrast_ratio(_rgb(fg), _rgb(bg)) < 4.5:
+            return None
+    elif mode == "contrast":
+        pair = None
+        for f in labels:                     # 역할은 합법(label), 대비만 깬다
+            for b in pal:
+                # 같은 색끼리(대비 1.0)는 퇴화 표본이다 — 서로 다른 두 색으로 하한을 깬다
+                if b.lower() == f.lower():
+                    continue
+                if g16.contrast_ratio(_rgb(f), _rgb(b)) < 4.5:
+                    pair = (f, b)
+                    break
+            if pair:
+                break
+        if not pair:
+            return None
+        fg, bg = pair
+    else:
+        fg, bg = labels[0], "#FFFFFF"
+    body = tokens["body_pt"]
+    floor = dg["minFontPt"]
+    vb_w = dg["widths"]["full"] * MM2PT
+    vb_h = 120.0
+    pad = max(2.0, 0.008 * max(vb_w, vb_h))
+    scale = vb_w / (vb_w + 2 * pad)
+    size = (max(floor * 1.15, body * 0.95)) / scale   # 하한 위·14pt 아래(하한 4.5 성립)
+    d = Path(root)
+    (d / "diagrams").mkdir(parents=True, exist_ok=True)
+    (d / "book.json").write_text(json.dumps({"style": style, "title": "도장 프로브"},
+                                            ensure_ascii=False), encoding="utf-8")
+    (d / "diagrams" / "fig-01.json").write_text(
+        json.dumps({"kind": "authored", "bf": {"width": "full"}}), encoding="utf-8")
+    (d / "diagrams" / "fig-01.svg").write_text(
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {vb_w:.2f} {vb_h:.2f}">'
+        f'<rect x="0" y="0" width="{vb_w:.2f}" height="{vb_h:.2f}" fill="{bg}"/>'
+        f'<text x="8" y="70" font-size="{size:.3f}" fill="{fg}">도장 표본</text>'
+        f'</svg>', encoding="utf-8")
+    return {"fg": fg, "bg": bg, "expect_pt": size * scale,
+            "ratio": g16.contrast_ratio(_rgb(fg), _rgb(bg)),
+            "role": dict(zip(pal, roles)).get(fg)}
 
 
 def run_render_diagrams(book_dir, style):
@@ -672,6 +756,53 @@ def main():
                 print(f"      (M15 실행 실패 — rc {rc_v}/{rc_c}, metrics {bool(met_v)}/{bool(met_c)}: "
                       f"{head[0][:120]})")
 
+        # M16 — 도해 라벨 **역할·대비 HARD**(7단계). 두 결함을 갈라서 주입하고 대조군까지
+        # 셋을 한 묶음으로 돌린다. 밴드(M15)와 달리 이 축은 **HARD여야** 정상이므로
+        # rc!=0을 어서션한다 — 강도가 WARN으로 미끄러지면 그것이 회귀다.
+        if not (isinstance(dgm.get("palette_roles"), list) and dgm.get("palette")
+                and tokens.get("body_pt") and (dgm.get("widths") or {}).get("full")
+                and dgm.get("minFontPt")):
+            print("      (M16 건너뜀 — 이 스타일에 diagram.palette_roles/widths.full 미선언)")
+        else:
+            def paint_run(tag, mode):
+                bd = Path(td) / f"m16-{tag}"
+                spec_ = paint_probe_book(bd, style, tokens, mode)
+                if spec_ is None:
+                    return None, None, None, None
+                rc_, out_ = run_render_diagrams(bd, style)
+                mp = bd / "assets" / "fig-01.metrics.json"
+                met = json.loads(mp.read_text(encoding="utf-8")) if mp.exists() else None
+                return spec_, rc_, out_, met
+
+            spec_r, rc_r, out_r, _ = paint_run("role", "role")
+            spec_x, rc_x, out_x, _ = paint_run("contrast", "contrast")
+            spec_c, rc_c, out_c, met_c = paint_run("control", "control")
+            if spec_c is None or (spec_r is None and spec_x is None):
+                print("      (M16 건너뜀 — 이 팔레트에서 역할/대비 결함 색쌍을 만들 수 없다)")
+            else:
+                # ㉠역할 축: 팔레트 밖이 아니라 **역할이 label이 아닌** 색을 글자로 → HARD
+                # (대비는 ≥4.5로 깔아두었으므로 반려 사유가 역할 하나임이 메시지로 증명된다)
+                ok_r = spec_r is None or (rc_r != 0 and "palette_roles" in out_r
+                                          and "위반 1건" in out_r
+                                          and spec_r["fg"].lower() in out_r.lower())
+                # ㉡대비 축: 역할은 합법인데 실배경 대비가 하한 미달 → HARD
+                ok_x = spec_x is None or (rc_x != 0 and "대비" in out_x
+                                          and spec_x["bg"].lower() in out_x.lower())
+                # ㉢대조군: 오탐 0 + 검사가 실제로 돌았다는 증거(labelPaint.checked ≥ 1)
+                lp = (met_c or {}).get("labelPaint") or {}
+                ok_c = (rc_c == 0 and lp.get("checked", 0) >= 1
+                        and lp.get("roleViolations") == 0 and lp.get("contrastViolations") == 0)
+                results["M16-label-paint"] = bool(ok_r and ok_x and ok_c)
+                print(f"      (M16 역할본 fg {spec_r['fg']}(role={spec_r['role']}) on {spec_r['bg']} "
+                      f"대비 {spec_r['ratio']:.2f}(≥4.5, 역할만 결함) → exit {rc_r} 검출 {ok_r} / "
+                      f"대비본 fg {spec_x['fg']}(role=label) on {spec_x['bg']} 대비 "
+                      f"{spec_x['ratio']:.2f} < 4.5 → exit {rc_x} 검출 {ok_x} / "
+                      f"대조군 {spec_c['fg']} on {spec_c['bg']} 대비 {spec_c['ratio']:.2f} → "
+                      f"exit {rc_c} · 실측 {lp.get('checked')}건 위반 0 {ok_c})"
+                      if spec_r and spec_x else
+                      f"      (M16 부분 실행 — role {bool(spec_r)}/contrast {bool(spec_x)}, "
+                      f"대조군 exit {rc_c} 위반 0 {ok_c})")
+
         # M7 — body_pt 미선언 스타일 팩에서는 검사 자체가 성립하지 않으므로 건너뛴다
         if decl_pt:
             work = Path(td) / "m7.pdf"
@@ -689,7 +820,8 @@ def main():
         print(f"{'PASS' if v else 'FAIL'}  {k}")
     if not ok:
         sys.exit(1)
-    print("전 뮤테이션 검출 — G14·G1-SCALE·G3-COLLIDE/FIT·G16 3축·린터 배선·도해 라벨 밴드 감도 확인")
+    print("전 뮤테이션 검출 — G14·G1-SCALE·G3-COLLIDE/FIT·G16 3축·린터 배선·"
+          "도해 라벨 밴드/역할·대비 감도 확인")
 
 
 if __name__ == "__main__":
