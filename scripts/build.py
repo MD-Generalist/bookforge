@@ -81,7 +81,7 @@ def render_diagrams(book_dir: Path, book: dict):
     if r.returncode != 0:
         die("diagram prerender:\n" + (r.stderr or r.stdout))
 
-def build_typst(book_dir: Path, book: dict, outline: dict, style_dir: Path):
+def build_typst(book_dir: Path, book: dict, outline: dict, style_dir: Path, tokens: dict):
     sys.path.insert(0, str(SKILL / "scripts"))
     from md2typ import convert_chapter
 
@@ -112,7 +112,13 @@ def build_typst(book_dir: Path, book: dict, outline: dict, style_dir: Path):
         if not src.exists():
             die(f"chapter file missing: {src}")
         dst = chap_out / (src.stem + ".typ")
-        convert_chapter(src, dst, ch["title"], ch.get("summary"))
+        # tokens.diagram.widths를 그대로 넘긴다 — Typst 트랙의 도해 폭 단일 진리원.
+        # HTML 트랙이 theme.css $fig_*_mm 치환으로 받는 것과 같은 계약을 md2typ가
+        # `#bf-fig(..., width: Nmm)`로 받는다. 넘기지 않던 구 구현에서는 base.typ 기본
+        # `width: 100%`가 걸려 `bf.width: twothirds`가 조판에 도달하지 못했다.
+        convert_chapter(src, dst, ch["title"], ch.get("summary"),
+                        diagrams_dir=book_dir / "diagrams",
+                        fig_widths=(tokens.get("diagram") or {}).get("widths"))
         prm = refit.get(src.stem, {})
         if prm.get("tracking_em"):
             head, _, rest = dst.read_text(encoding="utf-8").partition("\n")
@@ -160,7 +166,7 @@ def main():
     render_diagrams(book_dir, book)
     engine = tokens.get("engine", "typst")
     if engine == "typst":
-        build_typst(book_dir, book, outline, style_dir)
+        build_typst(book_dir, book, outline, style_dir, tokens)
     elif engine == "html":
         sys.path.insert(0, str(SKILL / "scripts"))
         build_html(book_dir, book, outline, style_dir)

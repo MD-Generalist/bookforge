@@ -601,7 +601,48 @@ def figure_width_literals(css_text):
     return out
 
 
-def widths_findings(style, tokens, theme_text, engine):
+# --- typst 트랙: theme.typ 판면폭 산출 ---------------------------------------
+# `#let theme-tokens = default-tokens + (trim: (w: …mm, …), margin: (…, left: …mm,
+#  right: …mm), …)` — 4종 팩이 모두 이 형태이고 값은 mm 리터럴이라 정적으로 읽힌다.
+# 판면폭 = trim.w − margin.left − margin.right 이고, base.typ:123 `bookfig(width: 100%)`
+# 및 각 팩 `bf-fig`가 이 판면폭을 그대로 도해 폭으로 쓴다(4종 PDF 벡터 실측 확인:
+# practical 121.000 / academic 106.000 / essay 88.000 / business 132.500mm).
+_TYP_COMMENT = re.compile(r"/\*.*?\*/", re.S)
+_TYP_LINE_COMMENT = re.compile(r"//[^\n]*")
+_TYP_TRIM_W = re.compile(r"trim\s*:\s*\(\s*w\s*:\s*([\d.]+)\s*mm")
+_TYP_MARGIN = re.compile(r"margin\s*:\s*\(([^()]*)\)")
+_TYP_SIDE = {s: re.compile(r"(?<![\w-])%s\s*:\s*([\d.]+)\s*mm" % s) for s in ("left", "right")}
+_TYP_BFFIG_W = re.compile(r"#let\s+bf-fig\s*\([^)]*\bwidth\s*:")
+
+
+def typ_code(text):
+    """주석을 걷어낸 .typ 소스. 이 팩들은 근거를 `//` 주석으로 길게 적는데, 거기
+    적힌 예시 수치가 계약값으로 오인되면 축이 통째로 헛돈다(2단계 CSS에서 실제로
+    난 위음성 — 주석 속 `$fig_full_mm`을 치환 자리로 셌다)."""
+    return _TYP_LINE_COMMENT.sub(" ", _TYP_COMMENT.sub(" ", text))
+
+
+def typ_body_width_mm(theme_typ_text):
+    """theme.typ가 선언한 판면폭(mm). 형태가 다르면 None — 추정하지 않는다."""
+    code = typ_code(theme_typ_text)
+    mt = _TYP_TRIM_W.search(code)
+    if not mt:
+        return None
+    # trim 바로 뒤의 margin 튜플만 본다. 뒷부분의 `margin: (top: t.margin.top, …)`
+    # 재선언은 mm 리터럴이 아니라 애초에 잡히지 않지만, 범위를 좁혀 두는 편이 안전하다.
+    mm = _TYP_MARGIN.search(code, mt.end())
+    if not mm:
+        return None
+    sides = {}
+    for side, rx in _TYP_SIDE.items():
+        ms = rx.search(mm.group(1))
+        if not ms:
+            return None
+        sides[side] = float(ms.group(1))
+    return round(float(mt.group(1)) - sides["left"] - sides["right"], 6)
+
+
+def widths_findings(style, tokens, theme_text, engine, style_dir=None):
     """G16-SYNC widths 축 — tokens.diagram.widths ↔ theme.css 치환 계약.
 
     셋이 갈라진 상태(선언 tokens / 실렌더 CSS / 정본 STYLE.md)가 W5 조사에서 6스타일 중
@@ -615,8 +656,19 @@ def widths_findings(style, tokens, theme_text, engine):
       ② theme.css에 두 플레이스홀더가 실존한다(= 치환 계약 성립)
       ③ figure 폭을 리터럴로 다시 못 박은 자리가 없다(= 파생이 아니라 제2의 진리원)
 
-    ②③은 CSS를 실제로 렌더하는 html 엔진 한정이다. typst 4종은 폭이 md2typ.py→base.typ
-    경로라 theme.css 자체가 없다 — 이 축 N/A(3단계 소관).
+    ②③은 CSS를 실제로 렌더하는 html 엔진 한정이다. typst 4종은 theme.css 자체가 없고
+    폭이 md2typ.py → theme.typ `bf-fig(width:)` 경로로 간다 — 대칭 배선 검사가 따로 붙는다:
+
+      ②' theme.typ `bf-fig`가 `width:` 인자를 받는다(= md2typ가 발행한 폭이 도달한다)
+      ③' `diagram.widths.full` == theme.typ 판면폭(trim.w − margin.left − margin.right)
+
+    ③'은 CSS 축과 성격이 다르다 — 배선이 아니라 **값**을 본다. typst는 폭 산출식이
+    theme.typ의 mm 리터럴 두 줄에 그대로 있어(플랜 전제교정 ③의 "스캔 범위 밖"이 여기엔
+    해당하지 않는다) 판면폭을 정적으로 계산할 수 있고, `bf-fig`의 기본값 `width: 100%`가
+    그 판면폭이라는 것을 4종 PDF 벡터 실측이 확인했다. 그래서 HTML 트랙에서는 증명 불가였던
+    "선언 == 실렌더"가 typst에서는 증명 가능하다. 실제로 이 축이 없던 동안 practical 115
+    (실 121)·essay 78(실 88)·business 142(실 132.5)가 갈라져 있었고, business는 **느슨한**
+    쪽이라 하한 미달 도해가 통과할 수 있었다.
     """
     out = []
     dg = tokens.get("diagram") if isinstance(tokens.get("diagram"), dict) else {}
@@ -636,7 +688,35 @@ def widths_findings(style, tokens, theme_text, engine):
         elif v <= 0:
             out.append(_f("SYNC", "FAIL", f"diagram.widths.{key} = {v} — 양수(mm)여야 한다"))
     if engine != "html" or theme_text is None:
-        return out                      # typst 4종: CSS 배선 자체가 없다 — 축 N/A
+        # ---- typst 트랙: theme.typ 배선 + 판면폭 대조 ----
+        sd = Path(style_dir) if style_dir else (SKILL / "styles" / style)
+        tp = sd / "theme.typ"
+        if not tp.exists():
+            return out                  # 팩 실물이 없다 — 다른 축이 다룰 문제다
+        typ = tp.read_text(encoding="utf-8")
+        if not _TYP_BFFIG_W.search(typ_code(typ)):
+            out.append(_f("SYNC", "FAIL",
+                          f"styles/{style}/theme.typ의 bf-fig가 width 인자를 받지 않는다 — "
+                          f"md2typ가 발행하는 `#bf-fig(..., width: Nmm)`이 도달하지 못하고 "
+                          f"(unknown argument로 typst 컴파일이 죽는다) bf.width 선언이 무시된다"))
+        body_mm = typ_body_width_mm(typ)
+        full = widths.get("full")
+        if body_mm is None:
+            # 형태가 바뀌면 조용히 통과시키지 않는다 — 다만 판면 산출식을 추정하지도
+            # 않으므로 FAIL이 아니라 수동 감사 요청(WARN)이다.
+            out.append(_f("SYNC", "WARN",
+                          f"styles/{style}/theme.typ에서 판면폭(trim.w − margin.left/right)을 "
+                          f"읽지 못했다 — diagram.widths.full({full}) 대조 생략, 수동 감사 항목"))
+        elif isinstance(full, (int, float)) and not isinstance(full, bool) and full > 0 \
+                and abs(full - body_mm) > 0.01:
+            out.append(_f("SYNC", "FAIL",
+                          f"diagram.widths.full {full}mm != theme.typ 판면폭 {body_mm:g}mm "
+                          f"(trim.w − margin.left − margin.right) — bf-fig가 판면폭으로 그리는데 "
+                          f"render_diagrams.mjs는 {full}로 pt를 환산한다"
+                          f"({'과엄격' if full < body_mm else '느슨'} "
+                          f"{max(full, body_mm) / min(full, body_mm):.3f}배). "
+                          f"tokens가 단일 진리원이므로 이 값을 판면폭에 맞출 것"))
+        return out
     code = _css_code(theme_text)
     for key, ph in FIG_WIDTH_KEYS.items():
         if not re.search(r"\$\{?%s\}?(?![\w])" % re.escape(ph), code):
@@ -745,8 +825,9 @@ def g16_sync(style, tokens, theme_text, brand=None, style_dir=None):
     # 이 축이 없던 동안 G3-FIT은 선언만 바꿔 5가지 방법으로 무력화할 수 있었다(D3).
     out += front_frame_findings(style, tokens)
 
-    # ---- HARD ⑤ diagram.widths ↔ theme.css 치환 계약 (폭 3원 동기화) ----
-    out += widths_findings(style, tokens, theme_text, engine)
+    # ---- HARD ⑤ diagram.widths ↔ 실렌더 폭 계약 (폭 3원 동기화) ----
+    # html: theme.css $fig_*_mm 치환 배선 / typst: theme.typ bf-fig 배선 + 판면폭 값 대조
+    out += widths_findings(style, tokens, theme_text, engine, sd)
 
     # ---- WARN: 팔레트↔theme.css 교집합 (부재는 결함, 잉여는 아님) ----
     if pal and engine == "html":

@@ -22,6 +22,15 @@ base의 `book()`을 그대로 쓰거나(practical처럼 토큰만 교체), 완�
 
 주의: 문단 간격을 0으로 쓰는 스타일은 `list/enum spacing`과 블록 above/below를 반드시 명시하라 — 기본값 상속 시 줄겹침이 난다.
 
+**도해 폭 계약(신설 HARD)**: `bf-fig`는 `width:` 인자를 반드시 받아 `image(..., width: width)`로
+넘긴다 — `md2typ.py`가 도해 사이드카의 `bf.width`를 `tokens.diagram.widths`로 환산해
+`#bf-fig(..., width: Nmm)`으로 발행하기 때문이다. 그리고 `tokens.diagram.widths.full`은
+`theme-tokens`의 `trim.w − margin.left − margin.right`(= 판면폭, `width: 100%`가 앉는 폭)와
+같아야 한다. 둘이 갈라지면 조판은 tokens 폭으로 그리는데 `render_diagrams.mjs`도 같은 값으로
+글자 하한을 환산하므로 지면에서만 티가 나고 게이트는 침묵한다. G16-SYNC widths 축이
+`bf-fig`의 `width:` 인자 실존과 이 등식을 렌더 전에 HARD로 지킨다(판면 산출식을 읽지 못하는
+형태면 FAIL이 아니라 수동 감사 WARN — 추정하지 않는다).
+
 ## HTML 테마 계약
 
 `theme.html`은 python `string.Template` — `$title $subtitle $author $date $brand $cover_art $toc $body $css` + `$tocmap`(magazine 목차 이미지 맵) `$backquote`(뒤표지 인용) 플레이스홀더. `$` 문자를 리터럴로 쓰려면 `$$`. css 쪽 플레이스홀더는 `$fonts_dir $key_color $key_tint $key_label $fig_full_mm $fig_twothirds_mm`.

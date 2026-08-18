@@ -43,6 +43,10 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
   `tokens.json diagram.widths.<키>`(mm) 하나뿐이다. HTML 트랙은 빌더가 `twothirds`를
   `<figure class="svgfig twothirds">`로 발행하고 theme.css가 `$fig_full_mm`·`$fig_twothirds_mm`
   치환으로 그 mm를 받는다(G16-SYNC widths 축이 배선을 HARD로 지킨다).
+  Typst 트랙은 `md2typ.py`가 사이드카를 읽어 `#bf-fig(..., width: Nmm)`으로 같은 mm를 발행한다
+  (`full`도 수치로 발행한다 — `bf-fig` 기본값 `width: 100%`를 그대로 두면 판면폭이 제1의
+  진리원이 되고 tokens는 그것을 추정하는 제2의 값으로 남는다). 여기서도 같은 축이
+  `widths.full == theme.typ 판면폭(trim.w − margin.left − margin.right)`을 HARD로 대조한다.
 - `bf.icons`: 기본 `false`. `true`는 HTML 트랙 스타일(insight·magazine)에서만 허용되며
   **네트워크가 필요**하다(아이콘 API). 렌더러가 요청 아이콘 수와 SVG `<symbol>` 수를
   대조해 조용한 탈락을 차단한다. `false`면 DSL의 `icon` 줄을 자동 제거한다.
