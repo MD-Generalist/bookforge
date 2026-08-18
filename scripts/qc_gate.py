@@ -31,8 +31,9 @@ Gates (pagination.md §7):
 Writes <book_dir>/gate-report.json. On PASS copies draft/book.pdf -> final/<slug>.pdf.
 Exit 0 = PASS, 1 = FAIL. (G6 visual judgement is the agent's job on the contact sheet.)
 """
-import json, re, shutil, sys, unicodedata
+import json, math, re, shutil, sys, unicodedata
 from collections import Counter
+from numbers import Real
 from pathlib import Path
 from statistics import median
 
@@ -168,6 +169,63 @@ def _isnum(s):
         return True
     except ValueError:
         return False
+
+
+def classify_bbox(raw_bbox, clip):
+    """Return (status, normalized bbox) for a raw PyMuPDF block bbox."""
+    if (not isinstance(raw_bbox, (list, tuple)) or len(raw_bbox) != 4
+            or any(isinstance(v, bool) or not isinstance(v, Real) for v in raw_bbox)):
+        return "invalid", None
+    try:
+        coords = [float(v) for v in raw_bbox]
+    except (TypeError, ValueError, OverflowError):
+        return "invalid", None
+    if not all(math.isfinite(v) for v in coords):
+        return "invalid", None
+    bbox = fitz.Rect(coords)
+    bbox.normalize()
+    if bbox.is_empty:
+        return "empty", list(bbox)
+    return ("inside" if clip.contains(bbox) else "overflow"), list(bbox)
+
+
+def g3_new_acc():
+    return {"overflows": [], "invalid_bboxes": [], "empty_count": 0}
+
+
+def g3_scan_page(pno, clip, blocks, acc):
+    """한 면의 블록 bbox를 분류해 acc에 누적한다. main()의 공유 루프(면당 `get_text`
+    1회 계약 — G3 세 축이 같은 blocks를 소비)가 면마다 호출하고, 단독 실행은
+    g3_check()가 문서 전체를 이 함수로 돈다."""
+    for block in blocks:
+        raw_bbox = block.get("bbox")
+        status, bbox = classify_bbox(raw_bbox, clip)
+        item = {"page": pno + 1,
+                "kind": "text" if block.get("type") == 0 else "image"}
+        if status == "overflow":
+            acc["overflows"].append({**item, "bbox": bbox})
+        elif status == "empty":
+            acc["empty_count"] += 1
+        elif status == "invalid":
+            acc["invalid_bboxes"].append({**item, "bbox": repr(raw_bbox)[:200]})
+
+
+def g3_report(acc):
+    overflows, invalid_bboxes = acc["overflows"], acc["invalid_bboxes"]
+    return {"overflows": overflows[:20], "count": len(overflows),
+            "invalid_bboxes": invalid_bboxes[:20], "invalid_count": len(invalid_bboxes),
+            "empty_count": acc["empty_count"],
+            "ok": not overflows and not invalid_bboxes}
+
+
+def g3_check(doc):
+    acc = g3_new_acc()
+    for pno in range(doc.page_count):
+        page = doc[pno]
+        pr = page.rect
+        clip = fitz.Rect(pr.x0 - TOL, pr.y0 - TOL, pr.x1 + TOL, pr.y1 + TOL)
+        g3_scan_page(pno, clip, page.get_text("dict").get("blocks", []), acc)
+    return g3_report(acc)
 
 
 IMG_REF_RE = re.compile(r'!\[[^\]]*\]\((\.\./assets/[^)"\s]+\.svg)(?:\s+"[^"]*")?\)')
@@ -773,7 +831,10 @@ def main():
     # 같은 루프에서 `get_text("dict")` 1회 호출을 공유한다. 겹침의 **면제**는 구조 파생
     # 집합(fullbleed)과 pageroles가 확정된 뒤에야 걸 수 있으므로 여기서는 원시 교차만
     # 모으고, 등록은 G11 뒤에서 한다(G7-FRAME 선례로 별도 축 등록).
-    overflows = []
+    # OVERFLOW 판정은 classify_bbox 경유 — PyMuPDF가 역전 bbox(x0>x1·y0>y1)를 반환하면
+    # 정규화 없는 clip.contains가 오탐하므로 정규화 뒤 판정한다. 좌표 불능(NaN·inf·
+    # 타입 오류)은 침묵 통과 대신 invalid로 하드 FAIL, 0면적은 진단 카운트만(#4).
+    g3acc = g3_new_acc()
     collide_raw = {}    # page -> [hit, ...]  면제 적용 전
     line_recs = {}      # page -> [rec, ...]  G3-FIT이 재사용(get_text 재호출 금지)
     page_size = {}      # page -> (w, h) pt   doc.close() 후에도 프레임을 계산하려면 필요
@@ -784,21 +845,20 @@ def main():
         page_size[pno + 1] = (pr.width, pr.height)
         clip = fitz.Rect(pr.x0 - TOL, pr.y0 - TOL, pr.x1 + TOL, pr.y1 + TOL)
         blocks = page.get_text("dict").get("blocks", [])
-        for block in blocks:
-            bb = fitz.Rect(block["bbox"])
-            if not clip.contains(bb):
-                overflows.append({"page": pno + 1, "bbox": list(block["bbox"]),
-                                  "kind": "text" if block.get("type") == 0 else "image"})
+        g3_scan_page(pno, clip, blocks, g3acc)
         recs = line_records(blocks, _column_bands(style, _frame_mm, pr))
         line_recs[pno + 1] = recs
         hits = g3_collide_page(recs)
         if hits:
             collide_raw[pno + 1] = hits
-    report["gates"]["G3-OVERFLOW"] = {"overflows": overflows[:20], "count": len(overflows),
-                                      "ok": not overflows}
-    if overflows:
-        fails.append(f"G3-OVERFLOW: {len(overflows)} bbox overflow(s), "
-                     f"first on page {overflows[0]['page']}")
+    g3 = g3_report(g3acc)
+    report["gates"]["G3-OVERFLOW"] = g3
+    if g3["count"]:
+        fails.append(f"G3-OVERFLOW: {g3['count']} bbox overflow(s), "
+                     f"first on page {g3['overflows'][0]['page']}")
+    if g3["invalid_count"]:
+        fails.append(f"G3-OVERFLOW: {g3['invalid_count']} invalid bbox(es), "
+                     f"first on page {g3['invalid_bboxes'][0]['page']}")
 
     # ---- G4 TOC / bookmarks ----
     toc_entries = doc.get_toc(simple=True)
