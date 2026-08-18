@@ -144,8 +144,10 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
 
 이 표의 이름은 **전부 원장 v3에서 `verdict: ok`로 실측된 등록 템플릿**이다(계열 와일드카드가
 아니라 실명 — bare name은 `getTemplate`이 해석하지 못해 즉시 반려된다).
+**이 판정은 insight 팩 · full 130mm 단일 조건에서 도출됐다** — 다른 스타일·폭(예: essay 88/52mm)으로
+그대로 가져오면 안 된다(아래 한계 항목 참조. 실측: 12조합 중 5조합 HARD).
 
-| 정보 구조 | 템플릿 (원장 v3 ok) |
+| 정보 구조 | 템플릿 (원장 v3 ok, insight·130mm 기준) |
 |---|---|
 | 병렬 요점 | `list-column-simple-vertical-arrow` · `list-grid-simple` · `list-row-horizontal-icon-arrow` |
 | 순서·단계 | `sequence-timeline-simple` · `sequence-ascending-steps` |
@@ -155,18 +157,27 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
 
 판형이 좁은 스타일(essay 88mm)은 가로형 템플릿(`list-row-*`, 가로 타임라인)을 피한다.
 
-**템플릿 적합성의 정본은 `references/diagram-ledger.json`이다**(v2, W5 8단계 재도출). 여기에
+**템플릿 적합성의 정본은 `references/diagram-ledger.json`이다**(v3, W5 재작업 재도출). 여기에
 수치를 옮겨 적지 않는다 — 두 곳이 갈리면 원장이 무의미해진다. 원장이 판정하는 축 넷:
 `min_pt`(8pt 하한) · `max_ratio`(밴드 상한) · `frame_slack`(도형이 명목 폭을 채우는가) ·
 `label_paint`(역할·대비). 읽을 때 알아 둘 것:
 
-- **원장 v3는 등록 123종을 전건 판정한다**(v2는 25종·21%였다). 결과: ok 87 · blocked 26 ·
-  content-sensitive 7 · palette-sensitive 3.
+- **원장 v3는 등록 123종을 전건 판정한다**(v2는 25종·21%였다). 결과(W5 재판정 N1 반영):
+  ok 87 · blocked 29 · content-sensitive 4 · palette-sensitive 3.
 - **하한(8pt) 축으로 차단된 템플릿은 없다.** 6단계 라벨 급수 강제 이후 하한 미달이 0건이다.
-- **차단 축은 둘이다.** ① `palette_reach`(17종) — 템플릿의 일부 요소가 `theme.palette`를
+- **차단 축은 셋이다.** ① `palette_reach`(18종) — 템플릿의 일부 요소가 `theme.palette`를
   소비하지 않아 벤더 기본색(`#ff356a`·`#1677ff`)이 지면에 남는다(실측: `sequence-snake-steps-simple`
-  화살표가 청록 팔레트 책에 연분홍 픽셀을 찍는다). ② `label_paint`(9종) — 백색 knockout이 팔레트의
-  밝은 틴트 위에 얹히거나, 텍스트 fill이 그라데이션이거나, 템플릿이 팔레트 밖 파생색을 글자로 쓴다.
+  화살표가 청록 팔레트 책에 연분홍 픽셀을 찍는다. `sequence-snake-steps-compact-card`도 동일 결함 —
+  W5 재판정 N1에서 content-sensitive 오분류를 바로잡아 여기로 옮겼다). ② `label_paint`(9종) — 백색
+  knockout이 팔레트의 밝은 틴트 위에 얹히거나, 텍스트 fill이 그라데이션이거나, 템플릿이 팔레트 밖
+  파생색을 글자로 쓴다. ③ `text-overlap(structural)`(2종, `chart-pie-plain-text`·
+  `chart-pie-donut-plain-text`) — 라벨 1자까지 줄여도 겹침이 사라지지 않는 레이아웃 결함이라
+  content-sensitive(처방=라벨 축약)로 구제되지 않는다.
+- **원장 판정 조건은 insight 팩 · full 130mm 단일 조건이다.** 다른 스타일·폭에서는 이전되지
+  않는다 — essay(88mm 단폭/52mm 2/3폭)에서 v3 ok 6종을 재렌더하면 12조합 중 5조합이 text-overlap
+  HARD로 반려된다(`list-grid-simple`·`compare-quadrant-quarter-circular`는 두 폭 모두 반려).
+  좁은 스타일에서 이 표의 이름을 쓸 때는 렌더 시 겹침 검사 결과를 반드시 확인할 것 — 표 자체는
+  폭·스타일을 교차검증하지 않는다.
 - **v2가 차단했던 `*-badge-card`·`*-pill-badge`·`*-candy-card-lite` 4종은 해제됐다.** v2의 근거
   `#262626 on #1e7aad = 3.201`은 채움 카드의 알파(8~12%)를 무시한 오탐이었다 — 실배경은 `#e8f1f7`,
   실대비 13.3이며 Chromium 실픽셀과 1/255 안에서 일치한다.

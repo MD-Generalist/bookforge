@@ -28,7 +28,127 @@ const CONVERTER_VERSION = 6; // fo2text/트림 알고리즘 변경 시 올려서
 // 파일 내용을 해시에 넣으면 사람 개입 없이 닫힌다 — 대비 하한을 건드리는 순간 그
 // 하한으로 판정된 적 없는 도해가 전건 재렌더된다. fo2text.mjs도 같은 계열의 부채라
 // (CONVERTER_VERSION ↔ 변환기) 함께 싣는다.
-const codeHash = (p) => createHash("sha256").update(readFileSync(p)).digest("hex").slice(0, 16);
+// W5 재판정 N5: 해시 전 주석 정규화. 저장소 선례(`g16_tokens._strip_comments`, CSS `/* */`
+// 제거)를 JS로 재사용한다 — 문자열·템플릿 리터럴 내용은 그대로 두고(경로·URL의 `//`가
+// 줄주석으로 오인되면 안 된다: fo2text.mjs의 `file://`·`http://` 리터럴이 실례다) 그 밖의
+// `//`·`/* */`만 걷어낸다. 정규식 리터럴 내부의 `//`(예: `/a\/\/b/`)는 이 근사가 못 잡는
+// 알려진 한계다 — 세 파일 모두 그런 리터럴이 없음을 확인했다(_strip_comments도 CSS의
+// 같은 계열 근사를 이미 감수한다). 대가: 코드(숫자 상수·로직)는 주석이 아니므로 이 정규화가
+// K10(하한 상수 변경 → 재렌더 강제)을 약화시키지 않는다 — 오직 산문 편집(주석·공백)만
+// 해시에서 사라진다. 문자열 밖 공백은 단일 스페이스로 접는다 — 주석 한 줄이
+// 늘거나 줄면 그 자리의 개행·들여쓰기도 함께 바뀌는데, 접지 않으면 "주석만 지웠는데
+// 공백이 달라서" 여전히 재렌더가 뜬다(실측).
+function stripJsComments(src) {
+  let out = "";
+  let i = 0;
+  let lastWasSpace = true; // 선두 공백도 접어서 파일 첫 줄 여백 변화를 흡수한다
+  let lastSig = ""; // 정규식 리터럴 vs 나눗셈 연산자 판별용 — 직전 유의 문자
+  // 이 문자들 뒤에 오는 `/`는 정규식 리터럴 시작이다(연산자·구두점 뒤에 값이 아니라
+  // 새 식이 온다). 그 밖(식별자·숫자·`)`·`]`·문자열 뒤)은 나눗셈으로 본다. `return`류
+  // 키워드 뒤 정규식(`return /re/`)은 이 근사가 못 잡는 알려진 한계 — 세 파일에 그런
+  // 구문이 없음을 확인했다.
+  const REGEX_PRECEDERS = new Set("([{,;:=!&|?+-*%^~<>".split(""));
+  const n = src.length;
+  const pushCode = (ch) => {
+    if (/\s/.test(ch)) {
+      if (!lastWasSpace) {
+        out += " ";
+        lastWasSpace = true;
+      }
+    } else {
+      out += ch;
+      lastWasSpace = false;
+      lastSig = ch;
+    }
+  };
+  const canBeRegexStart = () => lastSig === "" || REGEX_PRECEDERS.has(lastSig);
+  while (i < n) {
+    const c = src[i];
+    const c2 = src[i + 1];
+    if (c === "/" && c2 === "/") {
+      while (i < n && src[i] !== "\n") i++;
+      continue;
+    }
+    if (c === "/" && c2 === "*") {
+      i += 2;
+      while (i < n && !(src[i] === "*" && src[i + 1] === "/")) i++;
+      i += 2;
+      continue;
+    }
+    // 정규식 리터럴은 통째로 보존한다 — 안 그러면 리터럴 안의 `'`/`"`(예: `["']?`)를
+    // 문자열 시작으로 오인해 이후 전체 스캔이 어긋난다(실측: 파일 끝 블록주석이
+    // 안 지워지는 형태로 드러났다).
+    if (c === "/" && canBeRegexStart()) {
+      let j = i + 1;
+      let inClass = false;
+      let closed = false;
+      while (j < n) {
+        if (src[j] === "\\") {
+          j += 2;
+          continue;
+        }
+        if (src[j] === "[") {
+          inClass = true;
+          j++;
+          continue;
+        }
+        if (src[j] === "]") {
+          inClass = false;
+          j++;
+          continue;
+        }
+        if (src[j] === "/" && !inClass) {
+          j++;
+          closed = true;
+          break;
+        }
+        if (src[j] === "\n") break; // 정규식은 줄을 못 넘는다 — 미종결이면 나눗셈으로 재해석
+        j++;
+      }
+      if (closed) {
+        while (j < n && /[a-z]/i.test(src[j])) j++; // 플래그
+        out += src.slice(i, j);
+        lastWasSpace = false;
+        lastSig = ")"; // 값이 생성됐으니 다음 `/`는 나눗셈 문맥
+        i = j;
+        continue;
+      }
+      pushCode(c);
+      i++;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === "`") {
+      const quote = c;
+      out += c;
+      lastWasSpace = false;
+      lastSig = quote;
+      i++;
+      while (i < n && src[i] !== quote) {
+        if (src[i] === "\\") {
+          out += src[i];
+          i++;
+          if (i < n) {
+            out += src[i];
+            i++;
+          }
+          continue;
+        }
+        out += src[i];
+        i++;
+      }
+      if (i < n) {
+        out += src[i];
+        i++;
+      }
+      continue;
+    }
+    pushCode(c);
+    i++;
+  }
+  return out.trim();
+}
+const codeHash = (p) =>
+  createHash("sha256").update(stripJsComments(readFileSync(p, "utf8"))).digest("hex").slice(0, 16);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WCAG_HASH = codeHash(path.join(HERE, "wcag.mjs"));
 const CONVERTER_HASH = codeHash(path.join(HERE, "fo2text.mjs"));

@@ -1,6 +1,6 @@
 {
  "schema": "bf-diagram-ledger/3",
- "_doc": "AntV 템플릿 적합성 실측 원장. **v3 전수 재도출(2026-08-18, W5 재작업)** — 두 가지가 v2를 무효화했다. ① **커버리지**: v2는 등록 123종 중 25종(21%)만 판정했고, 미판정 구간에 blocked와 같은 축의 반려가 실재했다(판정 K12). v3는 **등록 123종 전건**을 같은 표준 프로브로 실측했다. ② **판정식 수리**: v2의 label-paint 판정은 배경 산출이 세 계열에서 틀린 채로 내려졌다(판정 K4) — `url(#…)` 그라데이션을 버렸고, `fill:none` + stroke 면을 후보에서 뺐고, 표본이 bbox 중심점 1개였고, **색 문자열의 알파(`rgba(…,0.12)`)를 무시**했다. 마지막 것이 v2 blocked 5행의 근거를 통째로 뒤집는다: 그 템플릿들의 '채움 카드'는 불투명 팔레트 면이 아니라 **8~12% 틴트**였고, 라벨 실배경은 `#1e7aad`가 아니라 `#e8f1f7`이며 실대비는 3.201이 아니라 **13.3**이다(Chromium 실픽셀 대조로 확인 — 게이트 산출 `#e9f2f7` vs 실픽셀 `#e8f1f7`, 오차 1/255). 따라서 v2 blocked 5행 중 4행은 **오탐**이었고 차단을 해제한다. v2가 근거로 든 대비 산술 상한(knockout-safe 슬롯 L ≤ 0.18333 위의 #262626(L 0.019382) → 3.363; v2 문서의 3.24는 L(#262626)을 0.0219로 잘못 적은 데서 나온 값이다 — 판정 K11) 자체는 옳지만, **그 전제인 '불투명 팔레트 면 위'가 성립하는 템플릿이 실측상 없었다**. ③ 새 축 `palette_reach`: 벤더 기본색(`#ff356a`·`#1677ff`)이 산출에 남으면 팔레트가 그 요소에 도달하지 못했다는 증거다 — 2사이클 연속 이연됐던 antv 트랙 색 계약의 봉합이며 17종이 여기 걸린다.",
+ "_doc": "AntV 템플릿 적합성 실측 원장. **v3 전수 재도출(2026-08-18, W5 재작업)** — 두 가지가 v2를 무효화했다. ① **커버리지**: v2는 등록 123종 중 25종(21%)만 판정했고, 미판정 구간에 blocked와 같은 축의 반려가 실재했다(판정 K12). v3는 **등록 123종 전건**을 같은 표준 프로브로 실측했다. ② **판정식 수리**: v2의 label-paint 판정은 배경 산출이 세 계열에서 틀린 채로 내려졌다(판정 K4) — `url(#…)` 그라데이션을 버렸고, `fill:none` + stroke 면을 후보에서 뺐고, 표본이 bbox 중심점 1개였고, **색 문자열의 알파(`rgba(…,0.12)`)를 무시**했다. 마지막 것이 v2 blocked 5행의 근거를 통째로 뒤집는다: 그 템플릿들의 '채움 카드'는 불투명 팔레트 면이 아니라 **8~12% 틴트**였고, 라벨 실배경은 `#1e7aad`가 아니라 `#e8f1f7`이며 실대비는 3.201이 아니라 **13.3**이다(Chromium 실픽셀 대조로 확인 — 게이트 산출 `#e9f2f7` vs 실픽셀 `#e8f1f7`, 오차 1/255). 따라서 v2 blocked 5행 중 4행은 **오탐**이었고 차단을 해제한다. v2가 근거로 든 대비 산술 상한(knockout-safe 슬롯 L ≤ 0.18333 위의 #262626(L 0.019382) → 3.363; v2 문서의 3.24는 L(#262626)을 0.0219로 잘못 적은 데서 나온 값이다 — 판정 K11) 자체는 옳지만, **그 전제인 '불투명 팔레트 면 위'가 성립하는 템플릿이 실측상 없었다**. ③ 새 축 `palette_reach`: 벤더 기본색(`#ff356a`·`#1677ff`)이 산출에 남으면 팔레트가 그 요소에 도달하지 못했다는 증거다 — 2사이클 연속 이연됐던 antv 트랙 색 계약의 봉합이며 17종이 여기 걸린다(W5 재판정 N1에서 `sequence-snake-steps-compact-card`를 content-sensitive 오분류에서 바로잡아 여기로 옮겨 18종). `chart-pie-plain-text`·`chart-pie-donut-plain-text`도 같은 재판정에서 text-overlap(structural) 축으로 blocked에 합류했다 — 라벨을 1자로 줄여도 겹침이 사라지지 않아 content-sensitive의 '처방 존재' 전제가 성립하지 않았다.",
  "derived_at": "2026-08-18",
  "derived_from": {
   "template_probes": "insight 팩 · 3항목(라벨 6자 + 설명 12자) 표준 콘텐츠 · full 130mm — **등록 123종 전건**. 사전 차단 5종은 `blocked_prefixes`를 비우고 별도 실측했다.",
@@ -25,8 +25,8 @@
   "registered": 123,
   "measured": 123,
   "ok": 87,
-  "blocked": 26,
-  "content_sensitive": 7,
+  "blocked": 29,
+  "content_sensitive": 4,
   "palette_sensitive": 3
  },
  "measurements": [
@@ -110,9 +110,9 @@
   },
   {
    "template": "chart-pie-donut-plain-text",
-   "verdict": "content-sensitive",
-   "axis": "text-overlap",
-   "evidence": "text overlap: '오프라인 작동' ↔ '데이터 경로' — 라벨 축약 필요"
+   "verdict": "blocked",
+   "axis": "text-overlap(structural)",
+   "evidence": "1자 라벨(가/나/다) 3항목 최소 프로브에서도 'text overlap: 가 ↔ 나' HARD — 콘텐츠 길이 무관"
   },
   {
    "template": "chart-pie-pill-badge",
@@ -129,9 +129,9 @@
   },
   {
    "template": "chart-pie-plain-text",
-   "verdict": "content-sensitive",
-   "axis": "text-overlap",
-   "evidence": "text overlap: '오프라인 작동' ↔ '데이터 경로' — 라벨 축약 필요"
+   "verdict": "blocked",
+   "axis": "text-overlap(structural)",
+   "evidence": "1자 라벨(가/나) 2항목 최소 프로브에서도 'text overlap: 가 ↔ 나' HARD — 콘텐츠 길이 무관"
   },
   {
    "template": "chart-wordcloud",
@@ -1213,9 +1213,9 @@
   },
   {
    "template": "sequence-snake-steps-compact-card",
-   "verdict": "content-sensitive",
-   "axis": "text-overlap",
-   "evidence": "text overlap: '오프라인 작동' ↔ '네트워크 없이 이어지는' — 라벨 축약 필요"
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('sequence-snake-steps-compact-card')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것"
   },
   {
    "template": "sequence-snake-steps-pill-badge",
@@ -1638,57 +1638,64 @@
    "measured": "render fail — metrics 미발행",
    "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('sequence-steps-simple-illus')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
    "reason": "템플릿의 일부 요소가 `theme.palette`를 소비하지 않아 **벤더 기본색**(`#ff356a` = `createBaseTheme`/`getColorPrimary`/화살표 컴포넌트 기본 prop, `#1677ff` = 템플릿 정의가 자기 `themeConfig`에 박아 둔 primary)이 지면에 남는다. 팔레트 값과 무관한 구조적 결함이며 사이드카·폭 조정으로 구제되지 않는다 — 실측: `sequence-snake-steps-simple`은 화살표 장식이 `#FF356A` 0.36 알파 그라데이션이라 청록 팔레트 책에 **연분홍(#ffd9e3) 픽셀**이 실제로 찍힌다."
-  }
- ],
- "content_sensitive": [
+  },
   {
-   "template": "chart-pie-donut-plain-text",
-   "verdict": "content-sensitive",
-   "axis": "text-overlap",
-   "evidence": "text overlap: '오프라인 작동' ↔ '데이터 경로' — 라벨 축약 필요",
-   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
+   "template": "sequence-snake-steps-compact-card",
+   "verdict": "blocked",
+   "axis": "palette-reach(vendor fallback)",
+   "axes_hit": [
+    "palette-reach(vendor fallback)",
+    "text-overlap"
+   ],
+   "measured": "render fail — metrics 미발행",
+   "evidence": "AntV 벤더 폴백색 #ff356a 잔존 — 이 템플릿('sequence-snake-steps-compact-card')의 일부 요소에 스타일 팔레트가 도달하지 않는다(theme.palette 미소비 컴포넌트). 팔레트 강제가 그 지점에서 뚫리므로 원장 verdict=ok 템플릿으로 교체할 것",
+   "reason": "W5 재판정 N1: v3 표준 프로브(라벨 6자 + 설명 12자)는 fo2text 겹침을 먼저 발화시켜 content-sensitive(text-overlap)로 오분류했다 — 축 배정이 검출 순서 종속이었다. 라벨 1자(가/나/다) 최소 프로브로 재확인한 결과 겹침은 사라지지만 그 아래 palette-reach(vendor fallback) HARD가 그대로 남는다(sequence-snake-steps 계열 5변형과 동일 결함 — `pill-badge`·`simple`·`simple-illus`·`underline-text` 참조). 즉 이 템플릿은 '처방(라벨 축약)이 존재'하지 않는다 — 라벨을 아무리 줄여도 palette-reach가 막는다. blocked로 재분류하고 `blocked_prefixes`에 등재한다."
   },
   {
    "template": "chart-pie-plain-text",
-   "verdict": "content-sensitive",
-   "axis": "text-overlap",
-   "evidence": "text overlap: '오프라인 작동' ↔ '데이터 경로' — 라벨 축약 필요",
-   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
+   "verdict": "blocked",
+   "axis": "text-overlap(structural)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "1자 라벨(가/나) 2항목 최소 프로브에서도 'text overlap: 가 ↔ 나' HARD — 콘텐츠 길이 무관",
+   "reason": "W5 재판정 N1: v3 표준 프로브(라벨 6자 + 설명 12자)의 text-overlap 반려에 '라벨 축약'을 처방으로 적었으나, content-sensitive는 '처방으로 통과 가능'을 전제한다. 재확인을 위해 라벨을 1자(가/나)로, 항목을 2개로까지 줄여도 동일 위치에서 여전히 'text overlap' HARD가 발화한다(실측: `render_diagrams.mjs` 결과 동일) — 겹침이 콘텐츠 길이가 아니라 템플릿 레이아웃(콜아웃 라인·라벨 배치)의 구조적 결함이다. '처방 존재' 전제가 성립하지 않으므로 blocked로 재분류한다."
   },
+  {
+   "template": "chart-pie-donut-plain-text",
+   "verdict": "blocked",
+   "axis": "text-overlap(structural)",
+   "measured": "render fail — metrics 미발행",
+   "evidence": "1자 라벨(가/나/다) 3항목 최소 프로브에서도 'text overlap: 가 ↔ 나' HARD — 콘텐츠 길이 무관",
+   "reason": "W5 재판정 N1: v3 표준 프로브(라벨 6자 + 설명 12자)의 text-overlap 반려에 '라벨 축약'을 처방으로 적었으나, content-sensitive는 '처방으로 통과 가능'을 전제한다. 재확인을 위해 라벨을 1자(가/나)로, 항목을 2개로까지 줄여도 동일 위치에서 여전히 'text overlap' HARD가 발화한다(실측: `render_diagrams.mjs` 결과 동일) — 겹침이 콘텐츠 길이가 아니라 템플릿 레이아웃(콜아웃 라인·라벨 배치)의 구조적 결함이다. '처방 존재' 전제가 성립하지 않으므로 blocked로 재분류한다."
+  }
+ ],
+ "content_sensitive": [
   {
    "template": "list-grid-compact-card",
    "verdict": "content-sensitive",
    "axis": "text-overlap",
    "evidence": "text overlap: '응답 지연' ↔ '결과가 얼마나 빨리 오는' — 라벨 축약 필요",
-   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
+   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다. (W5 재판정 N1: 라벨 1자 최소 프로브로 재확인 — 처방 적용 시 통과함을 실측 확인, content-sensitive 유지.)"
   },
   {
    "template": "list-zigzag-down-compact-card",
    "verdict": "content-sensitive",
    "axis": "text-overlap",
    "evidence": "text overlap: '오프라인 작동' ↔ '네트워크 없이 이어지는' — 라벨 축약 필요",
-   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
+   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다. (W5 재판정 N1: 라벨 1자 최소 프로브로 재확인 — 처방 적용 시 통과함을 실측 확인, content-sensitive 유지.)"
   },
   {
    "template": "list-zigzag-up-compact-card",
    "verdict": "content-sensitive",
    "axis": "text-overlap",
    "evidence": "text overlap: '오프라인 작동' ↔ '네트워크 없이 이어지는' — 라벨 축약 필요",
-   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
+   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다. (W5 재판정 N1: 라벨 1자 최소 프로브로 재확인 — 처방 적용 시 통과함을 실측 확인, content-sensitive 유지.)"
   },
   {
    "template": "sequence-roadmap-vertical-quarter-circular",
    "verdict": "content-sensitive",
    "axis": "text-overlap",
    "evidence": "text overlap: '질문' ↔ '세 가지를 먼저 확' — 라벨 축약 필요",
-   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
-  },
-  {
-   "template": "sequence-snake-steps-compact-card",
-   "verdict": "content-sensitive",
-   "axis": "text-overlap",
-   "evidence": "text overlap: '오프라인 작동' ↔ '네트워크 없이 이어지는' — 라벨 축약 필요",
-   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
+   "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다. (W5 재판정 N1: 라벨 1자 최소 프로브로 재확인 — 처방 적용 시 통과함을 실측 확인, content-sensitive 유지.)"
   }
  ],
  "palette_sensitive": [
@@ -1734,6 +1741,7 @@
   "sequence-cylinders-3d-simple",
   "sequence-mountain-underline-text",
   "sequence-pyramid-simple",
+  "sequence-snake-steps-compact-card",
   "sequence-snake-steps-pill-badge",
   "sequence-snake-steps-simple",
   "sequence-snake-steps-simple-illus",
@@ -1777,5 +1785,10 @@
    "verdict": "ok",
    "note": "실 원고 코퍼스 0건 — w5s3 폭 프로브뿐이고 그마저 8단계에서 라벨을 축소해 통과시켰다. 이 4스타일의 cap 1.20은 실측 근거 없는 하우스 등급 상속값이다."
   }
+ },
+ "limitations": {
+  "condition": "이 원장의 모든 verdict(ok/blocked/content-sensitive/palette-sensitive)는 insight 팩 · full 130mm 단일 조건에서 도출됐다. 다른 스타일·폭으로 이전되지 않는다.",
+  "essay_narrow_width_probe": "essay(단폭 88mm / 2·3폭 52mm)에서 v3 ok 6종을 재렌더한 결과 12조합 중 5조합이 text overlap HARD로 반려됐다. `list-grid-simple`·`compare-quadrant-quarter-circular`는 88mm·52mm 두 폭 모두 반려된다. 전 카탈로그(123종) × 전 스타일(6) × 전 폭(2~3) 조합 재프로브는 하지 않았다 — 이 표는 범위를 명시하는 것이 목적이지 전수 이전성 증명이 아니다.",
+  "consequence": "좁은 판면 스타일(essay 등)에서 이 원장의 ok를 그대로 쓰지 말 것 — 렌더 시 겹침 검사(fo2text) 결과를 확인하거나 표준 프로브를 해당 스타일·폭으로 재실행할 것."
  }
 }

@@ -383,6 +383,33 @@ def _measure_page_text_bottom_mm(page):
     return bot * PT_TO_MM
 
 
+# W5 재판정 N2 — HTML 트랙 widths 값 축. typst 트랙 g16_tokens.typ_body_width_mm
+# (`trim.w − margin.left − margin.right` 정적 계산)의 CSS 대응. 이름 없는 `@page { … }`만
+# 잡는다 — `@page full`/`@page nofolio` 같은 변형은 margin만 국소 재정의하고 size는
+# 공유하는 관례라 대상이 아니다. `[^}]*` 대신 여는 중괄호 뒤 창(윈도) 탐색을 쓰는 이유는
+# magazine의 `@page { … @bottom-right { content: none; } }`처럼 중첩 블록이 있으면
+# 첫 `}`가 `@page` 자신이 아니라 중첩 규칙의 닫는 괄호이기 때문이다(실측 확인).
+_PAGE_BLOCK_RE = re.compile(r"@page\s*\{")
+_PAGE_SIZE_RE = re.compile(r"size\s*:\s*([\d.]+)mm\s+([\d.]+)mm")
+_PAGE_MARGIN_RE = re.compile(r"margin\s*:\s*([\d.]+)mm\s+([\d.]+)mm\s+([\d.]+)mm\s+([\d.]+)mm")
+
+
+def _page_geometry_mm(css_text):
+    """theme.css 첫 `@page {size: Wmm Hmm; margin: T R B L;}`에서 (trim폭, 우측여백, 좌측여백)mm.
+    형태가 다르면 None — typst 쪽과 마찬가지로 추정하지 않는다."""
+    m = _PAGE_BLOCK_RE.search(css_text)
+    if not m:
+        return None
+    window = css_text[m.end(): m.end() + 400]
+    ms = _PAGE_SIZE_RE.search(window)
+    mg = _PAGE_MARGIN_RE.search(window)
+    if not ms or not mg:
+        return None
+    trim_w = float(ms.group(1))
+    _top, right, _bottom, left = (float(x) for x in mg.groups())
+    return trim_w, right, left
+
+
 def _norm_txt(s):
     return re.sub(r"\s+", "", s)
 
@@ -927,6 +954,12 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
                     warn(f"목차 {pi + 1}면의 행↔제목 매칭 실패 — 접힘 실태를 재지 못했다")
                 else:
                     lines_now.update(got)
+        # W5 재판정 N2: 실제 출력 PDF(pdf1 — 이 attempt가 이미 만든 것, 추가 렌더 아님)의
+        # 물리 MediaBox 폭. `preferCSSPageSize:true`가 실제로 먹혔는지까지 포함한 **실측**이고,
+        # theme.css `@page size`의 정적 값과 다를 수 있다(치환 실패·단위 오류 등) — 그래서
+        # 정적 파싱이 아니라 이 값을 쓴다. 여백(margin)은 물리 PDF에서 독립 복원할 수 없어
+        # (빈 PDF는 어디까지가 "여백"인지 모른다) 그 부분만 theme.css를 정적으로 읽는다.
+        measured_trim_w_mm = doc[0].rect.width * PT_TO_MM
         doc.close()
 
         tocplan["render_scale"] = round(scale, 4)
@@ -958,6 +991,34 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
             warn(f"목차 실측 바닥 {worst}mm > 미학 한계 {limit_aes}mm — "
                  f"여백 리듬 규범 위반이 {worst - limit_aes:.1f}mm 남는다"
                  + (" (미학 한계 해 없어 물리 폴백)" if multipage and limit_used > limit_aes else ""))
+
+        # W5 재판정 N2 — HTML 트랙 widths 값 축. 이게 없으면 `widths.full`이 재단폭(trim)
+        # 이내이기만 하면(판면보다 커도) 기존 widths_relation_findings가 통과시킨다 — 6단계
+        # 라벨 급수 강제가 그 부풀린 값으로 pt를 환산해 실제 판면(예: 130mm)에서는 하한(8pt)
+        # 미달인 활자를 하한 검사가 통과시킨다(판정 K1/N2, 재현: widths.full=180 · 판면 130mm ·
+        # 재단 182mm → 보고 pt × 130/180배 축소된 활자가 실 발행됨). typst 트랙 ③'과 대칭 —
+        # 판면폭을 trim − margin.left − margin.right로 대조하되, trim은 이 attempt가 이미
+        # 만든 pdf1의 **실측** MediaBox(measured_trim_w_mm, 위)를 쓰고 margin만 theme.css를
+        # 정적으로 읽는다(빈 PDF에서 여백은 독립 복원할 수 없다).
+        geo = _page_geometry_mm(css_src)
+        declared_full = ((tokens.get("diagram") or {}).get("widths") or {}).get("full")
+        if geo is not None and isinstance(declared_full, (int, float)) \
+                and not isinstance(declared_full, bool) and declared_full > 0:
+            _decl_trim_w, margin_right, margin_left = geo
+            content_width_mm = round(measured_trim_w_mm - margin_right - margin_left, 3)
+            delta = abs(content_width_mm - declared_full)
+            if delta > 0.5:
+                die(f"diagram.widths.full {declared_full}mm != 실렌더 판면폭 {content_width_mm}mm "
+                    f"(pdf1 실측 trim {measured_trim_w_mm:.3f}mm − theme.css margin.right "
+                    f"{margin_right}mm − margin.left {margin_left}mm, 오차 {delta:.3f}mm > 허용 "
+                    f"0.5mm) — render_diagrams.mjs는 {declared_full}mm를 라벨 pt 환산 기준으로 "
+                    f"쓰는데 지면의 실제 판면은 {content_width_mm}mm다. widths.full이 재단폭 "
+                    f"이내라는 것만으로는 안전하지 않다(K1/N2) — 이 값을 실측 판면폭에 맞출 것"
+                    f"({'과다' if declared_full > content_width_mm else '과소'} "
+                    f"{max(declared_full, content_width_mm) / min(declared_full, content_width_mm):.3f}배)")
+        elif geo is None:
+            warn("theme.css에서 `@page {size:…;margin:…}` 형태를 정적으로 읽지 못했다 — "
+                 "diagram.widths.full 대조 생략(N2 값 축), 수동 감사 항목")
         break
 
     tocplan["replanned"] = replanned
