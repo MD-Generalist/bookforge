@@ -113,7 +113,9 @@ Only the gate script can create `final/`:
 | G0 | (pre-render) diagram SVG source — stray `foreignObject`, missing text, external references, non-standalone paragraphs, sidecar integrity, dropped icons |
 | G1 | render succeeds + trim matches `tokens.trim_mm` + **body size matches `tokens.body_pt` — blocks whole-document shrink** + page count within preset range (WARN — hard only with `--strict-pages`) |
 | G2 | every font fully embedded + **zero Type3 glyphs** |
-| G3 | zero bbox overflow (1.5pt tolerance) |
+| G3-OVERFLOW | zero bbox overflow (1.5pt tolerance) |
+| G3-COLLIDE | zero text-line collisions on a page (per-column bands in multi-column styles) |
+| G3-FIT | front-matter text stays inside the declared frame |
 | G4 | TOC/bookmarks match actual chapter-start pages |
 | G6 | visual inspection of the contact sheet — the agent looks at the rendered pages |
 | G7 | density — frame drift, unintended blank pages, tail shortfall, mid-page gaps (reach/ink/gap) |

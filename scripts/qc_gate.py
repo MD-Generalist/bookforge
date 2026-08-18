@@ -11,7 +11,8 @@ Gates (pagination.md §7):
   G1  render  : draft/book.pdf exists; trim=tokens.trim_mm; page count WARN
                 (INV-1 — hard only with --strict-pages)
   G2  fonts   : every font fully embedded
-  G3  overflow: no bbox escapes the page rect (tol 1.5pt)
+  G3  geometry: OVERFLOW(bbox가 재단 밖, tol 1.5pt) · COLLIDE(텍스트 라인 교차)
+                · FIT(앞부속 텍스트가 선언 프레임 안)
   G4  toc     : bookmarks match chapter start pages
   G7  density : FRAME(판면 드리프트)·BLANK(구 G5 흡수)·TAIL·MID·DOC — reach/ink/gap
   G8  stretch : 공기 채움(gap) + 행송 편차 탐지
@@ -50,7 +51,33 @@ MID_ROLE_MIN = {"essay": 0.88, "insight": 0.85}       # default 0.90 — insight
 DOC_STATS_STYLES = {"practical", "academic"}  # 문서 통계는 실측 근거 있는 스타일만
 ROLE_CODES = {"PART_DIVIDER", "FULL_BLEED_PLATE", "EXEC_SUMMARY",
               "ESSAY_BREATH", "MAGAZINE_WHITESPACE", "TOC_TAIL",
-              "CH_CLOSE_APPROVED"}  # 꼬리 미달 최종 에스컬레이션 (pagination.md §4)
+              "CH_CLOSE_APPROVED",   # 꼬리 미달 최종 에스컬레이션 (pagination.md §4)
+              "OVERLAP_APPROVED"}    # 기계 판정 불가한 정당한 텍스트 겹침 (G3-COLLIDE)
+
+# ---- G3-COLLIDE 임계 ----
+# fo2text.mjs:89-90·:183-184의 SVG 라벨 겹침 판정을 지면으로 이식한다:
+#   `const minH = Math.min(a.bottom - a.top, b.bottom - b.top);`
+#   `if (oy > minH * 0.35 && ox > 2) throw ...`
+# 원본 단위는 **CSS px**(DOM 라인박스의 getBoundingClientRect)다. ox는 길이라 환산이
+# 필요하다: 1px = 1/96in, 1pt = 1/72in → 1px = 0.75pt → 2px = 1.5pt.
+# oy는 minH에 대한 **비율**이라 단위 불변이므로 0.35를 그대로 옮긴다.
+COLLIDE_OX_PT = 2 * 0.75
+COLLIDE_OY_FRAC = 0.35
+# 세로 박스는 line["bbox"]를 그대로 쓰지 않는다. fo2text가 재는 것은 DOM 라인박스
+# (font-size × line-height ≈ 1.0~1.3em)인데 PyMuPDF의 line bbox는 **폰트 선언 bbox**라
+# 서체 메트릭에 따라 1.44em까지 부푼다(실측: magazine `.pullquote`의 `::before` 큰따옴표가
+# NotoSerifKR-Bold 30pt에서 43.1pt = 1.44em). 그대로 비교하면 임계가 서체에 좌우돼
+# 실제로는 붙지도 않은 인용 2행이 FAIL한다(실측 오탐 2건: magazine-trend-brief p7·p13).
+# → span origin(베이스라인) 기준 [-0.85em, +0.20em] 박스로 정규화하고 raw bbox로 클립한다.
+#   합 1.05em은 CSS 기본 라인박스 대역이고, 한글·라틴 혼식 실잉크 대역의 [하우스] 상수다.
+#   실측 여유: 이 상수에서 전 코퍼스 최근접 미검출이 임계의 0.67배(33% 헤드룸).
+COLLIDE_ASC_EM, COLLIDE_DESC_EM = 0.85, 0.20
+# magazine 2단 방어: styles/magazine/theme.css:118 `column-count: 2; column-gap: 8mm`.
+# 좌우 단은 y가 100% 겹치므로 x 밴드로 라인을 먼저 분류하고 같은 밴드 안에서만 비교한다.
+# 밴드 경계는 판면(tokens `body_frame_mm`)과 단간에서 결정론으로 도출한다 — 실측 좌표
+# 하드코딩이 아니다. 단을 걸치는 라인(`column-span: all` h2 등)은 -1로 두어 전 밴드와 비교.
+BODY_COLUMNS = {"magazine": (2, 8.0)}   # {style: (단 수, 단간 mm)}
+COLLIDE_BAND_TOL_PT = 2.0               # gutter 살짝 침범은 같은 밴드로 흡수
 
 
 def norm(s):
@@ -277,6 +304,81 @@ def g13_figtext_check(book_dir, outline, page_texts):
     return problems
 
 
+def _column_bands(style, frame_mm, page_rect):
+    """판면 x 구간을 단 수·단간으로 결정론 분할. 1단 스타일은 None(=전면 단일 밴드)."""
+    ncol, gap_mm = BODY_COLUMNS.get(style, (1, 0.0))
+    if ncol < 2 or not frame_mm:
+        return None
+    _t, right, _b, left = frame_mm
+    fl = left * MM2PT
+    fr = page_rect.width - right * MM2PT
+    gap = gap_mm * MM2PT
+    w = (fr - fl - gap * (ncol - 1)) / ncol
+    return [(fl + i * (w + gap), fl + i * (w + gap) + w) for i in range(ncol)]
+
+
+def _band_of(bands, x0, x1):
+    """한 밴드에 온전히 들어가면 그 인덱스, 아니면 -1(단 걸침 → 전 밴드와 비교)."""
+    if bands is None:
+        return 0
+    for i, (a, b) in enumerate(bands):
+        if x0 >= a - COLLIDE_BAND_TOL_PT and x1 <= b + COLLIDE_BAND_TOL_PT:
+            return i
+    return -1
+
+
+def line_records(blocks, bands):
+    """면의 텍스트 라인 레코드. `get_text("dict")` 1회 결과를 G3 세 축이 공유한다.
+    raw = PyMuPDF line bbox(프레임 적합 판정용) / box = 베이스라인 정규화 박스(교차 판정용)."""
+    recs = []
+    for bi, blk in enumerate(blocks):
+        if blk.get("type") != 0:
+            continue
+        for ln in blk.get("lines", []):
+            spans = [s for s in ln.get("spans", []) if s.get("text", "").strip()]
+            if not spans:
+                continue
+            rx0, ry0, rx1, ry1 = ln["bbox"]
+            by0 = max(min(s["origin"][1] - COLLIDE_ASC_EM * s["size"] for s in spans), ry0)
+            by1 = min(max(s["origin"][1] + COLLIDE_DESC_EM * s["size"] for s in spans), ry1)
+            if rx1 - rx0 <= 0 or by1 - by0 <= 0:
+                continue
+            recs.append({"blk": bi, "raw": (rx0, ry0, rx1, ry1), "box": (rx0, by0, rx1, by1),
+                         "text": "".join(s["text"] for s in spans).strip(),
+                         "band": _band_of(bands, rx0, rx1)})
+    return recs
+
+
+def front_frame_for(decl, page_no):
+    """tokens `front_frame_mm`에서 이 앞부속 면에 적용할 [top,right,bottom,left]를 고른다.
+    리스트면 앞부속 전 면 공통, 객체면 1면=`cover` / 나머지=`toc`(표지는 1면 고정 계약)."""
+    if isinstance(decl, dict):
+        return decl.get("cover" if page_no == 1 else "toc")
+    return decl
+
+
+def g3_collide_page(recs):
+    """같은 밴드 안 라인 쌍의 박스 교차 — fo2text와 같은 임계(위 상수 주석)."""
+    hits = []
+    for i in range(len(recs)):
+        for j in range(i + 1, len(recs)):
+            a, b = recs[i], recs[j]
+            if not (a["band"] == b["band"] or a["band"] == -1 or b["band"] == -1):
+                continue
+            ax0, ay0, ax1, ay1 = a["box"]
+            bx0, by0, bx1, by1 = b["box"]
+            ox = min(ax1, bx1) - max(ax0, bx0)
+            oy = min(ay1, by1) - max(ay0, by0)
+            if ox <= COLLIDE_OX_PT or oy <= 0:
+                continue
+            if oy > COLLIDE_OY_FRAC * min(ay1 - ay0, by1 - by0):
+                hits.append({"ox": round(ox, 2), "oy": round(oy, 2),
+                             "a": a["text"][:24], "b": b["text"][:24],
+                             "box_a": [round(v, 1) for v in a["box"]],
+                             "box_b": [round(v, 1) for v in b["box"]]})
+    return hits
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit("usage: python3 scripts/qc_gate.py <book_dir> [--strict-pages]")
@@ -416,20 +518,36 @@ def main():
         fails.append(f"G2: Type3 글리프 페이지 {type3_pages[:8]}{'…' if len(type3_pages) > 8 else ''} "
                      f"— CFF(.otf) @font-face가 원인, TTF로 교체할 것 (convert_fonts.py)")
 
-    # ---- G3 overflow ----
+    # ---- G3-OVERFLOW / G3-COLLIDE 수집 ----
+    # 같은 루프에서 `get_text("dict")` 1회 호출을 공유한다. 겹침의 **면제**는 구조 파생
+    # 집합(fullbleed)과 pageroles가 확정된 뒤에야 걸 수 있으므로 여기서는 원시 교차만
+    # 모으고, 등록은 G11 뒤에서 한다(G7-FRAME 선례로 별도 축 등록).
     overflows = []
+    collide_raw = {}    # page -> [hit, ...]  면제 적용 전
+    line_recs = {}      # page -> [rec, ...]  G3-FIT이 재사용(get_text 재호출 금지)
+    page_size = {}      # page -> (w, h) pt   doc.close() 후에도 프레임을 계산하려면 필요
+    _frame_mm = tokens.get("body_frame_mm")
     for pno in range(n):
         page = doc[pno]
         pr = page.rect
+        page_size[pno + 1] = (pr.width, pr.height)
         clip = fitz.Rect(pr.x0 - TOL, pr.y0 - TOL, pr.x1 + TOL, pr.y1 + TOL)
-        for block in page.get_text("dict").get("blocks", []):
+        blocks = page.get_text("dict").get("blocks", [])
+        for block in blocks:
             bb = fitz.Rect(block["bbox"])
             if not clip.contains(bb):
                 overflows.append({"page": pno + 1, "bbox": list(block["bbox"]),
                                   "kind": "text" if block.get("type") == 0 else "image"})
-    report["gates"]["G3"] = {"overflows": overflows[:20], "count": len(overflows), "ok": not overflows}
+        recs = line_records(blocks, _column_bands(style, _frame_mm, pr))
+        line_recs[pno + 1] = recs
+        hits = g3_collide_page(recs)
+        if hits:
+            collide_raw[pno + 1] = hits
+    report["gates"]["G3-OVERFLOW"] = {"overflows": overflows[:20], "count": len(overflows),
+                                      "ok": not overflows}
     if overflows:
-        fails.append(f"G3: {len(overflows)} bbox overflow(s), first on page {overflows[0]['page']}")
+        fails.append(f"G3-OVERFLOW: {len(overflows)} bbox overflow(s), "
+                     f"first on page {overflows[0]['page']}")
 
     # ---- G4 TOC / bookmarks ----
     toc_entries = doc.get_toc(simple=True)
@@ -597,6 +715,16 @@ def main():
                 g11["problems"].append(f"p{pg}: MAGAZINE_WHITESPACE는 magazine 한정")
             if code == "TOC_TAIL" and pg >= first_ch:
                 g11["problems"].append(f"p{pg}: TOC_TAIL은 본문 시작 전 한정")
+            if code == "OVERLAP_APPROVED":
+                # 도비라는 어떤 경우에도 면제하지 않는다 — 이번 사이클의 원 사고(목차 넘침이
+                # 도비라 면으로 흘러 기존 행과 겹친 채 출하)가 정확히 그 면에서 났다.
+                if pg in ch_starts:
+                    g11["problems"].append(
+                        f"p{pg}: OVERLAP_APPROVED는 도비라(장 오프너)에 쓸 수 없다 "
+                        "— 목차↔도비라 겹침 사고 계열이 통째로 면제된다")
+                elif pg not in collide_raw:
+                    g11["problems"].append(
+                        f"p{pg}: OVERLAP_APPROVED인데 그 면에 교차 라인이 실재하지 않는다 (도장 방지)")
             if code == "CH_CLOSE_APPROVED" and pg not in tails:
                 g11["problems"].append(f"p{pg}: CH_CLOSE_APPROVED는 장 끝 면 한정 "
                                        "(레버 소진 후 최종 에스컬레이션)")
@@ -612,6 +740,69 @@ def main():
     if not g11["ok"]:
         fails.append("G11: " + "; ".join(g11["problems"][:3]))
     role_by_page = {r.get("page"): r.get("code") for r in roles}
+
+    # ---- G3-COLLIDE 면제 적용·등록 ----
+    # 면제는 **새 집합을 만들지 않고** 기존 것을 재사용한다.
+    #  · `fullbleed`(imgarea|vecarea ≥ 0.60) — 전면 도판 위 활자 배치는 조판 문법이지 겹침이 아니다
+    #  · `role_by_page`의 `OVERLAP_APPROVED` — 기계 판정 불가한 정당한 겹침에 이름을 준다(INV-3)
+    # `structural`의 나머지 성분(앞부속·판권·마지막 본문 면)과 도비라는 **면제하지 않는다**:
+    # 밀도(비움) 면제와 겹침 면제는 다른 관심사이고, 앞부속·도비라를 면제하면 이번 사이클의
+    # 원 사고(목차 넘침 → 도비라 겹침)가 발생 지점에서 통째로 열린다.
+    overlap_ok = {pg for pg, c in role_by_page.items() if c == "OVERLAP_APPROVED"}
+    collide_exempt = (fullbleed | overlap_ok) - set(ch_starts)
+    collisions = [dict(page=pg, **h) for pg in sorted(collide_raw)
+                  if pg not in collide_exempt for h in collide_raw[pg]]
+    report["gates"]["G3-COLLIDE"] = {
+        "collisions": collisions[:20], "count": len(collisions),
+        "exempt_pages": sorted(collide_exempt & set(collide_raw)),
+        "ok": not collisions}
+    if collisions:
+        f0 = collisions[0]
+        fails.append(f"G3-COLLIDE: 텍스트 라인 교차 {len(collisions)}건, 첫 건 p{f0['page']} "
+                     f"'{f0['a']}' ↔ '{f0['b']}' (ox {f0['ox']}pt · oy {f0['oy']}pt) "
+                     "— 넘친 요소를 줄이거나 배치를 고칠 것(정당한 겹침이면 pageroles.json "
+                     "OVERLAP_APPROVED, 단 도비라는 불가)")
+
+    # ---- G3-FIT 앞부속 프레임 적합 ----
+    # 대상은 앞부속 `range(1, first_ch)`. 표지·목차면은 `body_frame_mm`이 아니라 자체
+    # padding을 쓰므로(styles/*/theme.css) body_frame을 들이대면 전량 FAIL한다 — tokens에
+    # `front_frame_mm`이 선언된 스타일에서만 프레임 축을 돌리고, 미선언 스타일은 WARN으로
+    # 남긴다(오탐 0이 합격선). **양성 조건**(앞부속 면은 텍스트 ≥1행 또는 선언된 역할)은
+    # 선언 유무와 무관하게 항상 돈다 — 빈 면이 구조적 면제에 삼켜지는 구멍을 봉쇄한다.
+    # 라인은 G3 루프가 이미 모은 `line_recs`를 재사용한다(pagemetrics도 get_text 재호출 없음).
+    front_pages = list(range(1, first_ch))
+    front_frame = tokens.get("front_frame_mm")
+    g3fit = {"problems": [], "front_pages": front_pages, "declared": bool(front_frame),
+             "ok": True}
+    for pg in front_pages:
+        if not line_recs.get(pg) and pg not in role_by_page:
+            g3fit["problems"].append(
+                f"p{pg}: 앞부속인데 텍스트 0행이고 pageroles 선언도 없다 "
+                "— 빈 면이 구조적 면제에 삼켜져 전 게이트를 통과하는 구멍")
+    if front_frame:
+        for pg in front_pages:
+            fr_mm = front_frame_for(front_frame, pg)
+            if not fr_mm:
+                continue
+            top, right, bottom, left = fr_mm
+            pw, ph = page_size[pg]
+            box = fitz.Rect(left * MM2PT - TOL, top * MM2PT - TOL,
+                            pw - right * MM2PT + TOL, ph - bottom * MM2PT + TOL)
+            for rec in line_recs.get(pg, []):
+                if not box.contains(fitz.Rect(rec["raw"])):
+                    g3fit["problems"].append(
+                        f"p{pg}: 앞부속 텍스트가 선언 프레임 밖 — '{rec['text'][:20]}' "
+                        f"bbox {[round(v, 1) for v in rec['raw']]} "
+                        f"vs front_frame {[round(v, 1) for v in box]}")
+    else:
+        report["warns"].append(
+            f"G3-FIT: styles/{style}/tokens.json에 front_frame_mm 미선언 — 앞부속 프레임 축 생략"
+            "(표지·목차의 자체 padding 계약이 확보되지 않은 스타일). 양성 조건만 검사함")
+    g3fit["ok"] = not g3fit["problems"]
+    g3fit["problems"] = g3fit["problems"][:20]
+    report["gates"]["G3-FIT"] = g3fit
+    if not g3fit["ok"]:
+        fails.append("G3-FIT: " + "; ".join(g3fit["problems"][:3]))
 
     # ---- G7-FRAME 판면 드리프트 ----
     ft_pt = frame_mm[0] * MM2PT
