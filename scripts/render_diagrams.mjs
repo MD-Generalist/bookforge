@@ -16,7 +16,7 @@ import { convertForeignObjectText, fontFaceCss, normalizeAuthoredSvg, pixelSelfC
 
 const SKILL = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FONT_DIR = path.join(SKILL, "assets", "fonts");
-const CONVERTER_VERSION = 4; // fo2text/트림 알고리즘 변경 시 올려서 캐시 전체 무효화
+const CONVERTER_VERSION = 5; // fo2text/트림 알고리즘 변경 시 올려서 캐시 전체 무효화
 const PIXEL_TOLERANCE = 0.02;
 const MM2PT = 72 / 25.4;
 
@@ -214,6 +214,27 @@ html,body{margin:0;padding:0;background:#fff;}
   });
 }
 
+// 캐시 해시에 실리는 「판정 파라미터」 — 도해 SVG는 이 값들로 검사·환산되므로
+// 값이 바뀌면 캐시가 그 도해만 정확히 무효화되어야 한다(전역 CONVERTER_VERSION 대신).
+//   widthMm   : fontFloorViolations의 pt 환산 기준 폭 — 2·3단계 폭 동기화의 재렌더 트리거
+//   minFontPt : 글자 하한
+//   labelBand : 라벨 밴드(5단계 tokens.diagram.labelBand 신설 예정) — 부재 시 null로 고정
+// 키를 재귀 정렬해 tokens.json의 키 순서가 바뀌어도 해시가 흔들리지 않게 한다.
+function stableSort(v) {
+  if (Array.isArray(v)) return v.map(stableSort);
+  if (v && typeof v === "object") {
+    return Object.fromEntries(Object.keys(v).sort().map((k) => [k, stableSort(v[k])]));
+  }
+  return v === undefined ? null : v;
+}
+function gateParams(widthKey) {
+  return stableSort({
+    widthMm: (dg.widths || {})[widthKey] ?? null,
+    minFontPt: dg.minFontPt ?? null,
+    labelBand: dg.labelBand ?? null,
+  });
+}
+
 function fontFloorViolations(svg, widthKey) {
   const minPt = dg.minFontPt;
   const widthMm = (dg.widths || {})[widthKey];
@@ -282,7 +303,7 @@ for (const file of sidecars) {
     }
     // palette 포함 필수: 스타일(팔레트) 교체 재빌드 시 캐시 미스로 alienColors 재검증 강제
     const hashA = createHash("sha256")
-      .update(JSON.stringify({ svg: rawAuthored, width: widthKey, palette, v: CONVERTER_VERSION }))
+      .update(JSON.stringify({ svg: rawAuthored, width: widthKey, palette, gate: gateParams(widthKey), v: CONVERTER_VERSION }))
       .digest("hex");
     const outSvgA = path.join(assetsDir, `${name}.svg`);
     const outLabelsA = path.join(assetsDir, `${name}.labels.json`);
@@ -345,7 +366,7 @@ for (const file of sidecars) {
   dsl = applyTheme(dsl, palette);
 
   const hash = createHash("sha256")
-    .update(JSON.stringify({ dsl, width: widthKey, icons: wantIcons, v: CONVERTER_VERSION }))
+    .update(JSON.stringify({ dsl, width: widthKey, icons: wantIcons, gate: gateParams(widthKey), v: CONVERTER_VERSION }))
     .digest("hex");
   const outSvg = path.join(assetsDir, `${name}.svg`);
   const outLabels = path.join(assetsDir, `${name}.labels.json`);
