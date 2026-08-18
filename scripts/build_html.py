@@ -493,6 +493,13 @@ def expand_toc_pages(tpl_text, n_pages):
 TOC_CAPACITY_KEYS = ("top_mm", "pitch_mm", "tail_mm", "bottom_mm",
                      "title_avail_mm", "font", "size_pt")
 
+# tokens.json `toc_overflow` 허용값 ↔ theme.html BF:TOCPAGE 블록 유무. 종전엔 이 분기가
+# 토큰이 아니라 템플릿 실물(`"<!--BF:TOCPAGE" in tpl_src`)만으로 갈렸다 — 계약이 코드에
+# 숨어 있어 tokens.json만 보고는 그 스타일이 다면인지 단면인지 알 수 없었고, 실물과
+# 계약이 갈라져도(예: BF:TOCPAGE를 지웠는데 토큰은 남는 미래의 리팩터) 아무도 잡지
+# 못했다. html 엔진 스타일 전용 키다 — typst 4종은 이 분기 자체가 없다.
+TOC_OVERFLOW_MULTIPAGE = {"paginate": True, "single": False}
+
 
 def check_single_page_toc(style, rows, cap_spec):
     """스프레드 1면 목차의 용량·접힘 검사. 다면화는 STYLE.md 선언과 충돌하므로 초과 시
@@ -833,7 +840,21 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     # 재계획해 pass1을 다시 렌더**한다(결정론·최대 1회).
     style_name = style_dir.name
     tpl_src = tpl_text
-    multipage = "<!--BF:TOCPAGE" in tpl_src
+    overflow_token = tokens.get("toc_overflow")
+    if overflow_token not in TOC_OVERFLOW_MULTIPAGE:
+        die(f"styles/{style_name}/tokens.json에 `toc_overflow` 선언이 없거나 값이 올바르지 "
+            f"않다(현재: {overflow_token!r}) — html 엔진 스타일은 {'|'.join(TOC_OVERFLOW_MULTIPAGE)} "
+            "중 하나를 반드시 선언해야 한다(references/extending.md 참조). 선언이 없으면 "
+            "다면·단면 분기가 코드(theme.html의 BF:TOCPAGE 유무)에만 숨어 tokens.json만 "
+            "보고는 그 스타일의 목차 동작을 알 수 없다")
+    template_multipage = "<!--BF:TOCPAGE" in tpl_src
+    multipage = TOC_OVERFLOW_MULTIPAGE[overflow_token]
+    if multipage != template_multipage:
+        die(f"styles/{style_name}/tokens.json toc_overflow={overflow_token!r}"
+            f"({'다면' if multipage else '단면'})가 theme.html 실물(BF:TOCPAGE 블록 "
+            f"{'있음(다면)' if template_multipage else '없음(단면)'})과 어긋난다 — 계약(토큰)과 "
+            "실물(템플릿)의 디싱크는 조용히 넘어가지 않는다. tokens.json의 toc_overflow를 "
+            "고치거나 theme.html의 BF:TOCPAGE 블록을 맞출 것")
     tocplan = {"style": style_name, "toc_levels": toc_levels,
                "rows": len(toc_rows),
                "section_markers": sum(len(v) for v in sec_by_ch.values())}
