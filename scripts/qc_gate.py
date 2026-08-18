@@ -35,6 +35,7 @@ except ImportError:
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pagemetrics import analyze  # noqa: E402
+import g16_tokens  # noqa: E402
 
 SKILL = Path(__file__).resolve().parent.parent
 TOL = 1.5  # pt
@@ -287,6 +288,28 @@ def main():
     # metrics는 조기 실패에서도 항상 존재 (소비자가 키 존재를 가정할 수 있게)
     report = {"gates": {}, "warns": [], "pass": False, "metrics": {}}
     fails = []
+
+    # ---- G16-TOKENS (기록만 — 중단은 build.py 몫) ----
+    # build.py가 이미 같은 순수 함수로 렌더 전에 판정하고 die()했다. 여기서는 리포트
+    # 일관성을 위해 재호출해 등록만 한다 — FAIL이어도 fails에 넣지 않으므로 qc_gate의
+    # 중단 지점 수는 늘지 않는다(pagination.md 게이트 표의 중단 지점 계수가 유효).
+    _css = SKILL / "styles" / style / "theme.css"
+    for _axis, _fs in g16_tokens.run(
+            style, tokens, _css.read_text(encoding="utf-8") if _css.exists() else None,
+            book.get("brand"), SKILL / "styles" / style).items():
+        _probs = [f["msg"] for f in _fs if f["level"] == "FAIL"]
+        report["gates"][_axis] = {
+            "problems": _probs,
+            "warns": [f["msg"] for f in _fs if f["level"] == "WARN"],
+            "ok": not _probs,
+            "enforced_by": "build.py",
+        }
+        # 여기 FAIL이 남아 있다는 건 build.py가 --g16-warn-only로 강등됐다는 뜻이다
+        # (아니면 빌드가 die()해서 이 지점에 못 온다). 탈출구 사용 흔적이 gates 블록
+        # 안에만 있으면 report만 보는 하류 소비자가 놓치므로 warns에도 한 줄씩 싣는다.
+        # fails에는 여전히 넣지 않는다 — 중단 지점은 build.py 단일이라는 설계 불변.
+        for _p in _probs:
+            report["warns"].append(f"{_axis} FAIL(build.py --g16-warn-only로 강등됨): {_p}")
 
     # ---- G10 (렌더 전 — 날조는 빌드보다 먼저 잡는다) ----
     g10 = g10_quote_check(book_dir, outline)
