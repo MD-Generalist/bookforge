@@ -212,6 +212,16 @@
         }
         let h1 = gh.slice(0, k).fold(0pt, (a, b) => a + b)
         let h2 = gh.slice(k).fold(0pt, (a, b) => a + b)
+        // 2단 분할 후에도 더 긴 열이 가용 높이를 넘으면 place()는 초과분을 조용히
+        // 자른다(잘린 목차는 어떤 게이트도 검출하지 못한다 — references/extending.md
+        // 「단면 목차 팩」의 "잘림은 예산이 아니라 금지다"와 같은 원칙). 균형 분할은
+        // 두 열 높이를 가깝게 만들 뿐 상한을 보장하지 않으므로 여기서 명시 검사한다.
+        if calc.max(h1, h2) > avail {
+          panic("목차가 판면을 넘음(2단 분할 후에도 긴 열 "
+            + str(calc.round(calc.max(h1, h2) / 1mm, digits: 1)) + "mm > 가용 "
+            + str(calc.round(avail / 1mm, digits: 1)) + "mm) — 절 수를 줄이거나 "
+            + "outline.json의 toc_line을 축약할 것. 잘림은 허용하지 않는다")
+        }
         place(top + left, dx: t.margin.left, dy: toc-list-y,
           block(width: cw, for i in range(0, k) { group-block(i, cw) }))
         place(top + left, dx: t.margin.left + cw + toc-gutter, dy: toc-list-y,
