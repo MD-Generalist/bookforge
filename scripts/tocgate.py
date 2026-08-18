@@ -33,7 +33,10 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 # 대비 하한은 g16_tokens가 단일 진리원 — 여기서 값을 복제하지 않는다.
 # (사전 게이트 G16-CONTRAST와 렌더 후 G14-C가 다른 수를 내면 사전 FAIL이 무의미해진다.)
-from g16_tokens import contrast_floor  # noqa: E402
+# 하한 함수의 **두 번째 인자를 만드는 술어**도 같은 모듈에서 온다(is_bold_font) —
+# 이쪽이 자체 판정(`"Bold" in font`)을 갖고 있던 동안 `Pretendard-SemiBold`(600)가
+# 부분문자열 `Bold` 때문에 대형 자격을 얻어 하한이 4.5 -> 3.0으로 열렸다(W4 판정 D6).
+from g16_tokens import contrast_floor, is_bold_font  # noqa: E402
 
 
 def _norm(s):
@@ -437,8 +440,8 @@ def g14c_contrast(doc, zoom=2.0):
         for s in colored:
             rgb = _int_rgb(s["color"])
             size = s["size"]
-            bold = "Bold" in s.get("font", "") or "Black" in s.get("font", "")
-            floor = contrast_floor(size, bold)   # 단일 진리원: g16_tokens.contrast_floor
+            bold = is_bold_font(s.get("font", ""))   # 단일 진리원: g16_tokens.is_bold_font
+            floor = contrast_floor(size, bold)       # 단일 진리원: g16_tokens.contrast_floor
             x0, y0, x1, y1 = (int(v * zoom) for v in s["bbox"])
             # 배경 추정: bbox 바깥 2~5px 링의 최빈색
             # (dedup 키에 배경이 들어가므로 링 스캔은 dedup보다 먼저 수행해야 한다)

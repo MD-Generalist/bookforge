@@ -55,7 +55,9 @@ import g16_tokens as g16   # noqa: E402  대비 산술·색 해석의 단일 진
 # 굵기 임계. WCAG의 대형 텍스트 예외는 bold=700 기준이고, 그보다 낮게 잡으면
 # 10.5pt 이상에서 하한이 4.5 -> 3.0으로 **완화**되므로 보수적 방향(700)을 쓴다.
 # 적대 검증 3-2가 "500을 bold로 치지 않는 것은 보수적이라 안전"이라 판정한 것과 같은 방향이다.
-BOLD_MIN_WEIGHT = 700
+# **값은 g16_tokens가 단일 진리원** — 여기(CSS `font-weight` 수치)와 G14-C(PDF 폰트명,
+# `g16.is_bold_font`)가 같은 700 기준을 쓴다는 것이 이 import의 계약이다(W4 판정 D6).
+BOLD_MIN_WEIGHT = g16.BOLD_MIN_WEIGHT
 
 PT_TOL = 0.01
 PX_TO_PT = 0.75          # 96dpi CSS px -> pt

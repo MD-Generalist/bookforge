@@ -67,6 +67,35 @@ def contrast_floor(pt, bold):
     return 3.0 if (pt >= 18 or (pt >= 14 and bold)) else 4.5
 
 
+# WCAG 대형 텍스트 예외의 굵기 임계. CSS `font-weight` 수치 판정의 단일 진리원 —
+# `tests/lint_contrast.py`가 이 상수를 import한다(값 복제 금지).
+BOLD_MIN_WEIGHT = 700
+
+# 폰트명에서 bold(=700 이상)를 읽는 술어. `Semi`/`Demi`가 앞에 붙으면 600이므로
+# **bold가 아니다** — WCAG 하한이 4.5 -> 3.0으로 완화되는 갈래라 여기서 틀리면
+# 저대비 텍스트가 대형 자격을 얻어 통과한다(W4 판정 D6). `Extra`/`Ultra`가 붙은
+# ExtraBold(800)·UltraBold는 bold이므로 lookbehind에 넣지 않는다.
+# Medium(500)·Regular은 애초에 어떤 토큰과도 매치되지 않는다.
+_BOLD_FONT_RE = re.compile(r"(?<!semi)(?<!demi)bold|black|heavy")
+
+
+def is_bold_font(font_name):
+    """PDF 스팬 폰트명이 WCAG 기준 bold(700+)인가 — **단일 진리원**.
+
+    `tocgate.py`(G14-C 픽셀 축)가 import한다. 이전에는 그쪽이 `"Bold" in font`라는
+    부분문자열 판정을 자체 보유했고, `Pretendard-SemiBold`(600)가 부분문자열 `Bold`를
+    포함해 대형 자격을 얻었다 — 같은 굵기를 `styles/magazine/tokens.json`의 계약
+    엔트리는 "SemiBold 600 — bold 임계 700 미만이라 하한 4.5"라고 반대로 적고 있었다.
+
+    판정은 폰트명 표기에만 근거한다(구분자·대소문자 무시). 이름에 굵기 표기가 없는
+    폰트는 False — 보수적 방향(하한 4.5 유지)이라 안전하다.
+    """
+    if not font_name:
+        return False
+    n = re.sub(r"[\s_\-.]", "", str(font_name)).lower()
+    return bool(_BOLD_FONT_RE.search(n))
+
+
 def _lin(c):
     c = c / 255.0
     return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
@@ -387,6 +416,111 @@ def _f(axis, level, msg):
     return {"axis": axis, "level": level, "msg": msg}
 
 
+# ------------------------------------------------ front_frame_mm 선언값 타당성
+
+# 프레임이 지면의 이 비율을 넘으면 G3-FIT 축이 사실상 항등이 된다(`[0,0,0,0]`이면
+# 프레임 = 지면 전체 +TOL이라 어떤 텍스트도 밖으로 나갈 수 없다). 물리적 모순은
+# 아니므로 WARN이지만, **위조가 미선언보다 조용한 상태**(선언은 declared:true에
+# WARN 0, 미선언은 WARN 1건)를 뒤집는 것이 이 축의 목적이다.
+FRONT_FRAME_AREA_WARN = 0.95
+
+
+def front_frame_area_ratio(fr_mm, trim_mm):
+    """선언 프레임이 판형에서 차지하는 면적 비율. 계산 불가면 None."""
+    if not (trim_mm and len(trim_mm) == 2):
+        return None
+    top, right, bottom, left = fr_mm
+    w, h = trim_mm[0] - left - right, trim_mm[1] - top - bottom
+    if trim_mm[0] <= 0 or trim_mm[1] <= 0 or w <= 0 or h <= 0:
+        return None
+    return (w * h) / (trim_mm[0] * trim_mm[1])
+
+
+def _front_frame_one(style, where, fr, trim_mm):
+    """단일 프레임 `[top,right,bottom,left]`의 타당성. (findings, 유효한가)."""
+    out = []
+    if not isinstance(fr, list) or len(fr) != 4:
+        return [_f("SYNC", "FAIL",
+                   f"front_frame_mm{where} = {fr!r} — [top,right,bottom,left] 4원소 배열이어야 한다. "
+                   f"qc_gate G3-FIT가 이 값을 그대로 봉투로 쓰므로 형식이 깨지면 축이 조용히 꺼진다")], False
+    for i, v in enumerate(fr):
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            out.append(_f("SYNC", "FAIL",
+                          f"front_frame_mm{where}[{i}] = {v!r} — 수치가 아니다(mm)"))
+        elif v < 0:
+            out.append(_f("SYNC", "FAIL",
+                          f"front_frame_mm{where}[{i}] = {v} — 음수 여백은 지면보다 큰 프레임을 만든다. "
+                          f"G3-FIT 축이 원리적으로 무력화된다"))
+    if out:
+        return out, False
+    if trim_mm and len(trim_mm) == 2:
+        top, right, bottom, left = fr
+        if left + right >= trim_mm[0]:
+            out.append(_f("SYNC", "FAIL",
+                          f"front_frame_mm{where} 좌+우 = {left + right}mm >= 판형 폭 {trim_mm[0]}mm "
+                          f"— 폭이 0 이하인 프레임"))
+        if top + bottom >= trim_mm[1]:
+            out.append(_f("SYNC", "FAIL",
+                          f"front_frame_mm{where} 상+하 = {top + bottom}mm >= 판형 높이 {trim_mm[1]}mm "
+                          f"— 높이가 0 이하인 프레임"))
+        if not out:
+            r = front_frame_area_ratio(fr, trim_mm)
+            if r is not None and r >= FRONT_FRAME_AREA_WARN:
+                out.append(_f("SYNC", "WARN",
+                              f"front_frame_mm{where} 프레임 면적이 지면의 {r:.1%} "
+                              f"(>= {FRONT_FRAME_AREA_WARN:.0%}) — 봉투가 판형과 사실상 같아 "
+                              f"G3-FIT가 항등이 된다(축 무력화 의심). 표지·목차의 실제 "
+                              f"padding에서 도출한 값인지 `_front_frame_mm_note`와 대조할 것"))
+    return out, not any(x["level"] == "FAIL" for x in out)
+
+
+def front_frame_findings(style, tokens):
+    """tokens `front_frame_mm` 선언값 타당성 — G16-SYNC의 수치 계약 축.
+
+    G16-SYNC는 "색·**수치** 계약 정합"을 표방하면서 이 키를 보지 않았고, 그 침묵 위에서
+    선언값 위조 5종이 전부 G3-FIT의 참양성 4건을 0건으로 만들었다(W4 판정 D3).
+    **위조가 미선언보다 조용했다** — 미선언은 `declared:false` + WARN을 남기지만
+    위조는 `declared:true`에 WARN 0이었다.
+
+    HARD FAIL은 증명 가능한 모순에만 준다: 형식(4원소 수치 배열) · 음수 · 프레임이
+    판형보다 큼 · 객체형인데 `cover`/`toc` 중 하나만 유효. 값의 "적정함"(그 스타일의
+    실제 padding과 맞는가)은 정적으로 증명할 수 없으므로 검사하지 않는다.
+    """
+    decl = tokens.get("front_frame_mm")
+    if decl is None:
+        return []          # 미선언은 결함이 아니다 — G3-FIT이 WARN + 축 생략으로 처리한다
+    trim = tokens.get("trim_mm")
+    if isinstance(decl, dict):
+        out = []
+        # `{"cover": ...}`만 선언하면 목차 면이 **조용히** 전부 생략된다
+        # (front_frame_for가 None을 돌려 continue). 꺼지는 축이 하필 원 사고 계열
+        # (목차 넘침)이라 가장 위험한 형태다 — 두 키를 계약으로 못박는다.
+        for key in ("cover", "toc"):
+            if key not in decl:
+                out.append(_f("SYNC", "FAIL",
+                              f"front_frame_mm이 객체형인데 키 {key!r} 부재 — cover(1면)·toc(나머지 "
+                              f"앞부속) 둘 다 필수다. 하나만 선언하면 나머지 면의 G3-FIT 프레임 축이 "
+                              f"경고 없이 전부 생략된다"))
+                continue
+            if decl[key] is None:
+                out.append(_f("SYNC", "FAIL",
+                              f"front_frame_mm[{key!r}] = null — 키 부재와 같은 침묵 생략이다. "
+                              f"프레임을 정할 수 없으면 키 자체를 빼고(전 스타일 미선언 폴백) "
+                              f"G3-FIT WARN을 받을 것"))
+                continue
+            out += _front_frame_one(style, f"[{key!r}]", decl[key], trim)[0]
+        for key in decl:
+            if key not in ("cover", "toc"):
+                out.append(_f("SYNC", "WARN",
+                              f"front_frame_mm의 미지 키 {key!r} — front_frame_for()가 읽지 않는다"))
+        return out
+    if isinstance(decl, list):
+        return _front_frame_one(style, "", decl, trim)[0]
+    return [_f("SYNC", "FAIL",
+               f"front_frame_mm = {decl!r} — 리스트(앞부속 공통) 또는 "
+               f"{{cover, toc}} 객체만 허용")]
+
+
 # ------------------------------------------------------------------- G16-SYNC
 
 def g16_sync(style, tokens, theme_text, brand=None, style_dir=None):
@@ -475,6 +609,10 @@ def g16_sync(style, tokens, theme_text, brand=None, style_dir=None):
                     out.append(_f("SYNC", "FAIL",
                                   f"contrast_contract.entries[{i}] ({e.get('where', '?')}) "
                                   f"{side}={e.get(side)!r} 해석 불가 — {why}"))
+
+    # ---- HARD ④ front_frame_mm 선언값 타당성 (수치 계약) ----
+    # 이 축이 없던 동안 G3-FIT은 선언만 바꿔 5가지 방법으로 무력화할 수 있었다(D3).
+    out += front_frame_findings(style, tokens)
 
     # ---- WARN: 팔레트↔theme.css 교집합 (부재는 결함, 잉여는 아님) ----
     if pal and engine == "html":

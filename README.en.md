@@ -127,6 +127,8 @@ Only the gate script can create `final/`:
 | G13 | (post-render) every diagram label exists as real PDF text — catches silent text drops during SVG→PDF conversion |
 | G14 | TOC/design coherence — A: printed TOC page numbers self-consistent with actual folios / B: TOC hue family matches chapter openers / C: colored text meets a WCAG contrast floor (3:1 large text, 4.5:1 otherwise) |
 | G15 | page rhythm (`business` style only, enforced only where measurement supports it) — blocks paragraphs over 8 lines / caps consecutive body pages with no visual element |
+| **G16-TOKENS** | **(pre-render · `build.py`)** three axes over the style pack's token contract — **SYNC** (engine ↔ pack reality, `diagram.palette`/`palette_roles` integrity, `brand_default` ↔ `palette[0]`, `contrast_contract` shape, `front_frame_mm` declaration validity) / **CONTRAST** (declared pairs checked against the WCAG floor derived from pt·bold) / **BRAND** (brand input format, contrast at substitution sites, hue agreement with fixed companion colors). This is **the only gate that can abort the build in place**, so on failure there is no `gate-report.json` yet — read the axis and reason from stderr and fix `styles/<style>/tokens.json` |
+| **G16-LINT** | **(`qc_gate` · HTML engine only)** `contrast_contract` checked against `theme.css` and the rendered DOM — ① completeness (two-way omissions and notation drift, **WARN**) ② pt agreement (does the declared size exist in the CSS at all, **HARD**) ③ value coverage (does every CSS color appear in some contract entry, **HARD**). Typst styles have no rendered DOM and are skipped explicitly |
 
 Thresholds and remedies live in [references/pagination.md](references/pagination.md); the diagram-track authoring contract lives in [references/diagrams.md](references/diagrams.md).
 
@@ -138,7 +140,8 @@ modes/               topic.md · manuscript.md
 styles/<6>/          STYLE.md (rulebook) + theme.typ|theme.css + tokens.json
 templates/base.typ   shared Typst book primitives
 vendor/              antv-ssr.bundle.mjs (committed AntV SSR bundle — offline reproducibility) + build-bundle.mjs
-scripts/             scaffold · build · qc_gate · tocgate (G14) · contact_sheet · convert_fonts (TTF conversion) · fetch_fonts · ingest_docx
+scripts/             scaffold · build · qc_gate · tocgate (G14) · g16_tokens (G16-TOKENS) · contact_sheet · convert_fonts (TTF conversion) · fetch_fonts · ingest_docx
+tests/               lint_contrast.py (G16-LINT — called automatically by qc_gate, also runnable standalone) · mutations/ (gate-sensitivity regression suite)
 references/          generated-art policy · pagination rulebook · diagram contract (diagrams.md) · orchestration · style-pack extension guide
 examples/            9 example PDFs + a 36-shot showcase
 ```

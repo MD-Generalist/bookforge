@@ -93,9 +93,9 @@ python3 <SKILL>/scripts/build.py <book_dir>          # → draft/book.pdf
 python3 <SKILL>/scripts/qc_gate.py <book_dir>        # PASS 시에만 final/<slug>.pdf 생성
 ```
 
-게이트: G10 인용·수치 실재(렌더 전) / G0 도해 SVG 소스(렌더 전 — foreignObject·외부참조·단독문단·아이콘 탈락) / G1 렌더·판형(tokens `trim_mm` 대조)·**본문 급수(tokens `body_pt` ±0.3pt — 전역 축소 차단)**·분량범위(WARN — `--strict-pages`만 HARD) / G2 폰트 임베드+Type3 0 / **G3 면 기하 3축**(OVERFLOW 재단 밖 bbox 0 · COLLIDE 텍스트 라인 교차 0 · FIT 앞부속 텍스트가 tokens `front_frame_mm` 안) / G4 목차·북마크 정합 / G7 밀도(백면·꼬리 채움·판면 드리프트) / G8 공기 채움 / G9 제목 고립·widow / G11 사유 코드 무결성 / G12 필러 백면 / G13 도해 라벨 PDF 실재 / G14 목차·디자인 정합(인쇄 목차 쪽번호↔폴리오·목차↔도비라 색 계열·텍스트 대비 하한). 기준 수치와 대응법은 [references/pagination.md](references/pagination.md)가 정본이다.
+게이트: G10 인용·수치 실재(렌더 전) / G0 도해 SVG 소스(렌더 전 — foreignObject·외부참조·단독문단·아이콘 탈락) / G1 렌더·판형(tokens `trim_mm` 대조)·**본문 급수(tokens `body_pt` ±0.3pt — 전역 축소 차단)**·분량범위(WARN — `--strict-pages`만 HARD) / G2 폰트 임베드+Type3 0 / **G3 면 기하 3축**(OVERFLOW 재단 밖 bbox 0 · COLLIDE 텍스트 라인 교차 0 · FIT 앞부속 텍스트가 tokens `front_frame_mm` 안) / G4 목차·북마크 정합 / G7 밀도(백면·꼬리 채움·판면 드리프트) / G8 공기 채움 / G9 제목 고립·widow / G11 사유 코드 무결성 / G12 필러 백면 / G13 도해 라벨 PDF 실재 / G14 목차·디자인 정합(인쇄 목차 쪽번호↔폴리오·목차↔도비라 색 계열·텍스트 대비 하한) / **G16-TOKENS 스타일 팩 토큰 계약 3축**(SYNC 색·수치 계약 정합 — `palette_roles`·`front_frame_mm` 선언값 타당성 포함 / CONTRAST 선언 페어의 WCAG 대비 / BRAND 브랜드 입력 사전 검증) / **G16-LINT `contrast_contract` ↔ theme.css·렌더 DOM 실물 대조**(html 엔진 한정 — pt 정합·값 커버리지는 HARD, 완전성은 WARN). 기준 수치와 대응법은 [references/pagination.md](references/pagination.md)가 정본이다.
 
-실패 시 `gate-report.json`의 원인 항목만 고치고 재실행한다. **금지 대응**: 분량 미달을 부록·용어집 추가로 메우기, 절별 강제 개면, 빈 줄·행간 확대로 면 채우기 — 전부 게이트가 다시 잡는다. 올바른 대응: G7 꼬리 미달은 `python3 <SKILL>/scripts/refit.py <book_dir>`(자간 미세조정 자동 탐색) → 해 없으면 문단 1~2개 국소 증감 또는 `pageroles.json` 사유 코드(의도된 여백 선언, G11이 진위 검증). 같은 게이트 3회 연속 실패면 원인을 사용자에게 보고한다.
+실패 시 `gate-report.json`의 원인 항목만 고치고 재실행한다. **예외 — G16-TOKENS**: 이 축만 `build.py`가 렌더 전에 그 자리에서 중단시키므로 그 시점엔 `gate-report.json`이 아직 없다(있다면 이전 실행의 낡은 파일이다). stderr에 찍힌 축·사유를 읽고 `styles/<style>/tokens.json`을 고칠 것 — 게이트 리포트를 찾지 말 것. **금지 대응**: 분량 미달을 부록·용어집 추가로 메우기, 절별 강제 개면, 빈 줄·행간 확대로 면 채우기 — 전부 게이트가 다시 잡는다. 올바른 대응: G7 꼬리 미달은 `python3 <SKILL>/scripts/refit.py <book_dir>`(자간 미세조정 자동 탐색) → 해 없으면 문단 1~2개 국소 증감 또는 `pageroles.json` 사유 코드(의도된 여백 선언, G11이 진위 검증). 같은 게이트 3회 연속 실패면 원인을 사용자에게 보고한다.
 
 ## P5 — 시각 검수 (필수, 생략 금지)
 

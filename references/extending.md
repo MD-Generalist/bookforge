@@ -7,7 +7,7 @@
 | 파일 | 역할 |
 |---|---|
 | `STYLE.md` | 디자인 규칙서(수치 포함). 집필 톤·지면 문법의 단일 진실 원천 |
-| `tokens.json` | `engine`(typst\|html), `trim_mm`(G1이 PDF 실측과 ±0.5mm 대조 — 테마 하드코딩과 어긋나면 FAIL), **`body_pt`**(테마가 선언한 본문 급수. G1-SCALE이 PDF 본문 최빈 pt와 ±0.3pt 대조 — 전역 축소 차단. **미선언 시 WARN만 나가고 그 스타일은 축소 검출 불가**이므로 새 팩은 반드시 넣을 것), `length_pages`, `brand_default`, `fonts`(스타일이 실제 쓰는 동봉 패밀리 목록), `body_frame_mm`(pagemetrics 판면 정본), **`front_frame_mm`**(선택 — 앞부속(표지·목차) 텍스트 봉투 `[top,right,bottom,left]`mm. 리스트면 앞부속 전 면 공통, 객체면 `{"cover": [...], "toc": [...]}`로 1면=표지·나머지=목차. G3-FIT이 이 프레임 밖 텍스트를 FAIL시킨다. 표지·목차는 `body_frame_mm`이 아니라 자체 padding·절대배치를 쓰므로 body_frame을 재사용할 수 없고, **미선언이면 그 스타일은 앞부속 프레임 검사가 WARN과 함께 생략**된다 — 값을 CSS에서 확정할 수 없는 스타일에 억지로 넣지 말 것. 값은 CSS 선언 좌표에서 글리프 오버행을 흡수한 봉투로 잡고, 근거와 실측 여유를 같은 파일의 `_front_frame_mm_note`에 남긴다), **`toc_levels`**(인쇄 목차에 노출하는 계층 수. 1이면 빌더가 절 엔트리도, `<h2>`의 `@@chNNsMM@@` 마커도, 레벨 2 북마크도 발행하지 않는다 — STYLE.md가 "계층 1단계까지만"을 선언한 스타일은 1로 둘 것. **미선언 시 2로 폴백**), **`toc_capacity`**(단면 목차 스타일 전용 — 아래 「단면 목차 팩」. TOCPAGE 블록이 없는 html 엔진 스타일이 이걸 선언하지 않으면 빌드가 `die()`), `diagram`(`palette`·**`palette_roles`**·minFontPt·widths — `palette_roles`는 `palette`와 병렬인 **필수** 배열로 슬롯별 역할(`label`\|`fill`\|`stroke`)을 선언한다. 부재·길이 불일치·허용값 밖은 G16-SYNC HARD FAIL — 옵셔널이면 새 스타일이 빼먹고 G16-BRAND가 조용히 무력화된다. 0번 슬롯은 `render_diagrams.mjs:38`이 `book.json.brand`로 덮어쓰는 브랜드 치환 슬롯이라 `label`이어야 브랜드 대비 검증이 성립한다), **`contrast_contract`**(선택 — 렌더 전 대비 계약. `{"enforce": bool, "entries": [{"fg":, "bg":, "pt":, "bold":, "where":}, ...]}` 형식. `fg`/`bg`는 hex 리터럴이 아니라 **토큰명**(`--css-var` \| `brand` \| `palette[n]` \| `$key_label` \| 리터럴 `#hex`)으로 적어 브랜드가 바뀌어도 계약이 썩지 않는다. 하한은 저장하지 않고 `pt`/`bold`에서 WCAG로 파생한다(`scripts/g16_tokens.py`의 `contrast_floor`가 단일 진리원 — G14-C와 공유). `enforce:true`인 스타일만 미달이 G16-CONTRAST **HARD FAIL**, 그 외(부재·`false`)는 WARN — typst 4종처럼 키 자체가 없으면 그 스타일은 이 축이 N/A로 빠진다(절대 FAIL 아님)), **`key_label`**(선택 — `$key_label` 플레이스홀더가 파생할 라벨색의 배경·급수 계약. `{"bg": "--토큰", "pt": N, "bold": bool}`. brand를 명도만 낮춰 그 배경 위 대비 하한(×1.05 여유)을 처음 넘는 색을 결정론 파생한다(`derive_key_label`) — hue·채도는 보존해 브랜드 정체성과 G16-BRAND hue 정합을 깨지 않는다. 미선언이면 brand 원색을 그대로 쓴다. 대비 실측이 있는 스타일만 선언할 것(magazine `.callout-title` 4.45가 근거)) |
+| `tokens.json` | `engine`(typst\|html), `trim_mm`(G1이 PDF 실측과 ±0.5mm 대조 — 테마 하드코딩과 어긋나면 FAIL), **`body_pt`**(테마가 선언한 본문 급수. G1-SCALE이 PDF 본문 최빈 pt와 ±0.3pt 대조 — 전역 축소 차단. **미선언 시 WARN만 나가고 그 스타일은 축소 검출 불가**이므로 새 팩은 반드시 넣을 것), `length_pages`, `brand_default`, `fonts`(스타일이 실제 쓰는 동봉 패밀리 목록), `body_frame_mm`(pagemetrics 판면 정본), **`front_frame_mm`**(선택 — 앞부속(표지·목차) 텍스트 봉투 `[top,right,bottom,left]`mm. 리스트면 앞부속 전 면 공통, 객체면 `{"cover": [...], "toc": [...]}`로 1면=표지·나머지=목차. G3-FIT이 이 프레임 밖 텍스트를 FAIL시킨다. 표지·목차는 `body_frame_mm`이 아니라 자체 padding·절대배치를 쓰므로 body_frame을 재사용할 수 없고, **미선언이면 그 스타일은 앞부속 프레임 검사가 WARN과 함께 생략**된다 — 값을 CSS에서 확정할 수 없는 스타일에 억지로 넣지 말 것. 값은 CSS 선언 좌표에서 글리프 오버행을 흡수한 봉투로 잡고, 근거와 실측 여유를 같은 파일의 `_front_frame_mm_note`에 남긴다. **선언값 타당성은 G16-SYNC가 렌더 전에 기계 검증한다**: 4원소 수치 배열 · 각 값 ≥ 0 · `좌+우 < trim_w` ∧ `상+하 < trim_h` · 객체형이면 `cover`·`toc` **둘 다** 필수(하나만 선언하거나 한쪽이 `null`이면 나머지 면의 축이 경고 없이 전부 꺼지므로 HARD FAIL) — 전부 증명 가능한 모순이다. 프레임 면적이 지면의 95% 이상이면 축이 항등이 되므로 WARN(`[0,0,0,0]`이 그 형태), qc_gate도 같은 WARN을 리포트에 싣고 "선언은 있으나 검사한 면 0개"를 별도 WARN으로 남긴다 — **위조가 미선언보다 조용해서는 안 된다**), **`toc_levels`**(인쇄 목차에 노출하는 계층 수. 1이면 빌더가 절 엔트리도, `<h2>`의 `@@chNNsMM@@` 마커도, 레벨 2 북마크도 발행하지 않는다 — STYLE.md가 "계층 1단계까지만"을 선언한 스타일은 1로 둘 것. **미선언 시 2로 폴백**), **`toc_capacity`**(단면 목차 스타일 전용 — 아래 「단면 목차 팩」. TOCPAGE 블록이 없는 html 엔진 스타일이 이걸 선언하지 않으면 빌드가 `die()`), `diagram`(`palette`·**`palette_roles`**·minFontPt·widths — `palette_roles`는 `palette`와 병렬인 **필수** 배열로 슬롯별 역할(`label`\|`fill`\|`stroke`)을 선언한다. 부재·길이 불일치·허용값 밖은 G16-SYNC HARD FAIL — 옵셔널이면 새 스타일이 빼먹고 G16-BRAND가 조용히 무력화된다. 0번 슬롯은 `render_diagrams.mjs:38`이 `book.json.brand`로 덮어쓰는 브랜드 치환 슬롯이라 `label`이어야 브랜드 대비 검증이 성립한다), **`contrast_contract`**(선택 — 렌더 전 대비 계약. `{"enforce": bool, "entries": [{"fg":, "bg":, "pt":, "bold":, "where":}, ...]}` 형식. `fg`/`bg`는 hex 리터럴이 아니라 **토큰명**(`--css-var` \| `brand` \| `palette[n]` \| `$key_label` \| 리터럴 `#hex`)으로 적어 브랜드가 바뀌어도 계약이 썩지 않는다. 하한은 저장하지 않고 `pt`/`bold`에서 WCAG로 파생한다(`scripts/g16_tokens.py`의 `contrast_floor`가 단일 진리원 — G14-C와 공유). `enforce:true`인 스타일만 미달이 G16-CONTRAST **HARD FAIL**, 그 외(부재·`false`)는 WARN — typst 4종처럼 키 자체가 없으면 그 스타일은 이 축이 N/A로 빠진다(절대 FAIL 아님)), **`key_label`**(선택 — `$key_label` 플레이스홀더가 파생할 라벨색의 배경·급수 계약. `{"bg": "--토큰", "pt": N, "bold": bool}`. brand를 명도만 낮춰 그 배경 위 대비 하한(×1.05 여유)을 처음 넘는 색을 결정론 파생한다(`derive_key_label`) — hue·채도는 보존해 브랜드 정체성과 G16-BRAND hue 정합을 깨지 않는다. 미선언이면 brand 원색을 그대로 쓴다. 대비 실측이 있는 스타일만 선언할 것(magazine `.callout-title` 4.45가 근거)) |
 | `theme.typ` | (typst 엔진) 테마 구현 |
 | `theme.html` + `theme.css` | (html 엔진) 페이지 골격 + 인쇄 스타일시트 |
 | `decorate.py` | (html 엔진, 선택) 렌더 후 PyMuPDF 러닝 장식 스탬핑 |
@@ -64,7 +64,20 @@ base의 `book()`을 그대로 쓰거나(practical처럼 토큰만 교체), 완�
 ```bash
 python3 scripts/scaffold.py /tmp/smoke --style <이름> --title "스모크" --length short
 # outline·chapters에 표·코드·콜아웃·리스트가 다 들어간 짧은 검증 콘텐츠를 넣고
-python3 scripts/build.py /tmp/smoke && python3 scripts/contact_sheet.py /tmp/smoke/draft/book.pdf /tmp/smoke/qc --dpi 85
+python3 scripts/build.py /tmp/smoke && python3 scripts/qc_gate.py /tmp/smoke
+python3 scripts/contact_sheet.py /tmp/smoke/draft/book.pdf /tmp/smoke/qc --dpi 85
+# 대비 계약 린터(G16-LINT)는 qc_gate가 자동으로 부른다. 축① 완전성은 qc_gate에서
+# WARN이므로, **스타일 팩을 고친 뒤에는** 전 요소를 밟는 이 스모크 북에서 직접 돌려
+# MISSING까지 0으로 만든다 — 그 축이 강제력을 갖는 자리가 여기다:
+python3 tests/lint_contrast.py /tmp/smoke
+python3 tests/mutations/run_mutations.py /tmp/smoke   # 게이트 감도 회귀
 ```
 
 렌더 PNG를 눈으로 확인하기 전까지 완료가 아니다.
+
+`contrast_contract`를 손댔다면 린터의 세 축이 각각 무엇을 잡는지 알고 볼 것:
+① 완전성(theme.css 규칙 ↔ 계약 엔트리 양방향 diff) ② pt 정합(계약이 신고한 급수가
+theme.css에 실재하는가 — pt는 `contrast_floor`의 입력이라 위조하면 계약이 스스로
+하한을 낮춘다) ③ 값 커버리지(theme.css의 모든 `color:`/`background:` 리터럴이 어떤
+엔트리에든 등장하는가 — 원고와 무관해 새 색의 조용한 추가를 잡는다).
+②③과 유령 엔트리는 `qc_gate`가 `fails`로 올린다(HTML 엔진 한정, typst는 명시 skip).

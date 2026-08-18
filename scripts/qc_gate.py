@@ -21,6 +21,9 @@ Gates (pagination.md §7):
   G12 parity  : 장 시작 직전 필러 백면 (단면 전자책에 인쇄 관습 금지)
   G14 toc     : (tocgate.py) A 인쇄 목차 쪽번호↔폴리오 자기일관 / B 목차↔도비라
                 색상(hue) 정합 / C 텍스트 배경 대비 WCAG 하한(대형 3:1, 그 외 4.5:1)
+  G16-LINT    : (tests/lint_contrast.py) contrast_contract ↔ theme.css·book-final.html
+                실물 대조. 축② pt 정합·축③ 값 커버리지·유령 엔트리는 fails, 축① 완전성은
+                WARN. html 엔진 한정(book-final.html 부재 = 명시 skip)
 Writes <book_dir>/gate-report.json. On PASS copies draft/book.pdf -> final/<slug>.pdf.
 Exit 0 = PASS, 1 = FAIL. (G6 visual judgement is the agent's job on the contact sheet.)
 """
@@ -63,6 +66,10 @@ ROLE_CODES = {"PART_DIVIDER", "FULL_BLEED_PLATE", "EXEC_SUMMARY",
 # oy는 minH에 대한 **비율**이라 단위 불변이므로 0.35를 그대로 옮긴다.
 COLLIDE_OX_PT = 2 * 0.75
 COLLIDE_OY_FRAC = 0.35
+# OVERLAP_APPROVED가 열 수 있는 교차의 기계 상한(G11 선행조건). 면제가 면 단위라
+# 사유서가 지목하지 않은 겹침까지 함께 열리므로, "승인으로 설명 가능한 교차"의 크기를
+# 검출 임계의 2배로 묶는다 — 근거·실측은 G11의 해당 분기 주석.
+OVERLAP_APPROVE_MAX_OX_PT = 2 * COLLIDE_OX_PT
 # 세로 박스는 line["bbox"]를 그대로 쓰지 않는다. fo2text가 재는 것은 DOM 라인박스
 # (font-size × line-height ≈ 1.0~1.3em)인데 PyMuPDF의 line bbox는 **폰트 선언 bbox**라
 # 서체 메트릭에 따라 1.44em까지 부푼다(실측: magazine `.pullquote`의 `::before` 큰따옴표가
@@ -71,6 +78,21 @@ COLLIDE_OY_FRAC = 0.35
 # → span origin(베이스라인) 기준 [-0.85em, +0.20em] 박스로 정규화하고 raw bbox로 클립한다.
 #   합 1.05em은 CSS 기본 라인박스 대역이고, 한글·라틴 혼식 실잉크 대역의 [하우스] 상수다.
 #   실측 여유: 이 상수에서 전 코퍼스 최근접 미검출이 임계의 0.67배(33% 헤드룸).
+#
+# 🚨 **검출 하한(맹점 대역)** — 이 축이 잡는 것은 "교차 전량"이 아니다.
+#   정규화 박스 높이 = 0.85 + 0.20 = 1.05em, 임계 = 0.35 × minH = 0.3675em이므로
+#   같은 급수 두 행의 **베이스라인 간격이 1.05 − 0.3675 = 0.6825em 이상이면 산술적으로
+#   검출되지 않는다.** 한글 글리프의 실잉크 대역은 대략 1.0em이라
+#   **[0.68em, 1.0em) 구간은 실잉크가 겹치는데 게이트가 침묵하는 대역**이다
+#   (실측 스윕: 20pt·NotoSerifKR에서 피치 0.70em = 실잉크 949px 미검출, 0.95em = 11px 미검출.
+#    W4 판정 D4-1 / `/mnt/d/bookforge-verify/adv-w4final/collide_synth2.json`).
+#   상수를 키우면 이 대역은 좁아지지만 오탐(폰트 선언 bbox 1.44em 계열)이 즉시 돌아온다 —
+#   현행 조판 계약의 **본문** 행송은 이 대역을 밟지 않으므로(6스타일 1.61~1.84em: insight
+#   17.5/9.5 · magazine 5.4mm/9.5 · academic 17.5/10 · business 1.62em) 상수를 유지하고
+#   **하한을 명시**한다. 예외는 의도적으로 조인 디스플레이 행송(magazine `.coverline`
+#   line-height 0.92 등)인데, 그 대역의 실잉크 교집합은 미미하고(0.90em에서 157px,
+#   0.95em에서 11px) 조판 의도 자체가 그렇다. 본문 행송을 0.95em 이하로 잡는 스타일을
+#   새로 만들면 이 축은 그 스타일에서 무력하다 — pagination.md G3-COLLIDE 행 동일 문장.
 COLLIDE_ASC_EM, COLLIDE_DESC_EM = 0.85, 0.20
 # magazine 2단 방어: styles/magazine/theme.css:118 `column-count: 2; column-gap: 8mm`.
 # 좌우 단은 y가 100% 겹치므로 x 밴드로 라인을 먼저 분류하고 같은 밴드 안에서만 비교한다.
@@ -339,11 +361,23 @@ def line_records(blocks, bands):
             if not spans:
                 continue
             rx0, ry0, rx1, ry1 = ln["bbox"]
-            by0 = max(min(s["origin"][1] - COLLIDE_ASC_EM * s["size"] for s in spans), ry0)
-            by1 = min(max(s["origin"][1] + COLLIDE_DESC_EM * s["size"] for s in spans), ry1)
+            # ── 정규화의 전제: 라인이 **수평 정립**(dir == (1,0))일 것 ──
+            # 정규화는 span origin(베이스라인)에서 세로로만 [-0.85em, +0.20em]를 잡는다.
+            # 회전 라인에서 origin은 회전 **전** 기준점이므로 이 계산은 라인이 실제로
+            # 점유한 세로 대역과 무관해진다: 90°/270° 라벨(raw 높이 101.8pt)의 정규화
+            # 박스가 2.8~11.9pt로 붕괴해 실잉크가 겹치는데도 교차 0건이 됐다(W4 판정 D4-2).
+            # 회전 라인은 서체 메트릭 부풀림(정규화의 도입 사유)보다 좌표 붕괴가 훨씬
+            # 큰 오차이므로 **raw bbox로 판정**한다 — 검출 방향으로 보수적이다.
+            dr = tuple(round(v, 3) for v in (ln.get("dir") or (1.0, 0.0)))
+            if dr != (1.0, 0.0):
+                by0, by1 = ry0, ry1
+            else:
+                by0 = max(min(s["origin"][1] - COLLIDE_ASC_EM * s["size"] for s in spans), ry0)
+                by1 = min(max(s["origin"][1] + COLLIDE_DESC_EM * s["size"] for s in spans), ry1)
             if rx1 - rx0 <= 0 or by1 - by0 <= 0:
                 continue
             recs.append({"blk": bi, "raw": (rx0, ry0, rx1, ry1), "box": (rx0, by0, rx1, by1),
+                         "rot": dr != (1.0, 0.0),
                          "text": "".join(s["text"] for s in spans).strip(),
                          "band": _band_of(bands, rx0, rx1)})
     return recs
@@ -355,6 +389,79 @@ def front_frame_for(decl, page_no):
     if isinstance(decl, dict):
         return decl.get("cover" if page_no == 1 else "toc")
     return decl
+
+
+# ---- G16-LINT (tests/lint_contrast.py 배선) ----
+# 린터의 세 축 중 **CSS만으로 증명되는 것**만 qc_gate의 fails로 올린다. 축① 완전성
+# (MISSING = CSS에 있는데 계약에 없다)은 이 책의 원고가 그 요소를 밟았는지에 의존하므로
+# WARN이다 — 린터 §5의 설계(전 요소를 밟는 스모크 북에서만 강제력을 갖는다)를 그대로 둔다.
+#  · PT_UNATTAINABLE (축②) — 계약이 신고한 pt가 theme.css의 어떤 font-size에도 없다.
+#    pt는 contrast_floor의 입력이라 위조하면 계약이 스스로 하한을 4.5 -> 3.0으로 낮춘다.
+#  · FG/BG_UNCOVERED (축③) — theme.css의 색이 어떤 엔트리에도 없다. 원고와 무관하다.
+#  · GHOST — 엔트리의 성분(색·급수)이 theme.css 어디에도 없다. 계약 쪽 날조라 CSS만으로 증명된다.
+#  · NO_CONTRACT / STAMP 3종 — 계약 자체의 부재, decorate.py 상수와의 모순. 파일 대조라 증명 가능.
+LINT_HARD_CODES = {"PT_UNATTAINABLE", "FG_UNCOVERED", "BG_UNCOVERED", "GHOST",
+                   "NO_CONTRACT", "NO_DECORATE", "NO_CONST", "CONST_MISMATCH"}
+
+
+def g16_lint_check(book_dir, style):
+    """contrast_contract 실물 대조 린터를 출하 경로에서 돌린다.
+
+    이 린터는 `typeset/book-final.html`을 입력으로 하므로 **렌더 전 게이트가 될 수 없고**
+    (그래서 build.py의 G16이 아니라 여기 있다), typst 4종에는 그 파일 자체가 없다.
+    배선 전에는 코드·CI·문서 어디에도 호출 지점이 없어서 세 축이 전부 무효였고,
+    계약 엔트리 절삭·pt 위조·미등재 저대비 규칙 신설이 출하 파이프라인을 통과했다
+    (W4 판정 D1). 반환 dict는 그대로 report["gates"]["G16-LINT"]가 된다.
+
+    **중단 지점이 아니다** — FAIL은 fails에 누적만 하고 뒤 게이트를 계속 판정한다.
+    린터 자체가 터져도(경로·의존성 문제) 게이트를 죽이지 않는다: WARN으로 강등한다.
+    """
+    res = {"ok": True, "problems": [], "warns": [], "skipped": None}
+    html = book_dir / "typeset" / "book-final.html"
+    if not html.exists():
+        res["skipped"] = (f"typeset/book-final.html 부재 — 이 린터는 HTML DOM에서 실 페어를 "
+                          f"도출하므로 typst 엔진 스타일({style})에는 원리적으로 적용 불가")
+        return res
+    lint_py = SKILL / "tests" / "lint_contrast.py"
+    if not lint_py.exists():
+        res["skipped"] = f"{lint_py} 부재 — 배포본에서 tests/가 빠졌는지 확인할 것"
+        res["warns"].append(res["skipped"])
+        return res
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("bf_lint_contrast", lint_py)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        mod._VIRT_CACHE.clear()
+        r = mod.lint_book(book_dir)
+    except Exception as exc:  # 린터의 사고가 게이트 전체를 죽이지 않게 한다
+        res["warns"].append(f"린터 실행 실패({type(exc).__name__}: {exc}) — 이 축은 미판정. "
+                            f"직접 실행: python3 {lint_py} {book_dir}")
+        return res
+    if r.get("skipped"):
+        res["skipped"] = r["skipped"]
+        return res
+    res["pairs"], res["entries"] = r.get("pairs"), r.get("entries")
+    for x in r.get("findings", []):
+        line = f"[{x['code']}] {x['msg']}"
+        if x["level"] == "FAIL" and x["code"] in LINT_HARD_CODES:
+            res["problems"].append(line)
+        else:
+            res["warns"].append(f"({x['level']}) {line}")
+    res["ok"] = not res["problems"]
+    return res
+
+
+def collide_exempt_pages(fullbleed, overlap_ok, ch_starts, first_ch):
+    """G3-COLLIDE 면제 면 집합. **도비라·앞부속은 어떤 경우에도 빠진다.**
+
+    면제는 새 집합을 만들지 않고 기존 것을 재사용한다:
+      · `fullbleed`(imgarea|vecarea ≥ 0.60) — 전면 도판 위 활자 배치는 조판 문법이다
+      · `OVERLAP_APPROVED` — 기계 판정 불가한 정당한 겹침에 이름을 준다(INV-3)
+    거기서 도비라(`ch_starts`)와 앞부속(`range(1, first_ch)`)을 뺀다. 뮤테이션 스위트가
+    이 함수를 직접 호출해 차감을 회귀로 고정한다(M9c)."""
+    return ((set(fullbleed) | set(overlap_ok)) - set(ch_starts)
+            - set(range(1, first_ch)))
 
 
 def g3_collide_page(recs):
@@ -431,12 +538,24 @@ def main():
     if g15p:
         finish(book_dir, report, ["G15-PARA: " + p for p in g15p])
 
+    # ---- G16-LINT (contrast_contract ↔ theme.css·DOM 실물 대조) ----
+    # G16-TOKENS(build.py)가 "선언된 페어의 대비"를 보는 축이라면 이 린터는 **그 선언
+    # 목록 자체가 실물과 맞는가**를 본다. 위 세 개(G10·G0·G15-PARA)와 달리 즉시 종료하지
+    # 않는다 — fails에 누적만 하므로 중단 지점 수가 늘지 않는다.
+    g16l = g16_lint_check(book_dir, style)
+    report["gates"]["G16-LINT"] = g16l
+    report["warns"] += [f"G16-LINT: {w}" for w in g16l["warns"]]
+    if g16l["skipped"]:
+        report["warns"].append(f"G16-LINT: skip — {g16l['skipped']}")
+    for p in g16l["problems"]:
+        fails.append(f"G16-LINT: {p}")
+
     pdf = book_dir / "draft" / "book.pdf"
 
     # ---- G1 render + page count ----
     g1 = {"exists": pdf.exists()}
     if not pdf.exists():
-        finish(book_dir, report, ["G1: draft/book.pdf missing"])
+        finish(book_dir, report, fails + ["G1: draft/book.pdf missing"])
     doc = fitz.open(pdf)
     n = doc.page_count
     lo, hi = tokens.get("length_pages", {}).get(book.get("length", "short"), [10, 400])
@@ -619,7 +738,7 @@ def main():
     # ---- 밀도 전처리 (pagination.md §7) ----
     frame_mm = tokens.get("body_frame_mm")
     if not frame_mm:
-        finish(book_dir, report, [f"G7: styles/{style}/tokens.json에 body_frame_mm 없음"])
+        finish(book_dir, report, fails + [f"G7: styles/{style}/tokens.json에 body_frame_mm 없음"])
     m = analyze(pdf, frame_mm)
     pages = m["pages"]
     N = m["n_grid"] or 1
@@ -716,15 +835,40 @@ def main():
             if code == "TOC_TAIL" and pg >= first_ch:
                 g11["problems"].append(f"p{pg}: TOC_TAIL은 본문 시작 전 한정")
             if code == "OVERLAP_APPROVED":
-                # 도비라는 어떤 경우에도 면제하지 않는다 — 이번 사이클의 원 사고(목차 넘침이
-                # 도비라 면으로 흘러 기존 행과 겹친 채 출하)가 정확히 그 면에서 났다.
+                # 도비라·앞부속은 어떤 경우에도 면제하지 않는다 — 이번 사이클의 원 사고
+                # (목차 넘침이 도비라 면으로 흘러 기존 행과 겹친 채 출하)의 **발생 지점과
+                # 착지 지점**이 정확히 그 둘이다. 계약 문장(pagination.md)이 원래 그렇게
+                # 적혀 있었고 코드만 도비라를 뺐다 — 코드를 문장에 맞춘다(W4 판정 D2).
                 if pg in ch_starts:
                     g11["problems"].append(
                         f"p{pg}: OVERLAP_APPROVED는 도비라(장 오프너)에 쓸 수 없다 "
                         "— 목차↔도비라 겹침 사고 계열이 통째로 면제된다")
+                elif pg < first_ch:
+                    g11["problems"].append(
+                        f"p{pg}: OVERLAP_APPROVED는 앞부속(표지·목차·판권, 1~{first_ch - 1}면)에 "
+                        "쓸 수 없다 — 표지는 G14-C가 원리적으로 스캔하지 않는 유일한 면이고"
+                        "(tocgate.py: `range(1, page_count)`), 목차는 넘침 사고의 발생 면이다")
                 elif pg not in collide_raw:
                     g11["problems"].append(
                         f"p{pg}: OVERLAP_APPROVED인데 그 면에 교차 라인이 실재하지 않는다 (도장 방지)")
+                else:
+                    # 면제는 **면 단위**다(교차 1건을 지목하지 못한다). 그래서 사소한 교차
+                    # 하나로 선행조건을 제조한 뒤 같은 면의 중대한 겹침까지 함께 면제하는
+                    # 경로가 열려 있었다(W4 판정 D5 — 실측: 장식 불릿 ox 2.02pt로 승인을
+                    # 정당화하고 본문 행 통째 겹침 ox 38.85pt를 함께 통과시킴).
+                    # 폭발 반경을 기계 상한으로 묶는다: 승인 면의 **모든** 교차가 검출
+                    # 임계의 2배(ox <= 3.0pt ≈ 1mm) 이내여야 한다. 이 코드가 존재하는
+                    # 사유(장식 글리프가 행 끝에 머리카락만큼 물리는 정당한 조판)는 전부
+                    # 이 대역 안이고, 그보다 큰 교차는 "설명 가능한 조판"이 아니라 결함이다.
+                    big = [h for h in collide_raw[pg] if h["ox"] > OVERLAP_APPROVE_MAX_OX_PT]
+                    if big:
+                        h0 = big[0]
+                        g11["problems"].append(
+                            f"p{pg}: OVERLAP_APPROVED 면에 상한 초과 교차 {len(big)}건 — "
+                            f"'{h0['a']}' ↔ '{h0['b']}' (ox {h0['ox']}pt > "
+                            f"{OVERLAP_APPROVE_MAX_OX_PT}pt = 검출 임계 {COLLIDE_OX_PT}pt의 2배). "
+                            "면 단위 면제라 사유서에 없는 겹침까지 함께 열리므로, 이 크기의 "
+                            "겹침은 승인 대상이 아니라 수리 대상이다")
             if code == "CH_CLOSE_APPROVED" and pg not in tails:
                 g11["problems"].append(f"p{pg}: CH_CLOSE_APPROVED는 장 끝 면 한정 "
                                        "(레버 소진 후 최종 에스컬레이션)")
@@ -745,11 +889,19 @@ def main():
     # 면제는 **새 집합을 만들지 않고** 기존 것을 재사용한다.
     #  · `fullbleed`(imgarea|vecarea ≥ 0.60) — 전면 도판 위 활자 배치는 조판 문법이지 겹침이 아니다
     #  · `role_by_page`의 `OVERLAP_APPROVED` — 기계 판정 불가한 정당한 겹침에 이름을 준다(INV-3)
-    # `structural`의 나머지 성분(앞부속·판권·마지막 본문 면)과 도비라는 **면제하지 않는다**:
+    # `structural`의 나머지 성분(판권·마지막 본문 면)과 도비라·앞부속은 **면제하지 않는다**:
     # 밀도(비움) 면제와 겹침 면제는 다른 관심사이고, 앞부속·도비라를 면제하면 이번 사이클의
     # 원 사고(목차 넘침 → 도비라 겹침)가 발생 지점에서 통째로 열린다.
+    #
+    # 🚨 앞부속 차감은 **fullbleed 자동 면제에도** 걸린다. 표지는 imgarea 1.0인 전면
+    # 도판이라 fullbleed 집합에 자동으로 들어가는데(실측: magazine-trend-brief p1),
+    # 동시에 **G14-C가 원리적으로 스캔하지 않는 유일한 면**이다(tocgate.py의 대비 루프가
+    # `range(1, page_count)`로 표지를 건너뛴다 — 아트 배경 때문). 즉 표지에서 제목 위에
+    # 다른 행이 통째로 얹혀도 사람 판단 0·사유 코드 0으로 전 게이트를 통과했다(W4 판정 D2).
+    # 계약 문장(pagination.md 「도비라·앞부속은 어떤 경우에도 면제하지 않는다」)이 옳았고
+    # 코드가 `ch_starts`만 뺐다 — 코드를 문장에 맞춘다.
     overlap_ok = {pg for pg, c in role_by_page.items() if c == "OVERLAP_APPROVED"}
-    collide_exempt = (fullbleed | overlap_ok) - set(ch_starts)
+    collide_exempt = collide_exempt_pages(fullbleed, overlap_ok, ch_starts, first_ch)
     collisions = [dict(page=pg, **h) for pg in sorted(collide_raw)
                   if pg not in collide_exempt for h in collide_raw[pg]]
     report["gates"]["G3-COLLIDE"] = {
@@ -780,10 +932,24 @@ def main():
                 f"p{pg}: 앞부속인데 텍스트 0행이고 pageroles 선언도 없다 "
                 "— 빈 면이 구조적 면제에 삼켜져 전 게이트를 통과하는 구멍")
     if front_frame:
+        # 선언값의 **형식·물리 타당성**은 G16-SYNC가 렌더 전에 판정한다
+        # (g16_tokens.front_frame_findings — 4원소 수치·비음수·프레임<판형·객체형 두 키).
+        # 여기서는 그 선언이 이 책에서 **실제로 축으로 작동했는가**만 본다: 선언은 있는데
+        # 검사한 면이 0이거나 프레임이 지면과 사실상 같으면 축이 조용히 항등이 된 것이고,
+        # 그 상태가 리포트에서 "declared:true · 결함 0"으로만 보이면 위조가 미선언보다
+        # 조용해진다(W4 판정 D3).
+        checked = 0
+        trim_mm = tokens.get("trim_mm")
         for pg in front_pages:
             fr_mm = front_frame_for(front_frame, pg)
             if not fr_mm:
                 continue
+            checked += 1
+            ratio = g16_tokens.front_frame_area_ratio(fr_mm, trim_mm)
+            if ratio is not None and ratio >= g16_tokens.FRONT_FRAME_AREA_WARN:
+                report["warns"].append(
+                    f"G3-FIT: p{pg} 선언 프레임 {fr_mm}가 지면의 {ratio:.1%} — 봉투가 판형과 "
+                    f"사실상 같아 이 면의 프레임 축은 항등이다(축 무력화 의심)")
             top, right, bottom, left = fr_mm
             pw, ph = page_size[pg]
             box = fitz.Rect(left * MM2PT - TOL, top * MM2PT - TOL,
@@ -794,6 +960,12 @@ def main():
                         f"p{pg}: 앞부속 텍스트가 선언 프레임 밖 — '{rec['text'][:20]}' "
                         f"bbox {[round(v, 1) for v in rec['raw']]} "
                         f"vs front_frame {[round(v, 1) for v in box]}")
+        g3fit["checked_pages"] = checked
+        if front_pages and not checked:
+            report["warns"].append(
+                f"G3-FIT: styles/{style}/tokens.json에 front_frame_mm 선언은 있으나 "
+                f"검사한 앞부속 면이 0개다(앞부속 {front_pages}) — 선언 형태가 이 책의 면에 "
+                f"적용되지 않는다(객체형 키 누락·null 등). 축이 조용히 꺼진 상태다")
     else:
         report["warns"].append(
             f"G3-FIT: styles/{style}/tokens.json에 front_frame_mm 미선언 — 앞부속 프레임 축 생략"

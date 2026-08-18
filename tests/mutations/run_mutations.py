@@ -26,12 +26,33 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
                          골라 fg를 bg와 동일 색으로 재기록(ratio=1.0) → g16_tokens.run을
                          그 복사본 대상으로 실행해 G16-CONTRAST FAIL 검출
                          (enforce:true 스타일만 성립 — 현재 insight·magazine)
+  M12 palette_roles 훼손 — 임시 스타일 팩 사본의 diagram.palette_roles를 허용값 밖으로
+                         바꿔 → G16-SYNC FAIL (HARD를 내는 축인데 감도 자산이 없었다)
+  M13 위반 브랜드      — book.json.brand 위치에 고정 동반색과 hue가 어긋나는 색을 넣어
+                         → G16-BRAND FAIL (출처가 book.json이라 FAIL 강도)
+  M14 pt 위조(린터 배선) — 임시 스타일 팩 사본에서 계약 엔트리의 pt만 theme.css에 없는
+                         값으로 위조 → 린터 축② PT_UNATTAINABLE FAIL, 그리고 그 코드가
+                         **qc_gate가 fails로 올리는 집합**(LINT_HARD_CODES)에 실재함을
+                         함께 어서션한다. pt는 contrast_floor의 입력이라 위조하면 계약이
+                         스스로 하한을 4.5 -> 3.0으로 낮춘다(W4 판정 D1-L2)
+  M9b 본문 면 겹침·승인 — 본문 면(도비라·앞부속·전면도판 아님)에 ㉠머리카락 교차만 주입
+                         → 검출, ㉡같은 면에 OVERLAP_APPROVED → **면제 성립**(collide_exempt
+                         분기를 실제로 밟는다), ㉢같은 면에 상한 초과 겹침을 더 주입하고
+                         승인 유지 → G11 선행조건 FAIL(면당 일괄 면제의 폭발 반경 상한)
+  M9c 면제 차감 불변식  — `collide_exempt_pages`가 도비라·앞부속을 어떤 입력에서도 빼는지
+                         (표지가 fullbleed여도) 직접 어서션 — W4 판정 D2의 회귀 고정
   M0  무변조 대조군     — 원본은 G14 전 축 + G1-SCALE + G3-COLLIDE/FIT + G16(SYNC/CONTRAST/
                          BRAND 전 축, 원본 스타일 팩) PASS (오탐 없음 확인)
+
+**결번 M4·M5·M6**: 플랜 단계에서 예약했다가 쓰지 않은 번호다(각각 G7 밀도·G8 공기·G9
+고립용으로 잡았으나 그 세 축은 실측 코퍼스에 참양성 표본이 이미 있어 합성 주입이
+불필요하다고 판단). 빠진 축이 아니라 **폐기된 번호**이므로 재사용하지 않는다.
 
 Usage: python3 tests/mutations/run_mutations.py <book_dir>
        (book_dir는 게이트 PASS 상태의 draft/book.pdf + outline.json 보유)
 """
+import colorsys
+import importlib.util
 import json
 import shutil
 import sys
@@ -49,7 +70,8 @@ except ImportError:
 from tocgate import (find_toc_pages, g14a_toc_numbers, g14b_key_color, g14c_contrast,
                      g14d_section_numbers, _printed_toc_rows)
 from qc_gate import (g1_scale_check, line_records, g3_collide_page, _column_bands,
-                     front_frame_for, MM2PT, TOL)
+                     front_frame_for, collide_exempt_pages, LINT_HARD_CODES,
+                     COLLIDE_OX_PT, OVERLAP_APPROVE_MAX_OX_PT, MM2PT, TOL)
 import g16_tokens as g16
 
 
@@ -156,6 +178,100 @@ def mutate_low_contrast_tokens(style_dir, tokens, theme_text):
             return i, victim
     raise AssertionError(
         "contrast_contract에 정적 판정 가능한 페어가 없음 — M10 주입 불가")
+
+
+def mutate_palette_roles(style_dir, tokens):
+    """diagram.palette_roles를 허용값(label|fill|stroke) 밖으로 바꿔 되쓴다.
+
+    G16-SYNC는 build.py를 die()시키는 HARD 축인데 감도 회귀 자산이 없었다(W4 판정 D8).
+    palette_roles는 G16-BRAND가 "0번 슬롯이 라벨색인가"를 판정하는 입력이라, 여기가
+    조용히 부패하면 브랜드 대비 축이 통째로 빗나간다."""
+    roles = list((tokens.get("diagram") or {}).get("palette_roles") or [])
+    assert roles, "palette_roles가 없다 — M12 주입 불가"
+    victim = list(roles)
+    victim[0] = "labl"          # 오타 한 글자 — 사람이 실제로 내는 형태의 부패
+    new_dg = dict(tokens["diagram"], palette_roles=victim)
+    (Path(style_dir) / "tokens.json").write_text(
+        json.dumps(dict(tokens, diagram=new_dg), ensure_ascii=False, indent=2), encoding="utf-8")
+    return roles[0], victim[0]
+
+
+def violating_brand(tokens, theme_text):
+    """고정 동반색 계열에서 hue가 가장 먼 유채색을 찾아 돌려준다(book.json.brand 위치용).
+
+    임의의 색을 박으면 그 스타일의 동반색과 우연히 계열이 맞을 수 있어 감도 검증이
+    무의미해진다 — 12색환을 돌며 **실제로 Δ > HUE_TOL_DEG인 색**을 고른다."""
+    comps = g16._hue_companions(tokens)
+    if not comps:
+        return None
+    best = None
+    for deg in range(0, 360, 5):
+        r, g_, b = colorsys.hls_to_rgb(deg / 360.0, 0.35, 0.9)
+        rgb = (int(r * 255), int(g_ * 255), int(b * 255))
+        if not g16.is_chromatic(rgb):
+            continue
+        h = g16.hue_deg(rgb)
+        d = min(g16.hue_dist(h, c[1]) for c in comps)
+        if best is None or d > best[0]:
+            best = (d, "#%02x%02x%02x" % rgb)
+    if best and best[0] > g16.HUE_TOL_DEG:
+        return best[1]
+    return None
+
+
+def mutate_contract_pt(style_dir, tokens, theme_text):
+    """계약 엔트리 하나의 **pt만** theme.css의 어떤 font-size에도 없는 값으로 위조한다.
+
+    색은 그대로 두는 것이 핵심이다 — 색까지 바꾸면 유령 엔트리(GHOST)로 잡히지만,
+    현실의 자기완화는 "하한을 3.0으로 낮추려고 pt를 올리는" 형태다. 그 경로를 잡는
+    유일한 축이 린터 ②(PT_UNATTAINABLE)이고, 그 린터가 파이프라인에서 실행되지 않아
+    출하 경로가 전부 통과하던 것이 W4 판정 D1이다."""
+    entries = (tokens.get("contrast_contract") or {}).get("entries") or []
+    assert entries, "contrast_contract.entries가 없다 — M14 주입 불가"
+    for i, e in enumerate(entries):
+        if not isinstance(e.get("pt"), (int, float)) or isinstance(e.get("pt"), bool):
+            continue
+        # 13.7pt: 어떤 theme.css에도 없는 값이면서 하한 갈래(14)를 갓 밑도는 값이라
+        # "위조하려다 실수한 값"처럼 보이지 않는다. 실제 완화 시도는 14~18로 올린다.
+        victim = dict(e, pt=13.7)
+        new_cc = dict(tokens["contrast_contract"], entries=entries[:i] + [victim] + entries[i + 1:])
+        (Path(style_dir) / "tokens.json").write_text(
+            json.dumps(dict(tokens, contrast_contract=new_cc), ensure_ascii=False, indent=2),
+            encoding="utf-8")
+        return i, e.get("pt"), victim
+    raise AssertionError("pt를 가진 엔트리가 없다 — M14 주입 불가")
+
+
+def pick_body_page(doc, ch_starts, first_ch):
+    """도비라·앞부속이 아닌 본문 면 중 라인이 넉넉한 면. (면번호, recs)."""
+    for pno in range(first_ch - 1, doc.page_count):
+        pg = pno + 1
+        if pg in ch_starts or pg < first_ch:
+            continue
+        recs = line_records(doc[pno].get_text("dict").get("blocks", []), None)
+        if len(recs) >= 12:
+            return pg, recs
+    return None, None
+
+
+def mutate_hairline_overlap(doc, pg, recs):
+    """기존 행 끝단에 **머리카락만큼**(ox ≈ 2pt) 물리는 장식 글리프를 찍는다.
+    OVERLAP_APPROVED가 존재하는 사유(정당한 조판)와 같은 크기의 교차다."""
+    t = recs[3]
+    x0, y0, x1, y1 = t["box"]
+    doc[pg - 1].insert_text(fitz.Point(x1 - 2.0, (y0 + y1) / 2 + 2.0), "·",
+                            fontsize=8, fontfile=_stamp_font(), fontname="Fhl", color=(0, 0, 0))
+    return t["text"][:16]
+
+
+def mutate_severe_overlap(doc, pg, recs):
+    """본문 행 위에 온전한 한 행을 통째로 덮어쓴다(ox ≫ 상한). 명백한 결함."""
+    t = recs[9]
+    x0, y0, x1, y1 = t["box"]
+    doc[pg - 1].insert_text(fitz.Point(x0, (y0 + y1) / 2 + 2.5),
+                            "중대한 겹침 주입 행 이 문장은 아래 본문과 완전히 겹쳐 인쇄된다",
+                            fontsize=9.5, fontfile=_stamp_font(), fontname="Fsv", color=(0, 0, 0))
+    return t["text"][:16]
 
 
 def load(book_dir):
@@ -340,6 +456,41 @@ def main():
               f"교차 {len(col9.get(pg9, []))}건)")
         doc.close()
 
+        # M9b — **본문 면** 겹침과 OVERLAP_APPROVED. M9는 도비라(면제가 차단된 면)에만
+        # 주입하므로 `collide_exempt` 분기를 한 번도 밟지 않았다(W4 판정 D8). 여기서
+        # 세 상태를 한 면에서 순서대로 확인한다: 머리카락 교차 검출 → 승인으로 면제 성립
+        # → 상한 초과 겹침을 얹으면 승인이 무효(G11 선행조건 FAIL).
+        work = Path(td) / "m9b.pdf"
+        shutil.copy(book_dir / "draft" / "book.pdf", work)
+        doc = fitz.open(work)
+        pgb, recsb = pick_body_page(doc, ch_starts, ch_starts[0])
+        assert pgb, "본문 면을 찾지 못했다 — M9b 주입 불가"
+        hl_victim = mutate_hairline_overlap(doc, pgb, recsb)
+        colb = collide_scan(doc, style, tokens)
+        hits_hair = colb.get(pgb, [])
+        exempt_hair = collide_exempt_pages(set(), {pgb}, ch_starts, ch_starts[0])
+        ok_detect = bool(hits_hair)
+        ok_exempt = pgb in exempt_hair                       # 승인이 실제로 면제를 만든다
+        ok_bound_hair = all(h["ox"] <= OVERLAP_APPROVE_MAX_OX_PT for h in hits_hair)
+        mutate_severe_overlap(doc, pgb, recsb)
+        colc = collide_scan(doc, style, tokens)
+        over = [h for h in colc.get(pgb, []) if h["ox"] > OVERLAP_APPROVE_MAX_OX_PT]
+        results["M9b-body-overlap-approve"] = ok_detect and ok_exempt and ok_bound_hair and bool(over)
+        print(f"      (M9b 본문 p{pgb} '{hl_victim}' — 머리카락 교차 {len(hits_hair)}건 "
+              f"ox {[h['ox'] for h in hits_hair]} <= 상한 {OVERLAP_APPROVE_MAX_OX_PT}pt: {ok_bound_hair} · "
+              f"승인 면제 성립 {ok_exempt} / 중대 겹침 추가 후 상한 초과 {len(over)}건 "
+              f"ox {[h['ox'] for h in over][:2]} → G11 선행조건 FAIL)")
+        doc.close()
+
+        # M9c — 면제 차감 불변식. 표지가 fullbleed(imgarea 1.0)여도, 도비라에 승인이
+        # 찍혀도 그 면들은 면제 집합에 들어갈 수 없다(W4 판정 D2 회귀 고정).
+        fc = ch_starts[0]
+        ex = collide_exempt_pages({1, 2, fc, fc + 1}, {1, 2, fc, fc + 1}, ch_starts, fc)
+        results["M9c-exempt-front-cut"] = (1 not in ex and 2 not in ex
+                                           and fc not in ex and (fc + 1) in ex)
+        print(f"      (M9c 표지·목차·도비라 전부 fullbleed+승인 입력 → 면제 집합 {sorted(ex)} "
+              f"(앞부속 1~{fc - 1}·도비라 {ch_starts[:3]} 차감 확인))")
+
         # M11 — 앞부속 프레임 이탈 (front_frame_mm 미선언 스타일에서는 성립하지 않는다)
         inj = None
         if tokens.get("front_frame_mm") and ch_starts[0] >= 3:
@@ -373,6 +524,53 @@ def main():
         else:
             print(f"      (M10 건너뜀 — {style} contrast_contract.enforce != true)")
 
+        # M12 — G16-SYNC palette_roles 훼손. M10과 같은 임시 사본 원칙.
+        style12 = Path(td) / "style12"
+        shutil.copytree(SKILL / "styles" / style, style12)
+        tok12, css12 = g16.style_inputs(style, style_dir=style12)
+        was, now = mutate_palette_roles(style12, tok12)
+        tok12b, css12b = g16.style_inputs(style, style_dir=style12)
+        f12 = g16.fails_of(g16.run(style, tok12b, css12b, style_dir=style12)["G16-SYNC"])
+        results["M12-palette-roles"] = bool(f12)
+        print(f"      (M12 palette_roles[0] {was!r} → {now!r} → G16-SYNC FAIL {len(f12)}건)")
+
+        # M13 — G16-BRAND. brand는 book.json 위치(=FAIL 강도)로 주입한다.
+        bad_brand = violating_brand(tokens, g16.style_inputs(style)[1])
+        if bad_brand:
+            tok13, css13 = g16.style_inputs(style)
+            f13 = g16.fails_of(g16.run(style, tok13, css13, brand=bad_brand)["G16-BRAND"])
+            results["M13-violating-brand"] = bool(f13)
+            print(f"      (M13 book.json brand={bad_brand} → G16-BRAND FAIL {len(f13)}건: "
+                  f"{f13[0]['msg'][:76] if f13 else ''})")
+        else:
+            print("      (M13 건너뜀 — 고정 동반색이 없어 hue 정합 축이 성립하지 않음)")
+
+        # M14 — 린터 배선. pt만 위조하고 색은 그대로 두어 축②(PT_UNATTAINABLE)를 겨눈다.
+        # 두 가지를 함께 어서션한다: ㉠린터가 위조를 잡는가 ㉡그 코드가 qc_gate가 fails로
+        # 올리는 집합에 실재하는가(배선 — 린터가 잡아도 아무도 부르지 않으면 무효였다).
+        html14 = book_dir / "typeset" / "book-final.html"
+        if html14.exists():
+            style14 = Path(td) / "style14"
+            shutil.copytree(SKILL / "styles" / style, style14)
+            tok14, css14 = g16.style_inputs(style, style_dir=style14)
+            idx14, old_pt, victim14 = mutate_contract_pt(style14, tok14, css14)
+            spec = importlib.util.spec_from_file_location(
+                "bf_lint_contrast", SKILL / "tests" / "lint_contrast.py")
+            lint = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(lint)
+            lint._VIRT_CACHE.clear()
+            r14 = lint.lint_book(book_dir, style_dir_override=style14)
+            codes14 = {x["code"] for x in r14["findings"] if x["level"] == "FAIL"}
+            hard14 = codes14 & LINT_HARD_CODES
+            results["M14-linter-pt-forgery"] = ("PT_UNATTAINABLE" in codes14
+                                                and "PT_UNATTAINABLE" in LINT_HARD_CODES
+                                                and bool(hard14))
+            print(f"      (M14 entries[{idx14}] {victim14.get('where', '?')[:30]} "
+                  f"pt {old_pt} → 13.7 → 린터 FAIL 코드 {sorted(codes14)} · "
+                  f"qc_gate가 fails로 올리는 코드 {sorted(hard14)})")
+        else:
+            print("      (M14 건너뜀 — typeset/book-final.html 부재(typst 엔진))")
+
         # M7 — body_pt 미선언 스타일 팩에서는 검사 자체가 성립하지 않으므로 건너뛴다
         if decl_pt:
             work = Path(td) / "m7.pdf"
@@ -390,7 +588,7 @@ def main():
         print(f"{'PASS' if v else 'FAIL'}  {k}")
     if not ok:
         sys.exit(1)
-    print("전 뮤테이션 검출 — G14·G1-SCALE·G3-COLLIDE/FIT 감도 확인")
+    print("전 뮤테이션 검출 — G14·G1-SCALE·G3-COLLIDE/FIT·G16 3축·린터 배선 감도 확인")
 
 
 if __name__ == "__main__":

@@ -129,6 +129,8 @@ python3 scripts/qc_gate.py mybook      # 게이트 통과 시에만 → final/my
 | G13 | (렌더 후) 도해 라벨이 PDF 실텍스트로 존재 — SVG→PDF 변환 중 텍스트 드롭 최종 포착 |
 | G14 | 목차·디자인 정합 — A 인쇄 목차 쪽번호↔실제 폴리오 자기일관 / B 목차↔장 도비라 색상(hue) 계열 정합 / C 유채색 텍스트 배경 대비 WCAG 하한(대형 3:1, 그 외 4.5:1) |
 | G15 | 지면 리듬 (`business` 스타일 한정, 실측 근거 있는 곳만 강제) — 단락 8행 초과 차단 / 시각 요소 없는 연속 본문 면 상한 |
+| **G16-TOKENS** | **(렌더 전 · `build.py`)** 스타일 팩 토큰 계약 3축 — **SYNC**(engine↔팩 실물·`diagram.palette`/`palette_roles` 무결성·`brand_default`↔`palette[0]`·`contrast_contract` 형식·`front_frame_mm` 선언값 타당성) / **CONTRAST**(선언 페어의 WCAG 대비를 pt·bold 파생 하한과 대조) / **BRAND**(브랜드 입력의 형식·치환 지점 대비·동반색 hue 정합). **빌드를 그 자리에서 중단시킬 수 있는 유일한 게이트**라 실패 시 `gate-report.json`이 아직 없다 — stderr의 축·사유를 읽고 `styles/<style>/tokens.json`을 고칠 것 |
+| **G16-LINT** | **(`qc_gate` · html 엔진 한정)** `contrast_contract` ↔ `theme.css`·렌더 DOM 실물 대조 — ①완전성(양방향 누락·표기 드리프트, **WARN**) ②pt 정합(계약이 신고한 급수가 CSS에 실재하는가, **HARD**) ③값 커버리지(CSS의 모든 색이 계약에 등장하는가, **HARD**). typst 스타일은 렌더 DOM이 없어 명시 skip |
 
 기준 수치와 대응법은 [references/pagination.md](references/pagination.md)가, 도해 트랙의 작성 계약은 [references/diagrams.md](references/diagrams.md)가 정본이다.
 
@@ -140,7 +142,8 @@ modes/              topic.md · manuscript.md
 styles/<6종>/       STYLE.md(규칙서) + theme.typ|theme.css + tokens.json
 templates/base.typ  Typst 공통 북 프리미티브
 vendor/             antv-ssr.bundle.mjs(커밋된 AntV SSR 번들 — 오프라인 재현성) + build-bundle.mjs
-scripts/            scaffold · build · qc_gate · tocgate(G14) · contact_sheet · convert_fonts(TTF 전환) · fetch_fonts · ingest_docx
+scripts/            scaffold · build · qc_gate · tocgate(G14) · g16_tokens(G16-TOKENS) · contact_sheet · convert_fonts(TTF 전환) · fetch_fonts · ingest_docx
+tests/              lint_contrast.py(G16-LINT — qc_gate가 자동 호출, 단독 실행도 가능) · mutations/(게이트 감도 회귀 스위트)
 references/         생성 아트 정책 · 배치 규칙서(pagination.md) · 도해 계약(diagrams.md) · 오케스트레이션 · 스타일 팩 확장 가이드
 examples/           예시 9권 PDF + 쇼케이스 36컷
 ```
