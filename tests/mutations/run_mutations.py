@@ -41,6 +41,15 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
                          승인 유지 → G11 선행조건 FAIL(면당 일괄 면제의 폭발 반경 상한)
   M9c 면제 차감 불변식  — `collide_exempt_pages`가 도비라·앞부속을 어떤 입력에서도 빼는지
                          (표지가 fullbleed여도) 직접 어서션 — W4 판정 D2의 회귀 고정
+  M15 라벨 밴드 상한    — 임시 책 사본에 **합성 authored 도해**를 심는다: 폭·viewBox를 알고
+                         있으므로 라벨 pt를 원하는 값으로 정확히 놓을 수 있다. 두 표본을
+                         한 쌍으로 돌린다 — ㉠상한 초과분(본문×maxRatio를 크게 넘고 하한은
+                         지키는 라벨) → render_diagrams가 **WARN**(exit 0)으로 검출하고
+                         metrics.json에 verdict=violation을 남기는가, ㉡대조군(밴드 안)
+                         → WARN 0·verdict=ok(오탐 없음). 강도까지 어서션하는 것이 핵심이다:
+                         이 축은 **HARD가 아니어야** 정상이다(설계 report/w5-design.md 리스크 1
+                         — 0.92 HARD는 코퍼스 68/92를 폭으로 구제 불가 상태로 반려해 릴리스를
+                         세운다). rc!=0이면 그 자체가 회귀다.
   M0  무변조 대조군     — 원본은 G14 전 축 + G1-SCALE + G3-COLLIDE/FIT + G16(SYNC/CONTRAST/
                          BRAND 전 축, 원본 스타일 팩) PASS (오탐 없음 확인)
 
@@ -240,6 +249,60 @@ def mutate_contract_pt(style_dir, tokens, theme_text):
             encoding="utf-8")
         return i, e.get("pt"), victim
     raise AssertionError("pt를 가진 엔트리가 없다 — M14 주입 불가")
+
+
+def band_probe_book(root, style, tokens, ratio_of_cap):
+    """합성 authored 도해 1건짜리 최소 책을 만든다 (render_diagrams 전용 — 빌드하지 않는다).
+
+    viewBox 폭을 `widths.full × MM2PT`로 잡으면 트림 전 환산이 1pt/user-unit이라
+    라벨 pt를 사실상 직접 지정할 수 있다(트림 패딩만큼만 살짝 줄어들고, 그 오차는
+    어서션이 실측 metrics를 읽으므로 흡수된다). 색은 스타일 팔레트에서만 고른다 —
+    authored 트랙 alienColors가 팔레트 밖 색을 HARD로 죽이기 때문에, 색 때문에 죽으면
+    밴드 감도를 재는 것이 아니라 다른 축을 재게 된다.
+
+    ratio_of_cap: 상한(body_pt × maxRatio) 대비 최대 라벨 배수. >1이면 위반 표본.
+    """
+    dg = tokens["diagram"]
+    body = tokens["body_pt"]
+    cap = body * dg["labelBand"]["maxRatio"]
+    floor = dg["minFontPt"]
+    vb_w = dg["widths"]["full"] * MM2PT          # 트림 전 1pt == 1 user unit
+    vb_h = 200.0
+    pad = max(2.0, 0.008 * max(vb_w, vb_h))      # render_diagrams.trimViewBox와 동일 식
+    scale = vb_w / (vb_w + 2 * pad)              # 트림 후 pt/user-unit
+    big = (cap * ratio_of_cap) / scale
+    small = (floor * 1.15) / scale               # 하한은 넉넉히 통과시킨다(HARD 회피)
+    ink = dg["palette"][0]
+    d = Path(root)
+    (d / "diagrams").mkdir(parents=True, exist_ok=True)
+    (d / "book.json").write_text(json.dumps({"style": style, "title": "밴드 프로브"},
+                                            ensure_ascii=False), encoding="utf-8")
+    (d / "diagrams" / "fig-01.json").write_text(
+        json.dumps({"kind": "authored", "bf": {"width": "full"}}), encoding="utf-8")
+    # rect는 bbox를 고정해 트림 결과를 예측 가능하게 만드는 용도(fill:none → alienColors 무관)
+    (d / "diagrams" / "fig-01.svg").write_text(
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {vb_w:.2f} {vb_h:.2f}">'
+        f'<rect x="0" y="0" width="{vb_w:.2f}" height="{vb_h:.2f}" fill="none" stroke="none"/>'
+        f'<text x="4" y="60" font-size="{big:.3f}" fill="{ink}">밴드 표본</text>'
+        f'<text x="4" y="170" font-size="{small:.3f}" fill="{ink}">하한 표본</text>'
+        f'</svg>', encoding="utf-8")
+    return {"cap_pt": cap, "floor_pt": floor, "expect_max_pt": big * scale}
+
+
+def run_render_diagrams(book_dir, style):
+    """render_diagrams.mjs를 실제로 돌린다. (rc, stdout+stderr) 반환."""
+    import os
+    import subprocess
+    env = dict(os.environ)
+    try:
+        env["NODE_PATH"] = subprocess.run(["npm", "root", "-g"], capture_output=True,
+                                          text=True).stdout.strip()
+    except OSError:
+        pass
+    r = subprocess.run(["node", str(SKILL / "scripts" / "render_diagrams.mjs"),
+                        str(book_dir), "--style", style],
+                       capture_output=True, text=True, env=env)
+    return r.returncode, (r.stdout or "") + (r.stderr or "")
 
 
 def pick_body_page(doc, ch_starts, first_ch):
@@ -571,6 +634,44 @@ def main():
         else:
             print("      (M14 건너뜀 — typeset/book-final.html 부재(typst 엔진))")
 
+        # M15 — 라벨 밴드 상한(WARN 축). 위반 표본과 대조군을 한 쌍으로 돌려
+        # 감도(검출)와 특이도(오탐 0)를 함께 고정하고, **강도가 WARN**임을 rc로 어서션한다.
+        dgm = tokens.get("diagram") or {}
+        if not (isinstance(dgm.get("labelBand"), dict) and tokens.get("body_pt")
+                and (dgm.get("widths") or {}).get("full") and dgm.get("palette")):
+            print("      (M15 건너뜀 — 이 스타일에 diagram.labelBand/body_pt/widths.full 미선언)")
+        else:
+            def band_run(tag, ratio_of_cap):
+                bd = Path(td) / f"m15-{tag}"
+                spec_ = band_probe_book(bd, style, tokens, ratio_of_cap)
+                rc_, out_ = run_render_diagrams(bd, style)
+                mp = bd / "assets" / "fig-01.metrics.json"
+                met = json.loads(mp.read_text(encoding="utf-8")) if mp.exists() else None
+                return spec_, rc_, out_, met
+
+            spec_v, rc_v, out_v, met_v = band_run("violate", 1.8)
+            spec_c, rc_c, out_c, met_c = band_run("control", 0.9)
+            if rc_v == 0 and rc_c == 0 and met_v and met_c:
+                warn_v = "DIAGRAM-BAND" in out_v and "상한 초과" in out_v
+                warn_c = "상한 초과" not in out_c
+                ok15 = (warn_v and met_v["band"]["verdict"] == "violation"
+                        and met_v["band"]["level"] == "WARN"
+                        and met_v["maxPt"] > met_v["capPt"]
+                        and met_v["minPt"] >= met_v["minFontPt"]      # 하한 HARD를 안 밟았다
+                        and warn_c and met_c["band"]["verdict"] == "ok"
+                        and met_c["maxPt"] <= met_c["capPt"])
+                results["M15-label-band"] = ok15
+                print(f"      (M15 위반본 max {met_v['maxPt']}pt = 본문 {met_v['bodyPt']}pt × "
+                      f"{met_v['ratio']} > 상한 {met_v['maxRatio']}×({met_v['capPt']}pt) "
+                      f"· 최소 {met_v['minPt']}pt ≥ 하한 {met_v['minFontPt']}pt → "
+                      f"WARN 검출 {warn_v} · **exit {rc_v}(HARD 아님)** / "
+                      f"대조군 max {met_c['maxPt']}pt ≤ {met_c['capPt']}pt → WARN 없음 {warn_c})")
+            else:
+                results["M15-label-band"] = False
+                head = (out_v or out_c).strip().splitlines()[-1:] or [""]
+                print(f"      (M15 실행 실패 — rc {rc_v}/{rc_c}, metrics {bool(met_v)}/{bool(met_c)}: "
+                      f"{head[0][:120]})")
+
         # M7 — body_pt 미선언 스타일 팩에서는 검사 자체가 성립하지 않으므로 건너뛴다
         if decl_pt:
             work = Path(td) / "m7.pdf"
@@ -588,7 +689,7 @@ def main():
         print(f"{'PASS' if v else 'FAIL'}  {k}")
     if not ok:
         sys.exit(1)
-    print("전 뮤테이션 검출 — G14·G1-SCALE·G3-COLLIDE/FIT·G16 3축·린터 배선 감도 확인")
+    print("전 뮤테이션 검출 — G14·G1-SCALE·G3-COLLIDE/FIT·G16 3축·린터 배선·도해 라벨 밴드 감도 확인")
 
 
 if __name__ == "__main__":

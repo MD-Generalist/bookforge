@@ -217,8 +217,9 @@ html,body{margin:0;padding:0;background:#fff;}
 // 캐시 해시에 실리는 「판정 파라미터」 — 도해 SVG는 이 값들로 검사·환산되므로
 // 값이 바뀌면 캐시가 그 도해만 정확히 무효화되어야 한다(전역 CONVERTER_VERSION 대신).
 //   widthMm   : fontFloorViolations의 pt 환산 기준 폭 — 2·3단계 폭 동기화의 재렌더 트리거
-//   minFontPt : 글자 하한
-//   labelBand : 라벨 밴드(5단계 tokens.diagram.labelBand 신설 예정) — 부재 시 null로 고정
+//   minFontPt : 글자 하한(HARD)
+//   labelBand : 라벨 밴드 상한 {maxRatio}(5단계 신설) — 부재 시 null로 고정.
+//               null → 실값으로 바뀌는 순간 해당 스타일 도해 전건 재렌더가 **의도된 동작**이다.
 // 키를 재귀 정렬해 tokens.json의 키 순서가 바뀌어도 해시가 흔들리지 않게 한다.
 function stableSort(v) {
   if (Array.isArray(v)) return v.map(stableSort);
@@ -232,32 +233,161 @@ function gateParams(widthKey) {
     widthMm: (dg.widths || {})[widthKey] ?? null,
     minFontPt: dg.minFontPt ?? null,
     labelBand: dg.labelBand ?? null,
+    // 5단계: 상한이 body_pt에 상대적이므로 본문 급수도 판정 파라미터다. 이게 없으면
+    // body_pt만 바뀐 스타일에서 캐시된 metrics의 밴드 판정이 옛 기준으로 남는다.
+    bodyPt: tokens.body_pt ?? null,
   });
 }
 
-function fontFloorViolations(svg, widthKey) {
-  const minPt = dg.minFontPt;
-  const widthMm = (dg.widths || {})[widthKey];
-  if (!minPt || !widthMm) return [];
+// 라벨 급수 실측 — <text>/<tspan>의 font-size(속성·인라인 style)를 **트림 후 최종 좌표계**에서
+// pt로 환산한다. 하한(fontFloorViolations, HARD)과 상한(labelBandReport, WARN)이 반드시 같은
+// 스캔을 보게 해 두 판정이 서로 다른 숫자를 말하는 일이 없게 한다.
+const BAND_TOL_PT = 0.05; // 하한 판정과 대칭인 부동소수 여유
+function scanLabelPt(svg, widthKey) {
+  const widthMm = (dg.widths || {})[widthKey] ?? null;
   const vb = svg.match(/viewBox="[-\d. ]*?([\d.]+) ([\d.]+)"\s*/);
   const vbW = vb ? parseFloat(vb[1]) : null;
-  if (!vbW) return [`viewBox 폭을 읽지 못함 — minFontPt 검사 불가`];
-  const scalePt = (widthMm * MM2PT) / vbW; // user unit -> 실제 pt
-  const out = [];
-  const checkSize = (tag, num, unit) => {
+  const scalePt = widthMm && vbW ? (widthMm * MM2PT) / vbW : null; // user unit -> 실제 pt
+  const sizes = [];
+  const unitErrors = [];
+  const take = (tag, num, unit) => {
     let user = parseFloat(num);
     if (unit === "pt") user *= 96 / 72; // CSS pt → user unit(px)
     else if (unit && unit !== "px") { // 미지 단위는 검증 불가 — 침묵 통과 금지
-      out.push(`${tag} font-size 단위 '${unit}' 미지원 — px/pt/무단위로 지정할 것`);
+      unitErrors.push(`${tag} font-size 단위 '${unit}' 미지원 — px/pt/무단위로 지정할 것`);
       return;
     }
-    const pt = user * scalePt;
-    if (pt < minPt - 0.05) out.push(`${tag} ${num}${unit || "u"} ≈ ${pt.toFixed(1)}pt < ${minPt}pt 하한`);
+    sizes.push({ tag, raw: `${num}${unit || "u"}`, pt: scalePt === null ? null : user * scalePt });
   };
   // <text>뿐 아니라 <tspan>의 font-size 속성·style 내 font-size도 검사 (하한 우회 차단)
-  for (const m of svg.matchAll(/<(text|tspan)\b[^>]*?font-size="([\d.]+)([a-z%]*)"/gi)) checkSize(m[1], m[2], m[3]);
-  for (const m of svg.matchAll(/<(text|tspan)\b[^>]*?style="[^"]*?font-size\s*:\s*([\d.]+)([a-z%]*)/gi)) checkSize(m[1], m[2], m[3]);
+  for (const m of svg.matchAll(/<(text|tspan)\b[^>]*?font-size="([\d.]+)([a-z%]*)"/gi)) take(m[1], m[2], m[3]);
+  for (const m of svg.matchAll(/<(text|tspan)\b[^>]*?style="[^"]*?font-size\s*:\s*([\d.]+)([a-z%]*)/gi)) take(m[1], m[2], m[3]);
+  return { widthMm, vbW, scalePt, sizes, unitErrors };
+}
+
+// 밴드 하한 — 기존 계약 그대로 **HARD**. (minFontPt 미선언·widths 미선언 시 검사가 꺼지는
+// 종전 동작도 그대로 둔다 — 그 침묵은 labelBandReport가 WARN으로 드러낸다.)
+function fontFloorViolations(scan) {
+  const minPt = dg.minFontPt;
+  if (!minPt || !scan.widthMm) return [];
+  if (!scan.vbW) return [`viewBox 폭을 읽지 못함 — minFontPt 검사 불가`];
+  const out = [...scan.unitErrors];
+  for (const s of scan.sizes) {
+    if (s.pt < minPt - BAND_TOL_PT) out.push(`${s.tag} ${s.raw} ≈ ${s.pt.toFixed(1)}pt < ${minPt}pt 하한`);
+  }
   return out;
+}
+
+const r3 = (v) => (typeof v === "number" && isFinite(v) ? Math.round(v * 1000) / 1000 : null);
+
+// 밴드 상한 — 라벨 최대 pt ≤ body_pt × labelBand.maxRatio.
+//
+// **WARN으로 태어난다** (설계 정본 report/w5-design.md 「최대 리스크」 1).
+// 사용자 원 지적은 "도해 라벨이 본문보다 크다"였지만, 실측 코퍼스의 max/본문 비는 중앙 0.96·
+// p90 1.17이고 도해 내부 활자비(중앙 1.095×)가 창 폭 비(8.74/8.00 = 1.0925×)를 넘는 도해가
+// 다수라 상·하한을 **축척으로 동시에 만족시킬 수 없다**(축척은 두 끝을 함께 옮긴다).
+// cap 0.92를 HARD로 내면 authored 대다수와 AntV 트랙 전체가 즉시 반려되어 릴리스가 선다.
+// 따라서 cap 1.20[하우스 등급] · 강도 WARN으로 출생시키고, 스타일별 enforce 승격은
+// 8단계(assets/fig-NN.metrics.json 집계로 원장 재도출)가 맡는다.
+//
+// 반환: 콘솔 출력용 lines + assets/fig-NN.metrics.json에 실릴 metrics.
+function labelBandReport(scan, { name, kind, widthKey }) {
+  const band = dg.labelBand && typeof dg.labelBand === "object" ? dg.labelBand : null;
+  const maxRatio = band && typeof band.maxRatio === "number" ? band.maxRatio : null;
+  const bodyPt = typeof tokens.body_pt === "number" ? tokens.body_pt : null;
+  const floorPt = typeof dg.minFontPt === "number" ? dg.minFontPt : null;
+  const pts = scan.sizes.map((s) => s.pt).filter((p) => typeof p === "number" && isFinite(p));
+  const metrics = {
+    schema: "bf-diagram-metrics/1",
+    fig: name, kind, style, widthKey,
+    widthMm: scan.widthMm, viewBoxW: r3(scan.vbW),
+    // 환산 계수는 3자리로 자르면 pt 재산출이 어긋난다 — 5자리 유지
+    ptPerUnit: scan.scalePt === null ? null : Math.round(scan.scalePt * 1e5) / 1e5,
+    bodyPt, minFontPt: floorPt, maxRatio,
+    sizeCount: pts.length,
+    minPt: pts.length ? r3(Math.min(...pts)) : null,
+    maxPt: pts.length ? r3(Math.max(...pts)) : null,
+    ratio: null, capPt: null,
+    band: { level: "WARN", verdict: "skip", reason: null },
+    sizesPt: pts.map(r3).sort((a, b) => a - b),
+  };
+  const lines = [];
+  // 검사가 꺼지는 모든 경우를 소리내어 알린다 — 미선언이 위반보다 조용해서는 안 된다.
+  const off = maxRatio === null ? "tokens.diagram.labelBand.maxRatio 미선언"
+    : bodyPt === null ? "tokens.body_pt 미선언(G1-SCALE도 같은 이유로 꺼진다)"
+    : scan.scalePt === null ? `pt 환산 불가(widths.${widthKey} 또는 viewBox 폭 부재)`
+    : !pts.length ? "font-size 실측 0건" : null;
+  if (off) {
+    metrics.band.reason = off;
+    lines.push(`WARN DIAGRAM-BAND ${name}: 라벨 밴드 상한 검사 꺼짐 — ${off}`);
+    return { metrics, lines, violated: false };
+  }
+  const minPt = Math.min(...pts), maxPt = Math.max(...pts);
+  const capPt = bodyPt * maxRatio;
+  metrics.ratio = r3(maxPt / bodyPt);
+  metrics.capPt = r3(capPt);
+  const violated = maxPt > capPt + BAND_TOL_PT;
+  metrics.band.verdict = violated ? "violation" : "ok";
+  // 콘솔 수치는 metrics.json에 실리는 값과 같은 반올림을 쓴다(두 산출물이 다른 숫자를 말하지 않게).
+  const fact = `최대 라벨 ${metrics.maxPt}pt = 본문 ${bodyPt}pt × ${metrics.ratio} `
+    + `(상한 ${maxRatio}× = ${metrics.capPt}pt) · 최소 라벨 ${metrics.minPt}pt`
+    + (floorPt ? `(하한 ${floorPt}pt)` : "")
+    + ` · 급수 ${pts.length}건 · bf.width=${widthKey} ${scan.widthMm}mm ÷ viewBox ${scan.vbW}u `
+    + `= ${scan.scalePt.toFixed(5)}pt/u`;
+  if (!violated) return { metrics, lines, violated: false };
+
+  // ---- 반려 진단 (트랙별 분기) ----
+  // 상한 위반이므로 수리 방향은 **라벨 축소 / viewBox 확대**다. 하한 위반의 처방
+  // (폭 확대·font-size 확대)과 부호가 반대라는 점을 명시한다.
+  const shrink = capPt / maxPt;                               // 균일 축척 계수(<1)
+  const uniformOk = !floorPt || minPt * shrink >= floorPt - BAND_TOL_PT;
+  const internal = maxPt / minPt;                             // 도해 내부 활자비
+  const allowedInternal = floorPt ? capPt / floorPt : null;   // 밴드가 허용하는 최대 내부비
+  lines.push(`WARN DIAGRAM-BAND ${name}: 라벨 밴드 상한 초과 — ${fact}`);
+  if (kind === "antv") {
+    lines.push(`WARN DIAGRAM-BAND ${name}:   → AntV DSL 트랙 = **6단계 스케일 강제 대상**`
+      + `(applyTheme에 font-size 주입). 템플릿이 급수를 하드코딩하므로 사이드카·폭 조정으로는 해소되지 않는다.`
+      + (uniformOk ? "" : ` 균일 축척(×${shrink.toFixed(3)})으로는 최소 라벨이 ${(minPt * shrink).toFixed(2)}pt로`
+        + ` 하한 ${floorPt}pt 미달 — 6단계는 역할별(label/desc/title) 분리 주입이어야 한다.`));
+  } else if (uniformOk) {
+    lines.push(`WARN DIAGRAM-BAND ${name}:   → 수리: 라벨 font-size를 ×${shrink.toFixed(3)} 이하로 **축소**하거나,`
+      + ` viewBox 폭을 ${scan.vbW}u → ${(scan.vbW / shrink).toFixed(1)}u 이상으로 **확대**할 것`
+      + `(폭 확대 = 유효 pt 축소). ※ 하한 위반의 처방(폭 축소·font-size 확대)과 방향이 반대다.`);
+  } else {
+    lines.push(`WARN DIAGRAM-BAND ${name}:   → 균일 축척으로는 해소 불가(축척은 상·하한을 함께 옮긴다):`
+      + ` ×${shrink.toFixed(3)} 축소 시 최소 라벨이 ${(minPt * shrink).toFixed(2)}pt로 하한 ${floorPt}pt 미달이고,`
+      + ` viewBox 확대도 같은 이유로 막힌다. 이 도해의 라벨 최대/최소 비 ${internal.toFixed(3)}×가`
+      + ` 밴드 허용 내부비 ${allowedInternal.toFixed(3)}×(= 상한 ${capPt.toFixed(2)}pt ÷ 하한 ${floorPt}pt)를 넘는다`
+      + ` — 폭이 아니라 **라벨 간 상대 급수**를 좁혀야 한다(최대 라벨만 축소).`);
+  }
+  return { metrics, lines, violated: true };
+}
+
+// 실측을 도해별로 축약 없이 남긴다: 콘솔 1행 + assets/fig-NN.metrics.json(8단계 원장 입력).
+// 캐시 히트 때도 저장된 metrics로 같은 줄을 다시 낸다 — 2회차 빌드에서 조용해지는 경고는
+// 없는 경고와 같다.
+function emitBand(report, outMetricsPath) {
+  writeFileSync(outMetricsPath, JSON.stringify(report.metrics, null, 2));
+  for (const l of report.lines) console.log(l);
+  return report;
+}
+function bandSummary(m) {
+  if (!m || m.maxPt === null) return "라벨 실측 없음";
+  const r = m.ratio === null ? "" : ` = 본문 ${m.bodyPt}pt × ${m.ratio}`
+    + (m.band && m.band.verdict === "violation" ? ` **상한 ${m.maxRatio}× 초과**` : "");
+  return `라벨 ${m.minPt}~${m.maxPt}pt${r}`;
+}
+function replayBand(outMetricsPath, name) {
+  if (!existsSync(outMetricsPath)) return null;
+  let m;
+  try { m = JSON.parse(readFileSync(outMetricsPath, "utf8")); } catch { return null; }
+  if (m && m.band && m.band.verdict === "violation") {
+    console.log(`WARN DIAGRAM-BAND ${name}: 라벨 밴드 상한 초과(캐시 유지) — `
+      + `최대 ${m.maxPt}pt = 본문 ${m.bodyPt}pt × ${m.ratio} > 상한 ${m.maxRatio}× (${m.capPt}pt)`);
+  } else if (m && m.band && m.band.verdict === "skip") {
+    console.log(`WARN DIAGRAM-BAND ${name}: 라벨 밴드 상한 검사 꺼짐(캐시 유지) — ${m.band.reason}`);
+  }
+  return m;
 }
 
 async function ssrWithRetry(dsl, name) {
@@ -282,7 +412,7 @@ mkdirSync(checkDir, { recursive: true });
 
 let browser = null;
 let page = null;
-let rendered = 0, skipped = 0;
+let rendered = 0, skipped = 0, bandWarns = 0;
 
 for (const file of sidecars) {
   const name = file.replace(/\.json$/, "");
@@ -307,9 +437,15 @@ for (const file of sidecars) {
       .digest("hex");
     const outSvgA = path.join(assetsDir, `${name}.svg`);
     const outLabelsA = path.join(assetsDir, `${name}.labels.json`);
-    if (existsSync(outSvgA) && existsSync(outLabelsA)) {
+    const outMetricsA = path.join(assetsDir, `${name}.metrics.json`);
+    if (existsSync(outSvgA) && existsSync(outLabelsA) && existsSync(outMetricsA)) {
       const head = readFileSync(outSvgA, "utf8").slice(0, 130);
-      if (head.includes(`bf:authored=sha256:${hashA}`)) { skipped++; console.log(`${name}: cache hit — skip`); continue; }
+      if (head.includes(`bf:authored=sha256:${hashA}`)) {
+        skipped++;
+        const m = replayBand(outMetricsA, name);
+        console.log(`${name}: cache hit — skip (${bandSummary(m)})`);
+        continue;
+      }
     }
     const tA = Date.now();
     if (!browser) {
@@ -337,13 +473,18 @@ for (const file of sidecars) {
       fail(`${name}: 정규화 자기검증 실패 — 픽셀 상이율 ${(checkA.ratio * 100).toFixed(2)}% (${checkDir}/${name}.diff.png)`);
     }
     normalized = (await trimViewBox(page, normalized)) || normalized;
-    // 글자 하한은 트림 후 최종 좌표계 기준으로 검사 (트림은 실크기를 키우는 방향)
-    const floorsA = fontFloorViolations(normalized, widthKey);
+    // 글자 밴드는 트림 후 최종 좌표계 기준으로 검사 (트림은 실크기를 키우는 방향).
+    // 하한 = HARD(빌드 중단), 상한 = WARN(5단계 출생 강도).
+    const scanA = scanLabelPt(normalized, widthKey);
+    const floorsA = fontFloorViolations(scanA);
     if (floorsA.length) fail(`${name}: 글자 크기 하한 위반 — ${floorsA.join("; ")} (bf.width=${widthKey})`);
+    const bandA = emitBand(labelBandReport(scanA, { name, kind, widthKey }), outMetricsA);
     writeFileSync(outSvgA, `<!--bf:authored=sha256:${hashA}-->\n${normalized}`);
     writeFileSync(outLabelsA, JSON.stringify(labelsA, null, 2));
     rendered++;
-    console.log(`${name}: OK (authored) ${labelsA.length} labels, diff ${(checkA.ratio * 100).toFixed(2)}%, ${Date.now() - tA}ms`);
+    if (bandA.violated) bandWarns++;
+    console.log(`${name}: OK (authored) ${labelsA.length} labels, diff ${(checkA.ratio * 100).toFixed(2)}%, `
+      + `${bandSummary(bandA.metrics)}, ${Date.now() - tA}ms`);
     continue;
   }
 
@@ -370,9 +511,15 @@ for (const file of sidecars) {
     .digest("hex");
   const outSvg = path.join(assetsDir, `${name}.svg`);
   const outLabels = path.join(assetsDir, `${name}.labels.json`);
-  if (existsSync(outSvg) && existsSync(outLabels)) {
+  const outMetrics = path.join(assetsDir, `${name}.metrics.json`);
+  if (existsSync(outSvg) && existsSync(outLabels) && existsSync(outMetrics)) {
     const head = readFileSync(outSvg, "utf8").slice(0, 120);
-    if (head.includes(`bf:dsl=sha256:${hash}`)) { skipped++; console.log(`${name}: cache hit — skip`); continue; }
+    if (head.includes(`bf:dsl=sha256:${hash}`)) {
+      skipped++;
+      const m = replayBand(outMetrics, name);
+      console.log(`${name}: cache hit — skip (${bandSummary(m)})`);
+      continue;
+    }
   }
 
   const t0 = Date.now();
@@ -402,15 +549,21 @@ for (const file of sidecars) {
     fail(`${name}: 변환 자기검증 실패 — 픽셀 상이율 ${(check.ratio * 100).toFixed(2)}% > ${PIXEL_TOLERANCE * 100}% (${checkDir}/${name}.diff.png 확인)`);
   }
   converted = (await trimViewBox(page, converted)) || converted;
-  // 글자 하한은 트림 후 최종 좌표계 기준으로 검사 (트림은 실크기를 키우는 방향)
-  const floors = fontFloorViolations(converted, widthKey);
+  // 글자 밴드는 트림 후 최종 좌표계 기준으로 검사 (트림은 실크기를 키우는 방향).
+  // 하한 = HARD(빌드 중단), 상한 = WARN(5단계 출생 강도).
+  const scan = scanLabelPt(converted, widthKey);
+  const floors = fontFloorViolations(scan);
   if (floors.length) fail(`${name}: 도해 내 글자 크기 하한 위반 — ${floors.join("; ")} (bf.width=${widthKey} 기준)`);
+  const bandD = emitBand(labelBandReport(scan, { name, kind, widthKey }), outMetrics);
 
   writeFileSync(outSvg, `<!--bf:dsl=sha256:${hash}-->\n${converted}`);
   writeFileSync(outLabels, JSON.stringify(labels, null, 2));
   rendered++;
-  console.log(`${name}: OK ${labels.length} labels, diff ${(check.ratio * 100).toFixed(2)}%, ${Date.now() - t0}ms`);
+  if (bandD.violated) bandWarns++;
+  console.log(`${name}: OK ${labels.length} labels, diff ${(check.ratio * 100).toFixed(2)}%, `
+    + `${bandSummary(bandD.metrics)}, ${Date.now() - t0}ms`);
 }
 
 if (browser) await browser.close();
-console.log(`diagrams done: ${rendered} rendered, ${skipped} cached`);
+console.log(`diagrams done: ${rendered} rendered, ${skipped} cached`
+  + (bandWarns ? ` — 라벨 밴드 상한 WARN ${bandWarns}건(재렌더분 기준)` : ""));

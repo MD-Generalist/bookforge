@@ -13,6 +13,7 @@ antv 트랙의 핵심 우회: AntV 원본 출력은 텍스트가 `<foreignObject
 <book_dir>/diagrams/fig-01.json      ← 콘텐츠가 작성 (DSL 사이드카)
 <book_dir>/assets/fig-01.svg         ← 빌드 산출 (직접 만들지 않는다)
 <book_dir>/assets/fig-01.labels.json ← 빌드 산출 (G13 대조 정본)
+<book_dir>/assets/fig-01.metrics.json ← 빌드 산출 (라벨 급수 실측 — 밴드 판정 근거)
 chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단독 문단
 ```
 
@@ -55,8 +56,19 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
 
 - **팔레트**: `styles/<style>/tokens.json`의 `diagram.palette`. DSL의 `theme` 블록은
   빌드가 제거·재작성한다. `book.json`의 `brand`가 있으면 강조색(1번)만 교체.
-- **최소 글자 크기**: `diagram.minFontPt`(전 스타일 8pt). `bf.width` 물리 폭으로 환산해
-  위반 시 렌더가 실패한다 — 대응은 라벨 축약 또는 항목 수 축소(글자 확대 아님).
+- **라벨 급수 밴드**: 하한과 상한이 **다른 키·다른 강도**다.
+  - 하한 `diagram.minFontPt`(전 스타일 8pt) — `bf.width` 물리 폭으로 환산해 위반 시
+    렌더가 **실패(HARD)**한다. 대응은 라벨 축약 또는 항목 수 축소(글자 확대 아님).
+  - 상한 `diagram.labelBand.maxRatio`(전 스타일 1.2) — 라벨 최대 pt가 `body_pt × maxRatio`를
+    넘으면 **WARN**. 대응 방향이 하한과 정반대다: **라벨 font-size 축소 또는 viewBox 확대**
+    (폭 확대·글자 확대는 위반을 키운다). 축척은 상·하한을 함께 옮기므로, 도해 내부
+    최대/최소 활자비가 `(body_pt × maxRatio) ÷ minFontPt`를 넘으면 어떤 폭으로도 두 술어를
+    동시에 만족할 수 없다 — 그때는 라벨 간 상대 급수를 좁혀야 한다(렌더러가 그 진단을 낸다).
+    AntV DSL 트랙은 템플릿이 급수를 하드코딩하므로 사이드카로 해소되지 않는다.
+  - 도해마다 실측이 `assets/fig-NN.metrics.json`(급수 전량·min/max pt·본문 대비 비)으로 남는다.
+    `labels.json` 스키마는 건드리지 않는다(G13 무영향).
+  - `labelBand.maxRatio`·`body_pt` 중 하나라도 없으면 상한 검사가 꺼지고, **꺼졌다는 사실이
+    WARN으로 출력된다** — 미선언이 위반보다 조용해서는 안 된다.
 - **폰트**: Pretendard 고정 (fo2text가 실측·방출).
 
 ## 금지 사항
@@ -92,7 +104,7 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
 산출 SVG 첫 줄 `<!--bf:dsl=sha256:…-->`가 DSL+옵션 해시다. 일치하면 프리렌더를
 건너뛰므로 **재빌드는 네트워크 없이 재현**된다(아이콘 API 재접근 불필요).
 DSL·팔레트·변환기 버전, 그리고 **판정 파라미터**(해당 폭의 실검사 `widthMm` ·
-`minFontPt` · 라벨 밴드)가 바뀌면 자동 재렌더 — 검사 기준이 바뀐 도해가 옛 캐시로
+`minFontPt` · `labelBand` · `body_pt`)가 바뀌면 자동 재렌더 — 검사 기준이 바뀐 도해가 옛 캐시로
 조용히 통과하는 일이 없다.
 
 ## 게이트
@@ -119,7 +131,7 @@ AntV 카탈로그는 "인포그래픽형 요점 시각화"에 강하고, **UML �
 ② 렌더 실측 라벨 수집 → `labels.json` (G13 대조 정본 — antv와 동일)
 ③ 회전·전단 라벨 즉시 실패 ④ 텍스트 겹침 실측 감지 즉시 실패
 ⑤ 팔레트 강제: `tokens.diagram.palette` + 뉴트럴(무채색 램프) 밖 유채색 즉시 실패
-⑥ 글자 하한(minFontPt) 검사 ⑦ 외부 참조(CDN·원격) 즉시 실패
+⑥ 글자 하한(minFontPt) 검사(HARD) + 상한(labelBand.maxRatio) 판정(WARN) ⑦ 외부 참조(CDN·원격) 즉시 실패
 ⑧ 원본↔정규화 pixelmatch 자기검증 ⑨ `<!--bf:authored=sha256:…-->` 해시 캐시.
 
 ### viewBox 환산 규칙 (하한 미달의 90%가 여기서 발생)
