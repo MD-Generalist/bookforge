@@ -21,8 +21,13 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
                           /mnt/d/bookforge-verify/_judge-fold2-head p3. 주입 좌표는 그 사고와
                           동형이 되도록 도비라 첫 행의 박스 안으로 잡는다)
   M11 앞부속 프레임 이탈 — 목차 면 하단(선언 front_frame_mm 밖)에 한 행을 스탬핑 → G3-FIT FAIL
-                         (M10은 G16 저대비 토큰용으로 예약)
-  M0  무변조 대조군     — 원본은 G14 전 축 + G1-SCALE + G3-COLLIDE/FIT PASS (오탐 없음 확인)
+  M10 저대비 토큰       — 스타일 팩을 **임시 복사본**에 복제(저장소 styles/ 불변조)한 뒤
+                         contrast_contract.entries 중 정적으로 대비 산출 가능한 첫 페어를
+                         골라 fg를 bg와 동일 색으로 재기록(ratio=1.0) → g16_tokens.run을
+                         그 복사본 대상으로 실행해 G16-CONTRAST FAIL 검출
+                         (enforce:true 스타일만 성립 — 현재 insight·magazine)
+  M0  무변조 대조군     — 원본은 G14 전 축 + G1-SCALE + G3-COLLIDE/FIT + G16(SYNC/CONTRAST/
+                         BRAND 전 축, 원본 스타일 팩) PASS (오탐 없음 확인)
 
 Usage: python3 tests/mutations/run_mutations.py <book_dir>
        (book_dir는 게이트 PASS 상태의 draft/book.pdf + outline.json 보유)
@@ -45,6 +50,7 @@ from tocgate import (find_toc_pages, g14a_toc_numbers, g14b_key_color, g14c_cont
                      g14d_section_numbers, _printed_toc_rows)
 from qc_gate import (g1_scale_check, line_records, g3_collide_page, _column_bands,
                      front_frame_for, MM2PT, TOL)
+import g16_tokens as g16
 
 
 def style_tokens(book_dir):
@@ -125,6 +131,31 @@ def mutate_front_overflow(doc, tokens, first_ch):
     page.insert_text(fitz.Point(left * MM2PT + 4, y), "프레임 이탈 변조 표본",
                      fontsize=9, fontfile=_stamp_font(), fontname="F-fit", color=(0, 0, 0))
     return pg, round(y, 1)
+
+
+def mutate_low_contrast_tokens(style_dir, tokens, theme_text):
+    """contrast_contract.entries 중 정적으로 대비 산출 가능한(fg·bg 둘 다 불투명
+    리터럴 hex로 풀리는) 첫 페어를 골라 fg를 bg와 동일 색으로 되쓴다 —
+    ratio=1.0이라 pt·bold와 무관하게 어떤 하한도 확실히 미달한다.
+
+    style_dir는 임시 복사본이어야 한다(저장소 styles/ 절대 변조 금지). tokens.json을
+    그 자리에서 덮어써, 이후 g16_tokens.style_inputs(style_dir=...)로 다시 읽으면
+    검사가 실제로 "그 복사본"을 본다."""
+    ctx = g16._ctx(tokens, theme_text)
+    entries = (tokens.get("contrast_contract") or {}).get("entries") or []
+    for i, e in enumerate(entries):
+        fk, _fv = g16._resolve_token(e.get("fg"), ctx)
+        bk, bv = g16._resolve_token(e.get("bg"), ctx)
+        if fk == "hex" and bk == "hex":
+            victim = dict(e, fg=bv)
+            new_entries = entries[:i] + [victim] + entries[i + 1:]
+            new_cc = dict(tokens["contrast_contract"], entries=new_entries)
+            new_tokens = dict(tokens, contrast_contract=new_cc)
+            (Path(style_dir) / "tokens.json").write_text(
+                json.dumps(new_tokens, ensure_ascii=False, indent=2), encoding="utf-8")
+            return i, victim
+    raise AssertionError(
+        "contrast_contract에 정적 판정 가능한 페어가 없음 — M10 주입 불가")
 
 
 def load(book_dir):
@@ -240,12 +271,18 @@ def main():
     style, tokens = style_tokens(book_dir)
     col0 = collide_scan(doc, style, tokens)
     fit0 = fit_scan(doc, tokens, ch_starts[0])
+    _tokens_g16_0, theme_text_0 = g16.style_inputs(style)  # 원본 styles/<style> (변조 없음)
+    res_g16_0 = g16.run(style, _tokens_g16_0, theme_text_0)
+    g16_fails0 = {ax: g16.fails_of(fs) for ax, fs in res_g16_0.items() if g16.fails_of(fs)}
     results["M0-clean"] = (not a0 and not b0 and not c0 and not s0 and not d0
-                           and not col0 and not fit0)
+                           and not col0 and not fit0 and not g16_fails0)
     if col0:
         print(f"      (M0 G3-COLLIDE 오탐 {sum(len(v) for v in col0.values())}건 {sorted(col0)})")
     if fit0:
         print(f"      (M0 G3-FIT 오탐 {len(fit0)}건 {fit0[:3]})")
+    if g16_fails0:
+        n = sum(len(v) for v in g16_fails0.values())
+        print(f"      (M0 G16 오탐 {n}건 {list(g16_fails0)})")
     has_sections = bool(d0_pairs)
     doc.close()
 
@@ -316,6 +353,25 @@ def main():
             doc.close()
         if inj is None:
             print("      (M11 건너뜀 — front_frame_mm 미선언 또는 앞부속 목차 면 없음)")
+
+        # M10 — G16-CONTRAST 저대비 토큰. 스타일 팩을 임시 복사본에 복제해 그 사본만
+        # 변조한다(저장소 styles/는 절대 변조하지 않는다). enforce:true가 아니면
+        # G16-CONTRAST가 WARN까지만 올리므로 이 스타일에서는 성립하지 않는다.
+        cc = (tokens.get("contrast_contract") or {})
+        if cc.get("enforce") is True:
+            style_copy = Path(td) / "style10"
+            shutil.copytree(SKILL / "styles" / style, style_copy)
+            tokens10, css10 = g16.style_inputs(style, style_dir=style_copy)
+            idx10, victim10 = mutate_low_contrast_tokens(style_copy, tokens10, css10)
+            # 검사는 방금 되쓴 파일을 다시 읽어서 돈다 — "그 복사본"을 실제로 본다.
+            tokens10b, css10b = g16.style_inputs(style, style_dir=style_copy)
+            res10 = g16.run(style, tokens10b, css10b, style_dir=style_copy)
+            fails10 = g16.fails_of(res10["G16-CONTRAST"])
+            results["M10-low-contrast-tokens"] = bool(fails10)
+            print(f"      (M10 entries[{idx10}] {victim10['where']} fg={victim10['fg']} "
+                  f"(=bg, ratio 1.0) → G16-CONTRAST FAIL {len(fails10)}건)")
+        else:
+            print(f"      (M10 건너뜀 — {style} contrast_contract.enforce != true)")
 
         # M7 — body_pt 미선언 스타일 팩에서는 검사 자체가 성립하지 않으므로 건너뛴다
         if decl_pt:

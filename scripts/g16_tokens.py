@@ -720,9 +720,14 @@ def g16_brand(style, tokens, theme_text, brand=None, style_dir=None):
 
 # ------------------------------------------------------------------ 러너/도구
 
-def style_inputs(style, skill=SKILL):
-    """스타일 팩에서 (tokens, theme_text)를 읽는다. theme.css가 없으면 None."""
-    sd = Path(skill) / "styles" / style
+def style_inputs(style, skill=SKILL, style_dir=None):
+    """스타일 팩에서 (tokens, theme_text)를 읽는다. theme.css가 없으면 None.
+
+    style_dir가 주어지면 `skill/styles/<style>` 대신 그 경로를 직접 읽는다 —
+    뮤테이션 테스트가 저장소 styles/를 변조하지 않고 임시 복사본을 검사하기 위함
+    (기본값 None이면 기존 호출 전부와 동일하게 동작한다).
+    """
+    sd = Path(style_dir) if style_dir else (Path(skill) / "styles" / style)
     tokens = json.loads((sd / "tokens.json").read_text(encoding="utf-8"))
     css = sd / "theme.css"
     return tokens, (css.read_text(encoding="utf-8") if css.exists() else None)

@@ -140,7 +140,19 @@ P9 되감기      실패 시 P7→P6→P3→(PLAN만)P2 역순. REFIT은 P3에�
 
 **순서(qc_gate.py 실물)**: G10 → G0(렌더 전) → G1 → G2 → **G3-OVERFLOW**(같은 루프에서 G3-COLLIDE·G3-FIT용 라인 레코드를 함께 수집 — `get_text("dict")` 1회 공유) → G4 → G13 → G14 → G11 → **G3-COLLIDE → G3-FIT**(면제가 `fullbleed`·`pageroles`에 의존하므로 그 둘이 확정된 뒤 등록한다) → G7-FRAME → G7-BLANK/G12 → G7-TAIL/MID → G7-DOC → G8 → G9. G3 세 축은 수집 시점이 아니라 **등록 시점**이 순서다.
 
-**중단 지점은 4곳뿐**: G10 실패, G0 실패, `draft/book.pdf` 부재(G1의 일부), `styles/<style>/tokens.json`에 `body_frame_mm` 없음(qc_gate.py 326행, G7 밀도 전처리 직전) — 이 넷만 그 자리에서 즉시 `finish()`로 종료하고 뒤 게이트를 아예 실행하지 않는다. 그 외 모든 게이트(G1 판형·G2~G4·G13·G14·G11·G7-FRAME·G7-BLANK/G12·G7-TAIL/MID·G7-DOC·G8·G9)는 실패해도 `fails` 리스트에 누적만 하고 그대로 다음 게이트를 계속 판정하며, 전 게이트를 다 돈 뒤 `fails`가 하나라도 있으면 그때 일괄 `finish()`로 FAIL 처리한다(중간에 끊기지 않음). G6(시각 판정)은 이 스크립트에 없다 — qc_gate.py의 게이트 집합이 아니다.
+**중단 지점은 4곳뿐(qc_gate.py 한정)**: G10 실패, G0 실패, `draft/book.pdf` 부재(G1의 일부), `styles/<style>/tokens.json`에 `body_frame_mm` 없음(qc_gate.py 326행, G7 밀도 전처리 직전) — 이 넷만 그 자리에서 즉시 `finish()`로 종료하고 뒤 게이트를 아예 실행하지 않는다. 그 외 모든 게이트(G1 판형·G2~G4·G13·G14·G11·G7-FRAME·G7-BLANK/G12·G7-TAIL/MID·G7-DOC·G8·G9)는 실패해도 `fails` 리스트에 누적만 하고 그대로 다음 게이트를 계속 판정하며, 전 게이트를 다 돈 뒤 `fails`가 하나라도 있으면 그때 일괄 `finish()`로 FAIL 처리한다(중간에 끊기지 않음). G6(시각 판정)은 이 스크립트에 없다 — qc_gate.py의 게이트 집합이 아니다. **이 4곳은 `qc_gate.py`의 실행 흐름만 센 것이다 — 아래 G16-TOKENS는 별개 프로세스(`build.py`)의 유일한 중단 지점이라 이 계수에 들어가지 않는다**(늘지 않는다).
+
+### G16-TOKENS — build.py 소속(이 표·위 중단 지점 계수 밖)
+
+**`qc_gate.py`가 아니라 `build.py`가 렌더 전에 돈다.** 위 G10·G0도 이름은 "렌더 전"이지만 실행 순서가 build → qc_gate라 실제로는 렌더 후에 도는 데 비해, G16은 `build.py:122`(`load()` 직후·`render_diagrams` 앞, `run_g16()`)에서 typst/Chromium 렌더 비용을 지불하기 **전에** 돈다 — 렌더 비용을 아끼는 것이 이 게이트의 존재 이유이므로 `qc_gate.py`에 두면 목적이 무너진다. 리포트 일관성을 위해 `qc_gate.py:291` 앞에서도 같은 순수 함수(`g16_tokens.run`)를 재호출해 결과를 싣지만, 실제 강제(HARD FAIL로 중단)는 `build.py`에서만 일어난다.
+
+| 게이트 | 조건 | 판정 |
+|---|---|---|
+| G16-SYNC | 스타일 팩 색·수치 계약 정합 — engine↔팩 실물(`theme.html` 존재 여부) · `diagram.palette` + `palette_roles`(필수, 팔레트와 병렬 배열) 무결성 · `brand_default`↔`palette[0]` 동기(html HARD / typst는 `.darken()` 등 계산식이라 정적 해석 밖·WARN) · `contrast_contract` 형식·토큰명 해석 가능성 | HARD(증명 가능한 것만) — 팔레트↔`theme.css` 교집합은 WARN(부재는 결함, 잉여는 아님) |
+| G16-CONTRAST | `contrast_contract.entries`의 fg·bg가 둘 다 불투명 리터럴 hex로 풀릴 때만 WCAG 대비를 pt·bold 파생 하한과 대조(`contrast_floor` — G14-C와 공유하는 단일 진리원, 값이 갈리면 사전 게이트의 존재 이유가 무너진다) | `contrast_contract.enforce: true`인 스타일만 미달이 HARD FAIL, 그 외(부재·false)는 WARN — 뮤테이션 스위트 M10으로 감도 고정 |
+| G16-BRAND | 브랜드 입력 사전 검증 — 형식(`#hex`/`rgb()`) · 치환 지점(`contrast_contract` 중 brand 경유 fg · 도해 라벨 `palette[0]`(`palette_roles[0]=="label"`일 때만) · typst accent 근사) 대비 · 고정 동반색과 hue 정합(Δ≤36°, G14-B와 같은 임계·같은 유채색 판정) | `book.json.brand` 위반 FAIL(무검증 치환 구멍 봉쇄) / `tokens.json brand_default` 위반 WARN(출하 부채 — 그 자체로 어떤 책도 잠그지 않는다) |
+
+FAIL 시 `build.py`가 그 자리에서 `die()`한다 — **여기가 `build.py`의 유일한 중단 지점**이다. 긴급 탈출구 `--g16-warn-only`는 3축 전역 강등(6스타일이 한꺼번에 잠기거나 풀리거나 둘뿐이라 수렴 불가 — 긴급용으로만), 정상 승격은 스타일별 데이터 스위치 `contrast_contract.enforce`가 담당한다. typst 4종처럼 `contrast_contract` 키 자체가 없으면 CONTRAST 축은 N/A(WARN, 절대 FAIL 아님).
 
 **사유 코드 채널**: `<book_dir>/pageroles.json` — 1차 렌더 후 사람/에이전트가 작성. 각 항목 `{page, code, why(필수), anchor(그 면 실재 문자열)}`. **코드 8종**: `PART_DIVIDER`(텍스트 ≤3행) / `FULL_BLEED_PLATE`(imgarea ≥ 0.60) / `EXEC_SUMMARY`(business, ink 0.35~0.70, 폰트·여백 축소 금지) / `ESSAY_BREATH`(essay 꼬리, lines ≥ 6, 장당 1회) / `MAGAZINE_WHITESPACE`(진입점 존재 시) / `TOC_TAIL`(목차 직후 1면) / `CH_CLOSE_APPROVED`(장 끝 면, 레버 소진 후 최종 에스컬레이션 — §4) / `OVERLAP_APPROVED`(G3-COLLIDE 전용. **그 면에 실제로 교차 라인이 있어야** 승인이 성립하고, **도비라 면에는 쓸 수 없다** — 쓰면 코드 자체가 FAIL). 각 코드는 기계 선행조건 미충족 시 코드 자체가 FAIL(도장 방지). **폐기**(단면에서 재현 시 오히려 FAIL): RECTO_ADJUST·SIGNATURE_PAD·ENDPAPER·PART_DIVIDER_VERSO.
 
