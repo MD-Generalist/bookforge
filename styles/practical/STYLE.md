@@ -170,6 +170,15 @@
 - **생략 대상** 표지·판권·목차·장 도비라·전면 이미지 쪽 — 러닝푸터 없음(쪽수 카운트는 유지).
 
 ## 이미지 정책
+- **도해(벡터 SVG·AntV) 폭은 2종만**: `full` = 판면 폭 **121 mm**, `twothirds` = **76 mm**. 임의 폭 금지.
+  사이드카 `bf.width`가 받는 키가 이 둘뿐이고, 실제 mm는 `tokens.json`
+  `diagram.widths`가 **유일한 진리원**이다(선언 = 조판 = 실측 — `md2typ`가
+  `#bf-fig(width: Nmm)`로 발행하고 G16-SYNC widths 축이 `full` == `theme.typ` 판면폭
+  (trim.w 153 − margin.left 17 − margin.right 15 = 121)을 HARD로 대조한다. PDF 벡터 실측 121.000 mm).
+  아래 사진 배치 폭(139 mm 등)은 **견본 188 × 257 좌표계 잔재**이고 도해에는 적용되지 않는다.
+- 도해 내 최소 글자 8 pt(HARD) · 최대 글자 ≤ 본문 9.8 pt × 1.20 = **11.76 pt**(HARD,
+  `diagram.labelBand.enforce: true`). 두 술어는 도해 **폭**이 정한다 —
+  `references/diagrams.md`의 「viewBox 환산 규칙」 참조.
 - 해상도: 인쇄 300 dpi / 전자책 150 dpi 이상. 미달분은 배치 폭을 줄여 dpi를 맞추고, 확대 보간 금지.
 - 배치 폭은 **판면 폭(139 mm) · 1/2 컬럼(67.4 mm) · 풀블리드(188 × 257 mm)** 세 가지만 허용. 임의 폭 금지.
 - 풀블리드는 유닛당 1쪽까지, 그 쪽에는 본문 텍스트를 얹지 않는다.

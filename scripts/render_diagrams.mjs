@@ -1,7 +1,11 @@
 // bookforge P1.5 도해 프리렌더 — diagrams/fig-NN.json (AntV Infographic DSL 사이드카)
 // → assets/fig-NN.svg (+ fig-NN.labels.json, G13 대조 정본).
 //
-// Usage: node render_diagrams.mjs <book_dir> --style <style>
+// Usage: node render_diagrams.mjs <book_dir> --style <style> [--style-dir <dir>]
+//   --style-dir : 스타일 팩 디렉토리 override(**테스트 전용**). 출하 경로(build.py)는 절대
+//                 넘기지 않으며, 넘겨도 `--style` 이름은 로그·metrics에 그대로 남는다.
+//                 뮤테이션이 저장소 styles/를 변조하지 않고 승격 스위치(labelBand.enforce)의
+//                 양쪽 분기를 실물로 밟기 위한 통로다(g16_tokens.style_inputs(style_dir=)와 같은 선례).
 // 계약(references/diagrams.md):
 //   사이드카 {bf:{width:"full"|"twothirds", icons:false}, dsl:"..."|[줄배열]}
 //   테마는 스타일 토큰(diagram 블록)이 강제 — 콘텐츠 theme 블록은 덮어쓴다.
@@ -28,11 +32,34 @@ const bookDir = args[0] && !args[0].startsWith("--") ? path.resolve(args[0]) : n
 const style = args.includes("--style") ? args[args.indexOf("--style") + 1] : null;
 if (!bookDir || !style) fail("usage: node render_diagrams.mjs <book_dir> --style <style>");
 
-const tokensPath = path.join(SKILL, "styles", style, "tokens.json");
-if (!existsSync(tokensPath)) fail(`unknown style: ${style}`);
+const styleDirArg = args.includes("--style-dir") ? args[args.indexOf("--style-dir") + 1] : null;
+const styleDir = styleDirArg ? path.resolve(styleDirArg) : path.join(SKILL, "styles", style);
+const tokensPath = path.join(styleDir, "tokens.json");
+if (!existsSync(tokensPath)) fail(`unknown style: ${style}${styleDirArg ? ` (--style-dir ${styleDir})` : ""}`);
 const tokens = JSON.parse(readFileSync(tokensPath, "utf8"));
 const dg = tokens.diagram;
 if (!dg) fail(`styles/${style}/tokens.json에 diagram 블록 없음 — 이 스타일은 도해 미지원`);
+
+// 라벨 밴드 상한의 **스타일별 승격 스위치**(8단계). 선례는 `contrast_contract.enforce`이고
+// 형식 계약도 그대로 가져온다: **JSON bool만 허용, 부재도 malformed**.
+//   · 문자열 `"false"`/`"off"`는 truthy로 읽혀 강제가 반대로 켜진다(g16_tokens.py:800 S9 오탐).
+//   · 부재를 조용히 false로 읽으면 "이 스타일은 아직 판단하지 않았다"와 "false로 판단했다"가
+//     구별되지 않는다 — 미선언이 위반보다 조용해서는 안 된다는 저장소 관례에 어긋난다.
+// **정본 게이트는 G16-SYNC**(build.py가 렌더 전에 die)다. 여기 검사는 그 게이트를 거치지 않는
+// 직접 호출(뮤테이션·수동 재렌더·--style-dir)에서도 같은 계약이 서게 하는 이중 방어다.
+if (dg.labelBand !== undefined && dg.labelBand !== null) {
+  if (typeof dg.labelBand !== "object" || Array.isArray(dg.labelBand)) {
+    fail(`styles/${style} tokens.diagram.labelBand가 객체가 아님(${Array.isArray(dg.labelBand) ? "배열" : typeof dg.labelBand}) — {maxRatio, enforce} 형식`);
+  }
+  if (typeof dg.labelBand.enforce !== "boolean") {
+    fail(`styles/${style} tokens.diagram.labelBand.enforce=${JSON.stringify(dg.labelBand.enforce)} — true/false(JSON bool)만 허용(부재·문자열 불가). `
+      + `문자열은 truthy로 읽혀 승격이 오작동한다(contrast_contract.enforce와 같은 계약)`);
+  }
+}
+// true면 밴드 상한 위반이 그 도해의 fail()(7단계 역할·대비 HARD와 같은 관례),
+// false면 5단계 출생 강도 그대로 WARN. gateParams가 labelBand 객체를 통째로 싣기 때문에
+// 이 스위치는 **자동으로 캐시 해시 파라미터**다 — 승격 순간 그 스타일 도해가 전건 재판정된다.
+const BAND_ENFORCE = !!(dg.labelBand && dg.labelBand.enforce === true);
 // build_html.py와 동일 우선순위: book.json brand가 있으면 강조색(팔레트 1번)만 교체
 const bookMeta = JSON.parse(readFileSync(path.join(bookDir, "book.json"), "utf8"));
 const palette = [...dg.palette];
@@ -643,19 +670,30 @@ const r3 = (v) => (typeof v === "number" && isFinite(v) ? Math.round(v * 1000) /
 // p90 1.17이고 도해 내부 활자비(중앙 1.095×)가 창 폭 비(8.74/8.00 = 1.0925×)를 넘는 도해가
 // 다수라 상·하한을 **축척으로 동시에 만족시킬 수 없다**(축척은 두 끝을 함께 옮긴다).
 // cap 0.92를 HARD로 내면 authored 대다수와 AntV 트랙 전체가 즉시 반려되어 릴리스가 선다.
-// 따라서 cap 1.20[하우스 등급] · 강도 WARN으로 출생시키고, 스타일별 enforce 승격은
-// 8단계(assets/fig-NN.metrics.json 집계로 원장 재도출)가 맡는다.
+// 따라서 cap 1.20[하우스 등급] · 강도 WARN으로 출생시켰고, **8단계에서 스타일별
+// `labelBand.enforce`로 승격**했다(위반 0인 스타일만 true — contrast_contract 선례).
+// enforce:true면 위반이 그 도해의 fail()이다(7단계 HARD 관례). 강도는 metrics.band.level에
+// 그대로 남으므로 리포트만 봐도 "이 판정이 릴리스를 세우는가"를 알 수 있다.
 //
 // 반환: 콘솔 출력용 lines + assets/fig-NN.metrics.json에 실릴 metrics.
-function labelBandReport(scan, { name, kind, widthKey, scaled = false }) {
+function labelBandReport(scan, { name, kind, widthKey, scaled = false, template = null, cacheKey = null }) {
   const band = dg.labelBand && typeof dg.labelBand === "object" ? dg.labelBand : null;
   const maxRatio = band && typeof band.maxRatio === "number" ? band.maxRatio : null;
   const bodyPt = typeof tokens.body_pt === "number" ? tokens.body_pt : null;
   const floorPt = typeof dg.minFontPt === "number" ? dg.minFontPt : null;
   const pts = scan.sizes.map((s) => s.pt).filter((p) => typeof p === "number" && isFinite(p));
   const metrics = {
-    schema: "bf-diagram-metrics/1",
+    schema: "bf-diagram-metrics/2",
     fig: name, kind, style, widthKey,
+    // 이 metrics를 낳은 산출 SVG의 캐시 해시. **캐시 히트 조건에 이 값의 일치를 넣는다** —
+    // 넣지 않으면 metrics와 SVG가 갈라질 수 있다: HARD 반려(밴드 enforce·역할·대비)는
+    // metrics를 쓴 뒤 SVG를 쓰기 전에 죽으므로, 직전 성공 렌더의 SVG 옆에 **실패한 회차의
+    // metrics**가 남는다. 그 상태에서 소스를 되돌리면 SVG 해시는 맞아 캐시가 히트하고
+    // 판정은 옛 위반 metrics를 재생한다(실측으로 잡은 오탐).
+    cacheKey,
+    // 8단계: 원장(diagram-ledger.json)이 **템플릿별** 원장이므로 집계 키가 metrics 안에
+    // 있어야 재도출이 metrics만으로 닫힌다(사이드카를 다시 파싱하지 않는다). authored는 null.
+    template,
     widthMm: scan.widthMm, viewBoxW: r3(scan.vbW),
     // 환산 계수는 3자리로 자르면 pt 재산출이 어긋난다 — 5자리 유지
     ptPerUnit: scan.scalePt === null ? null : Math.round(scan.scalePt * 1e5) / 1e5,
@@ -664,10 +702,13 @@ function labelBandReport(scan, { name, kind, widthKey, scaled = false }) {
     minPt: pts.length ? r3(Math.min(...pts)) : null,
     maxPt: pts.length ? r3(Math.max(...pts)) : null,
     ratio: null, capPt: null,
-    band: { level: "WARN", verdict: "skip", reason: null },
+    band: { level: BAND_ENFORCE ? "FAIL" : "WARN", enforce: BAND_ENFORCE, verdict: "skip", reason: null },
     sizesPt: pts.map(r3).sort((a, b) => a - b),
   };
   const lines = [];
+  // 강도 표기는 한 곳에서 만든다 — 승격 스타일에서 사실 행만 FAIL이고 처방 행은 WARN인
+  // 식으로 갈리면 로그가 강도에 대해 두 말을 하게 된다.
+  const tagB = BAND_ENFORCE ? "DIAGRAM-BAND(enforce)" : "WARN DIAGRAM-BAND";
   // 검사가 꺼지는 모든 경우를 소리내어 알린다 — 미선언이 위반보다 조용해서는 안 된다.
   const off = maxRatio === null ? "tokens.diagram.labelBand.maxRatio 미선언"
     : bodyPt === null ? "tokens.body_pt 미선언(G1-SCALE도 같은 이유로 꺼진다)"
@@ -675,8 +716,11 @@ function labelBandReport(scan, { name, kind, widthKey, scaled = false }) {
     : !pts.length ? "font-size 실측 0건" : null;
   if (off) {
     metrics.band.reason = off;
-    lines.push(`WARN DIAGRAM-BAND ${name}: 라벨 밴드 상한 검사 꺼짐 — ${off}`);
-    return { metrics, lines, violated: false };
+    // enforce:true는 "이 스타일에서 상한이 지켜진다"는 선언이다. 검사가 꺼진 채로 통과하면
+    // 그 선언이 아무것도 뜻하지 않게 되므로, 승격한 스타일에서는 **꺼짐 자체가 반려**다
+    // (미선언이 위반보다 조용해서는 안 된다 — 5단계가 꺼짐을 WARN으로 드러낸 것의 연장).
+    lines.push(`${tagB} ${name}: 라벨 밴드 상한 검사 꺼짐 — ${off}`);
+    return { metrics, lines, violated: false, off };
   }
   const minPt = Math.min(...pts), maxPt = Math.max(...pts);
   const capPt = bodyPt * maxRatio;
@@ -699,24 +743,26 @@ function labelBandReport(scan, { name, kind, widthKey, scaled = false }) {
   const uniformOk = !floorPt || minPt * shrink >= floorPt - BAND_TOL_PT;
   const internal = maxPt / minPt;                             // 도해 내부 활자비
   const allowedInternal = floorPt ? capPt / floorPt : null;   // 밴드가 허용하는 최대 내부비
-  lines.push(`WARN DIAGRAM-BAND ${name}: 라벨 밴드 상한 초과 — ${fact}`);
+  // 강도는 스타일 스위치가 정한다 — 같은 사실을 두 등급으로 말한다(문구가 갈리면 두 산출물이
+  // 다른 숫자를 말하게 되므로 사실 문장 `fact`는 공유한다).
+  lines.push(`${tagB} ${name}: 라벨 밴드 상한 초과 — ${fact}`);
   if (kind === "antv" && scaled) {
     // 6단계 주입이 이미 걸렸는데도 넘는 경우 — 테마·클램프 어느 쪽으로도 못 잡은 급수가 남았다.
-    lines.push(`WARN DIAGRAM-BAND ${name}:   → 라벨 급수 강제(역할별 font-size 주입 + 하드코딩 급수 클램프)를`
+    lines.push(`${tagB} ${name}:   → 라벨 급수 강제(역할별 font-size 주입 + 하드코딩 급수 클램프)를`
       + ` 적용한 뒤에도 상한 초과. 이 템플릿에 테마·native <text> 어느 경로로도 도달하지 않는 급수가 남아 있다`
       + `(예: CSS 클래스·<style> 블록 경유). fig-NN.metrics.json의 labelScale.iterations로 회차별 실측을 확인하고,`
       + ` 해소 불가면 8단계 원장에서 이 템플릿 자체를 판정할 것.`);
   } else if (kind === "antv") {
-    lines.push(`WARN DIAGRAM-BAND ${name}:   → AntV DSL 트랙 = **6단계 스케일 강제 대상**`
+    lines.push(`${tagB} ${name}:   → AntV DSL 트랙 = **6단계 스케일 강제 대상**`
       + `(applyTheme에 font-size 주입). 템플릿이 급수를 하드코딩하므로 사이드카·폭 조정으로는 해소되지 않는다.`
       + (uniformOk ? "" : ` 균일 축척(×${shrink.toFixed(3)})으로는 최소 라벨이 ${(minPt * shrink).toFixed(2)}pt로`
         + ` 하한 ${floorPt}pt 미달 — 6단계는 역할별(label/desc/title) 분리 주입이어야 한다.`));
   } else if (uniformOk) {
-    lines.push(`WARN DIAGRAM-BAND ${name}:   → 수리: 라벨 font-size를 ×${shrink.toFixed(3)} 이하로 **축소**하거나,`
+    lines.push(`${tagB} ${name}:   → 수리: 라벨 font-size를 ×${shrink.toFixed(3)} 이하로 **축소**하거나,`
       + ` viewBox 폭을 ${scan.vbW}u → ${(scan.vbW / shrink).toFixed(1)}u 이상으로 **확대**할 것`
       + `(폭 확대 = 유효 pt 축소). ※ 하한 위반의 처방(폭 축소·font-size 확대)과 방향이 반대다.`);
   } else {
-    lines.push(`WARN DIAGRAM-BAND ${name}:   → 균일 축척으로는 해소 불가(축척은 상·하한을 함께 옮긴다):`
+    lines.push(`${tagB} ${name}:   → 균일 축척으로는 해소 불가(축척은 상·하한을 함께 옮긴다):`
       + ` ×${shrink.toFixed(3)} 축소 시 최소 라벨이 ${(minPt * shrink).toFixed(2)}pt로 하한 ${floorPt}pt 미달이고,`
       + ` viewBox 확대도 같은 이유로 막힌다. 이 도해의 라벨 최대/최소 비 ${internal.toFixed(3)}×가`
       + ` 밴드 허용 내부비 ${allowedInternal.toFixed(3)}×(= 상한 ${capPt.toFixed(2)}pt ÷ 하한 ${floorPt}pt)를 넘는다`
@@ -745,15 +791,31 @@ function bandSummary(m) {
     ? `, 대비 최악 ${m.labelPaint.minRatio ?? "—"}(knockout ${m.labelPaint.knockout}/${m.labelPaint.checked})` : "";
   return `라벨 ${m.minPt}~${m.maxPt}pt${r}${s}${p}`;
 }
+// 캐시 히트 선행조건 — metrics가 **이 해시로 렌더된 것**인가. 파일 존재만 보면
+// 실패 회차가 남긴 metrics를 성공 SVG 옆에서 그대로 재생하게 된다(위 cacheKey 주석).
+function metricsKeyMatches(outMetricsPath, key) {
+  if (!existsSync(outMetricsPath)) return false;
+  try { return JSON.parse(readFileSync(outMetricsPath, "utf8")).cacheKey === key; }
+  catch { return false; }
+}
 function replayBand(outMetricsPath, name) {
   if (!existsSync(outMetricsPath)) return null;
   let m;
   try { m = JSON.parse(readFileSync(outMetricsPath, "utf8")); } catch { return null; }
+  const tag = BAND_ENFORCE ? "DIAGRAM-BAND(enforce)" : "WARN DIAGRAM-BAND";
   if (m && m.band && m.band.verdict === "violation") {
-    console.log(`WARN DIAGRAM-BAND ${name}: 라벨 밴드 상한 초과(캐시 유지) — `
+    console.log(`${tag} ${name}: 라벨 밴드 상한 초과(캐시 유지) — `
       + `최대 ${m.maxPt}pt = 본문 ${m.bodyPt}pt × ${m.ratio} > 상한 ${m.maxRatio}× (${m.capPt}pt)`);
+    // **구조상 도달 불가 어서션**: gateParams가 labelBand를 통째로 실으므로 enforce:true로
+    // 렌더된 도해는 위반이면 svg가 쓰이기 전에 fail()했고, enforce:false로 렌더된 svg는
+    // 해시가 달라 여기까지 오지 않는다. 그래도 남긴다 — 해시 계약이 미래에 좁아지면
+    // "캐시가 위반을 통과시키는" 구멍이 조용히 열리기 때문이다(5단계가 캐시 히트에도
+    // 경고를 다시 낸 것과 같은 이유). 도달 불가라 뮤테이션 어서션 대상이 아니며,
+    // 대신 M15가 **해시 편입 자체**(enforce 변조 → 재렌더)를 어서션한다.
+    if (BAND_ENFORCE) fail(`${name}: 라벨 밴드 상한 초과(캐시된 판정) — labelBand.enforce=true인 스타일에서 캐시가 위반을 통과시켰다(해시 계약 파손 의심)`);
   } else if (m && m.band && m.band.verdict === "skip") {
-    console.log(`WARN DIAGRAM-BAND ${name}: 라벨 밴드 상한 검사 꺼짐(캐시 유지) — ${m.band.reason}`);
+    console.log(`${tag} ${name}: 라벨 밴드 상한 검사 꺼짐(캐시 유지) — ${m.band.reason}`);
+    if (BAND_ENFORCE) fail(`${name}: 라벨 밴드 상한 검사 꺼짐(캐시된 판정) — ${m.band.reason}. enforce:true는 검사가 실제로 도는 것을 전제한다`);
   }
   return m;
 }
@@ -806,7 +868,7 @@ for (const file of sidecars) {
     const outSvgA = path.join(assetsDir, `${name}.svg`);
     const outLabelsA = path.join(assetsDir, `${name}.labels.json`);
     const outMetricsA = path.join(assetsDir, `${name}.metrics.json`);
-    if (existsSync(outSvgA) && existsSync(outLabelsA) && existsSync(outMetricsA)) {
+    if (existsSync(outSvgA) && existsSync(outLabelsA) && metricsKeyMatches(outMetricsA, hashA)) {
       const head = readFileSync(outSvgA, "utf8").slice(0, 130);
       if (head.includes(`bf:authored=sha256:${hashA}`)) {
         skipped++;
@@ -853,9 +915,14 @@ for (const file of sidecars) {
     if (paintA.violations.length) {
       fail(`${name}: 도해 라벨 역할·대비 위반 ${paintA.violations.length}건 — ${paintA.violations.join("; ")}`);
     }
-    const reportA = labelBandReport(scanA, { name, kind, widthKey });
+    const reportA = labelBandReport(scanA, { name, kind, widthKey, cacheKey: hashA });
     reportA.metrics.labelPaint = paintA.metrics;
     const bandA = emitBand(reportA, outMetricsA);
+    // 8단계 승격: enforce:true인 스타일에서 상한 위반(과 검사 꺼짐)은 그 도해의 반려다.
+    // metrics는 emitBand가 이미 썼고 SVG는 아직 안 썼다 — 반려된 도해가 캐시에 남지 않는다.
+    if (BAND_ENFORCE && (bandA.violated || bandA.off)) {
+      fail(`${name}: 라벨 밴드 상한 ${bandA.off ? `검사 꺼짐 — ${bandA.off}` : `위반 — ${bandA.metrics.maxPt}pt = 본문 ${bandA.metrics.bodyPt}pt × ${bandA.metrics.ratio} > 상한 ${bandA.metrics.maxRatio}× (${bandA.metrics.capPt}pt)`} (styles/${style} labelBand.enforce=true)`);
+    }
     writeFileSync(outSvgA, `<!--bf:authored=sha256:${hashA}-->\n${normalized}`);
     writeFileSync(outLabelsA, JSON.stringify(labelsA, null, 2));
     rendered++;
@@ -874,9 +941,17 @@ for (const file of sidecars) {
   if (!getTemplate(tplName)) {
     fail(`${name}: 미지 템플릿 '${tplName}' — infographic-creator 스킬의 템플릿 목록 참조`);
   }
-  // 실측 원장 사전 차단 — 8pt 하한에 도달 불가 판정 템플릿 (references/diagram-ledger.json)
-  if (ledger.blocked_prefixes.some((p) => tplName.startsWith(p))) {
-    fail(`${name}: 템플릿 '${tplName}'은 실측 원장에서 차단(라벨이 ${ledger.floor_pt}pt 하한 도달 불가) — 대안: sequence-timeline-simple 등 원장 ok 템플릿`);
+  // 실측 원장 사전 차단 (references/diagram-ledger.json). **차단 사유는 원장이 말한다** —
+  // v1은 사유가 "8pt 하한 도달 불가" 하나였지만 v2에서 축이 넷으로 늘었고(하한 축 차단은
+  // 6단계 급수 강제로 근거를 잃어 0건이 됐다), 코드가 사유를 하드코딩하면 원장과 갈라진다.
+  const blockedPrefix = ledger.blocked_prefixes.find((p) => tplName.startsWith(p));
+  if (blockedPrefix) {
+    const row = (ledger.blocked || []).find((b) => b.template === blockedPrefix) || {};
+    const ok = (ledger.measurements || []).filter((m) => m.verdict === "ok").map((m) => m.template);
+    fail(`${name}: 템플릿 '${tplName}'은 실측 원장(references/diagram-ledger.json)에서 차단`
+      + `${row.axis ? ` — 축 ${row.axis}` : ""}${row.evidence ? ` · ${row.evidence}` : ""}`
+      + `${row.reason ? `\n  사유: ${row.reason}` : ""}`
+      + `\n  대안(원장 verdict=ok): ${ok.slice(0, 6).join(" · ") || "sequence-timeline-simple"}`);
   }
   const wantIcons = bf.icons === true;
   if (wantIcons && !dg.iconsAllowed) fail(`${name}: 이 스타일(${style})은 icons 미허용`);
@@ -895,7 +970,7 @@ for (const file of sidecars) {
   const outSvg = path.join(assetsDir, `${name}.svg`);
   const outLabels = path.join(assetsDir, `${name}.labels.json`);
   const outMetrics = path.join(assetsDir, `${name}.metrics.json`);
-  if (existsSync(outSvg) && existsSync(outLabels) && existsSync(outMetrics)) {
+  if (existsSync(outSvg) && existsSync(outLabels) && metricsKeyMatches(outMetrics, hash)) {
     const head = readFileSync(outSvg, "utf8").slice(0, 120);
     if (head.includes(`bf:dsl=sha256:${hash}`)) {
       skipped++;
@@ -985,7 +1060,7 @@ for (const file of sidecars) {
   if (paintD.violations.length) {
     fail(`${name}: 도해 라벨 역할·대비 위반 ${paintD.violations.length}건 — ${paintD.violations.join("; ")}`);
   }
-  const reportD = labelBandReport(scan, { name, kind, widthKey, scaled: !!inject });
+  const reportD = labelBandReport(scan, { name, kind, widthKey, scaled: !!inject, template: tplName, cacheKey: hash });
   reportD.metrics.labelPaint = paintD.metrics;
   reportD.metrics.labelScale = plan ? {
     version: LABEL_SCALE.version, applied: !!inject, passes,
@@ -998,6 +1073,10 @@ for (const file of sidecars) {
     iterations: iterLog,
   } :{ version: LABEL_SCALE.version, applied: false, passes, reason: "labelBand.maxRatio 또는 body_pt 미선언", pre, iterations: iterLog };
   const bandD = emitBand(reportD, outMetrics);
+  // 8단계 승격 — authored 트랙과 같은 자리, 같은 강도. SVG를 쓰기 전에 죽는다.
+  if (BAND_ENFORCE && (bandD.violated || bandD.off)) {
+    fail(`${name}: 라벨 밴드 상한 ${bandD.off ? `검사 꺼짐 — ${bandD.off}` : `위반 — ${bandD.metrics.maxPt}pt = 본문 ${bandD.metrics.bodyPt}pt × ${bandD.metrics.ratio} > 상한 ${bandD.metrics.maxRatio}× (${bandD.metrics.capPt}pt) · 템플릿 '${tplName}'`} (styles/${style} labelBand.enforce=true)`);
+  }
 
   writeFileSync(outSvg, `<!--bf:dsl=sha256:${hash}-->\n${converted}`);
   writeFileSync(outLabels, JSON.stringify(labels, null, 2));

@@ -1,49 +1,947 @@
 {
-  "_doc": "AntV 템플릿 적합성 실측 원장 (2026-08-11 트랙A 파일럿). min_pt = 해당 판형 폭에서 렌더된 최소 글자 실측 pt. verdict blocked = 8pt 하한 도달 불가(라벨 축약으로 구제 안 됨) — render_diagrams가 사전 차단. 새 실측은 이 파일에 추가. [v2.0.1] sequence-column-vertical-arrow 항목 제거 — 벤더 카탈로그에 실존하지 않는 이름(원장 작성 시 오기, 실측치 귀속 불가). 세로 단계는 sequence-timeline-simple 사용.",
+  "schema": "bf-diagram-ledger/2",
+  "_doc": "AntV 템플릿 적합성 실측 원장. **v2 재도출(2026-08-18, W5 8단계)** — 판정 축이 하나(min_pt 8pt 하한)에서 넷(min_pt · max_pt/max_ratio · frame_slack · label-paint)으로 늘었다. 재도출이 필요했던 이유 둘: ① W5 2~4단계 폭 3원 동기화로 **구 행의 width_mm 귀속이 무효**가 됐고(선언폭이 실렌더폭과 갈라져 있었다), ② W5 6단계 라벨 급수 강제(역할별 font-size 주입 + 폭 프레임 고정)가 **하한 축의 결론 자체를 뒤집었다** — 구 blocked 3건은 전부 급수 강제 이전 수치다. 입력은 assets/fig-NN.metrics.json 전량(코퍼스 12권 64건 + 폭 프로브 5권 10건 = 74건) + 이번 단계의 템플릿 프로브다. metrics.json에 `template` 축을 신설해 이후 재도출이 metrics만으로 닫히게 했다. 새 실측은 이 파일에 추가할 것.",
+  "derived_at": "2026-08-18",
+  "derived_from": {
+    "corpus_metrics": "/mnt/d/bookforge-verify 12권 64건 + 폭 프로브 5권 10건 = fig-NN.metrics.json 74건 (antv 8건이 템플릿 축을 가진다)",
+    "template_probes": "insight 팩 · 3항목(라벨 6자 + 설명 12자) 표준 콘텐츠 · full 130mm/twothirds 106mm — 등록 변형 실측 28건 + 반려 7건",
+    "report": "/mnt/d/bookforge-verify/report/w5-step89.md"
+  },
   "floor_pt": 8,
+  "band": {
+    "maxRatio": 1.2,
+    "grade": "하우스",
+    "note": "라벨 최대 pt ≤ body_pt × 1.20. 스타일별 `tokens.diagram.labelBand`가 정본이고 이 값은 그 사본이다 — 6스타일 전부 1.20 · enforce:true(W5 8단계)."
+  },
+  "axes": {
+    "min_pt": "라벨 최소 실측 pt. < floor_pt면 렌더가 HARD 반려(fontFloorViolations).",
+    "max_ratio": "라벨 최대 pt ÷ body_pt. > band.maxRatio면 labelBand.enforce:true 스타일에서 HARD 반려.",
+    "frame_slack": "1 − 실내용폭 ÷ 프레임폭(6단계 폭 프레임 고정의 부산물). 양수 = 도형이 명목 폭을 못 채운다, 음수 = 프레임을 넘겨 pt/u가 낮아졌다(라벨이 목표에 미달). ±0.03이 실무 무해 대역.",
+    "label_paint": "역할·대비 HARD(7단계) 실측. blocked 판정의 새 근거 축이다."
+  },
   "measurements": [
     {
-      "template": "sequence-ascending-steps",
-      "width_mm": 106,
-      "min_pt": 8.35,
-      "verdict": "label-only",
-      "note": "desc 넣으면 하한 미달 — 라벨만 허용"
+      "template": "list-column-simple-vertical-arrow",
+      "verdict": "ok-slack",
+      "max_ratio_range": [
+        1.15,
+        1.15
+      ],
+      "min_pt_min": 8.556,
+      "frame_slack_range": [
+        0.224,
+        0.338
+      ],
+      "note": "프레임 여백 34% — 라벨을 밴드 안으로 넣으면 도형이 명목 폭을 다 채우지 못한다. 이 폭에는 항목 수가 적거나 템플릿이 세로형이라는 뜻이므로 bf.width를 twothirds로 내리거나 항목을 늘릴 것.",
+      "measurements": [
+        {
+          "style": "magazine",
+          "width_key": "full",
+          "width_mm": 164,
+          "body_pt": 9.5,
+          "min_pt": 8.556,
+          "max_pt": 10.925,
+          "max_ratio": 1.15,
+          "frame_slack": 0.338,
+          "scale_passes": 2,
+          "worst_contrast": 5.015,
+          "source": "corpus:adv-g16/mag-diag-oldpal/fig-02"
+        },
+        {
+          "style": "magazine",
+          "width_key": "full",
+          "width_mm": 164,
+          "body_pt": 9.5,
+          "min_pt": 8.556,
+          "max_pt": 10.925,
+          "max_ratio": 1.15,
+          "frame_slack": 0.338,
+          "scale_passes": 2,
+          "worst_contrast": 5.015,
+          "source": "corpus:adv-g16/mag-diag/fig-02"
+        },
+        {
+          "style": "magazine",
+          "width_key": "full",
+          "width_mm": 164,
+          "body_pt": 9.5,
+          "min_pt": 8.556,
+          "max_pt": 10.925,
+          "max_ratio": 1.15,
+          "frame_slack": 0.338,
+          "scale_passes": 2,
+          "worst_contrast": 5.015,
+          "source": "corpus:w5s2-mag23/fig-02"
+        },
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.56,
+          "max_pt": 10.925,
+          "max_ratio": 1.15,
+          "frame_slack": 0.328,
+          "scale_passes": 2,
+          "worst_contrast": 4.727,
+          "source": "probe:w5s89/list-column-simple-vertical-arrow__full"
+        },
+        {
+          "style": "insight",
+          "width_key": "twothirds",
+          "width_mm": 106,
+          "body_pt": 9.5,
+          "min_pt": 8.559,
+          "max_pt": 10.925,
+          "max_ratio": 1.15,
+          "frame_slack": 0.224,
+          "scale_passes": 2,
+          "worst_contrast": 4.727,
+          "source": "corpus:iso-base-dsl/fig-02"
+        },
+        {
+          "style": "insight",
+          "width_key": "twothirds",
+          "width_mm": 106,
+          "body_pt": 9.5,
+          "min_pt": 8.559,
+          "max_pt": 10.925,
+          "max_ratio": 1.15,
+          "frame_slack": 0.224,
+          "scale_passes": 2,
+          "worst_contrast": 4.727,
+          "source": "corpus:merge-diag-dsl/fig-02"
+        },
+        {
+          "style": "magazine",
+          "width_key": "twothirds",
+          "width_mm": 108,
+          "body_pt": 9.5,
+          "min_pt": 8.558,
+          "max_pt": 10.925,
+          "max_ratio": 1.15,
+          "frame_slack": 0.233,
+          "scale_passes": 2,
+          "worst_contrast": 5.015,
+          "source": "corpus:w5s2-mag23/fig-01"
+        },
+        {
+          "style": "insight",
+          "width_key": "twothirds",
+          "width_mm": 106,
+          "body_pt": 9.5,
+          "min_pt": 8.559,
+          "max_pt": 10.925,
+          "max_ratio": 1.15,
+          "frame_slack": 0.224,
+          "scale_passes": 2,
+          "worst_contrast": 4.727,
+          "source": "probe:w5s89/list-column-simple-vertical-arrow__twothirds"
+        }
+      ]
     },
     {
-      "template": "sequence-timeline-simple",
-      "width_mm": 106,
-      "min_pt": 11.7,
-      "verdict": "ok"
+      "template": "list-grid-circular-progress",
+      "verdict": "ok",
+      "max_ratio_range": [
+        1.15,
+        1.15
+      ],
+      "min_pt_min": 9.503,
+      "frame_slack_range": [
+        0,
+        0
+      ],
+      "note": null,
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 9.503,
+          "max_pt": 10.925,
+          "max_ratio": 1.15,
+          "frame_slack": 0,
+          "scale_passes": 2,
+          "worst_contrast": 4.727,
+          "source": "probe:w5s89/list-grid-circular-progress__full"
+        }
+      ]
     },
     {
-      "template": "sequence-roadmap-vertical",
-      "width_mm": 106,
-      "min_pt": 4.7,
-      "verdict": "blocked"
+      "template": "list-grid-done-list",
+      "verdict": "ok",
+      "max_ratio_range": [
+        1.141,
+        1.141
+      ],
+      "min_pt_min": 9.425,
+      "frame_slack_range": [
+        -0.008,
+        -0.008
+      ],
+      "note": null,
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 9.425,
+          "max_pt": 10.836,
+          "max_ratio": 1.141,
+          "frame_slack": -0.008,
+          "scale_passes": 2,
+          "worst_contrast": 5.742,
+          "source": "probe:w5s89/list-grid-done-list__full"
+        }
+      ]
     },
     {
-      "template": "sequence-snake-steps",
-      "width_mm": 106,
-      "min_pt": 5.8,
-      "verdict": "blocked"
+      "template": "list-grid-horizontal-icon-arrow",
+      "verdict": "ok",
+      "max_ratio_range": [
+        1.15,
+        1.15
+      ],
+      "min_pt_min": 8.558,
+      "frame_slack_range": [
+        0,
+        0
+      ],
+      "note": null,
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.558,
+          "max_pt": 10.925,
+          "max_ratio": 1.15,
+          "frame_slack": 0,
+          "scale_passes": 2,
+          "worst_contrast": 4.727,
+          "source": "probe:w5s89/list-grid-horizontal-icon-arrow__full"
+        }
+      ]
+    },
+    {
+      "template": "list-grid-progress-card",
+      "verdict": "ok",
+      "max_ratio_range": [
+        1.15,
+        1.15
+      ],
+      "min_pt_min": 8.561,
+      "frame_slack_range": [
+        0,
+        0
+      ],
+      "note": null,
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.561,
+          "max_pt": 10.926,
+          "max_ratio": 1.15,
+          "frame_slack": 0,
+          "scale_passes": 2,
+          "worst_contrast": 6.897,
+          "source": "probe:w5s89/list-grid-progress-card__full"
+        }
+      ]
+    },
+    {
+      "template": "list-grid-ribbon-card",
+      "verdict": "ok",
+      "max_ratio_range": [
+        1.15,
+        1.15
+      ],
+      "min_pt_min": 8.562,
+      "frame_slack_range": [
+        0,
+        0
+      ],
+      "note": null,
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.562,
+          "max_pt": 10.923,
+          "max_ratio": 1.15,
+          "frame_slack": 0,
+          "scale_passes": 2,
+          "worst_contrast": 6.897,
+          "source": "probe:w5s89/list-grid-ribbon-card__full"
+        }
+      ]
+    },
+    {
+      "template": "list-grid-simple",
+      "verdict": "ok-undershoot",
+      "max_ratio_range": [
+        1.092,
+        1.15
+      ],
+      "min_pt_min": 8.127,
+      "frame_slack_range": [
+        -0.053,
+        0.002
+      ],
+      "note": "프레임 초과 -5.3% — 급수 주입이 실내용 폭을 프레임 밖으로 밀어 pt/u가 낮아졌고 라벨이 목표(본문×1.15)에 못 미친 채로 앉았다(최소 8.127pt, 하한 8pt 여유 0.127pt). 항목 수·라벨 길이를 줄일 것.",
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.559,
+          "max_pt": 10.926,
+          "max_ratio": 1.15,
+          "frame_slack": 0.002,
+          "scale_passes": 2,
+          "worst_contrast": 6.897,
+          "source": "probe:w5s89/list-grid-simple__full"
+        },
+        {
+          "style": "insight",
+          "width_key": "twothirds",
+          "width_mm": 106,
+          "body_pt": 9.5,
+          "min_pt": 8.127,
+          "max_pt": 10.374,
+          "max_ratio": 1.092,
+          "frame_slack": -0.053,
+          "scale_passes": 2,
+          "worst_contrast": 6.897,
+          "source": "probe:w5s89/list-grid-simple__twothirds"
+        }
+      ]
     },
     {
       "template": "list-row-horizontal-icon-arrow",
-      "width_mm": 130,
-      "min_pt": 11.2,
-      "verdict": "ok"
+      "verdict": "ok",
+      "max_ratio_range": [
+        1.15,
+        1.15
+      ],
+      "min_pt_min": 8.558,
+      "frame_slack_range": [
+        0,
+        0
+      ],
+      "note": null,
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.558,
+          "max_pt": 10.925,
+          "max_ratio": 1.15,
+          "frame_slack": 0,
+          "scale_passes": 2,
+          "worst_contrast": 4.727,
+          "source": "corpus:iso-base-dsl/fig-01"
+        },
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.558,
+          "max_pt": 10.925,
+          "max_ratio": 1.15,
+          "frame_slack": 0,
+          "scale_passes": 2,
+          "worst_contrast": 4.727,
+          "source": "corpus:merge-diag-dsl/fig-01"
+        },
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.558,
+          "max_pt": 10.925,
+          "max_ratio": 1.15,
+          "frame_slack": 0,
+          "scale_passes": 2,
+          "worst_contrast": 4.727,
+          "source": "probe:w5s89/list-row-horizontal-icon-arrow__full"
+        },
+        {
+          "style": "insight",
+          "width_key": "twothirds",
+          "width_mm": 106,
+          "body_pt": 9.5,
+          "min_pt": 8.562,
+          "max_pt": 10.928,
+          "max_ratio": 1.15,
+          "frame_slack": 0,
+          "scale_passes": 2,
+          "worst_contrast": 4.727,
+          "source": "probe:w5s89/list-row-horizontal-icon-arrow__twothirds"
+        }
+      ]
     },
     {
-      "template": "list-grid",
-      "width_mm": 130,
-      "min_pt": 6.4,
+      "template": "sequence-ascending-steps",
+      "verdict": "ok",
+      "max_ratio_range": [
+        1.15,
+        1.15
+      ],
+      "min_pt_min": 8.56,
+      "frame_slack_range": [
+        0,
+        0
+      ],
+      "note": null,
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.563,
+          "max_pt": 10.928,
+          "max_ratio": 1.15,
+          "frame_slack": 0,
+          "scale_passes": 2,
+          "worst_contrast": 6.897,
+          "source": "probe:w5s89/sequence-ascending-steps__full"
+        },
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 9.497,
+          "max_pt": 10.928,
+          "max_ratio": 1.15,
+          "frame_slack": 0,
+          "scale_passes": 2,
+          "worst_contrast": 15.134,
+          "source": "probe:w5s89/sequence-ascending-steps__full__labelonly"
+        },
+        {
+          "style": "insight",
+          "width_key": "twothirds",
+          "width_mm": 106,
+          "body_pt": 9.5,
+          "min_pt": 8.56,
+          "max_pt": 10.923,
+          "max_ratio": 1.15,
+          "frame_slack": 0,
+          "scale_passes": 2,
+          "worst_contrast": 6.897,
+          "source": "probe:w5s89/sequence-ascending-steps__twothirds"
+        },
+        {
+          "style": "insight",
+          "width_key": "twothirds",
+          "width_mm": 106,
+          "body_pt": 9.5,
+          "min_pt": 9.497,
+          "max_pt": 10.923,
+          "max_ratio": 1.15,
+          "frame_slack": 0,
+          "scale_passes": 2,
+          "worst_contrast": 15.134,
+          "source": "probe:w5s89/sequence-ascending-steps__twothirds__labelonly"
+        }
+      ]
+    },
+    {
+      "template": "sequence-roadmap-vertical-plain-text",
+      "verdict": "ok-undershoot",
+      "max_ratio_range": [
+        1.057,
+        1.118
+      ],
+      "min_pt_min": 8.734,
+      "frame_slack_range": [
+        -0.088,
+        -0.029
+      ],
+      "note": "프레임 초과 -8.8% — 급수 주입이 실내용 폭을 프레임 밖으로 밀어 pt/u가 낮아졌고 라벨이 목표(본문×1.15)에 못 미친 채로 앉았다(최소 8.734pt, 하한 8pt 여유 0.734pt). 항목 수·라벨 길이를 줄일 것.",
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 9.231,
+          "max_pt": 10.617,
+          "max_ratio": 1.118,
+          "frame_slack": -0.029,
+          "scale_passes": 2,
+          "worst_contrast": 4.727,
+          "source": "probe:w5s89/sequence-roadmap-vertical-plain-text__full"
+        },
+        {
+          "style": "insight",
+          "width_key": "twothirds",
+          "width_mm": 106,
+          "body_pt": 9.5,
+          "min_pt": 8.734,
+          "max_pt": 10.043,
+          "max_ratio": 1.057,
+          "frame_slack": -0.088,
+          "scale_passes": 2,
+          "worst_contrast": 4.727,
+          "source": "probe:w5s89/sequence-roadmap-vertical-plain-text__twothirds"
+        }
+      ]
+    },
+    {
+      "template": "sequence-roadmap-vertical-quarter-circular",
+      "verdict": "ok",
+      "max_ratio_range": [
+        1.15,
+        1.15
+      ],
+      "min_pt_min": 8.559,
+      "frame_slack_range": [
+        0,
+        0
+      ],
+      "note": null,
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.559,
+          "max_pt": 10.924,
+          "max_ratio": 1.15,
+          "frame_slack": 0,
+          "scale_passes": 2,
+          "worst_contrast": 4.727,
+          "source": "probe:w5s89/sequence-roadmap-vertical-quarter-circular__full"
+        }
+      ]
+    },
+    {
+      "template": "sequence-roadmap-vertical-quarter-simple-card",
+      "verdict": "ok",
+      "max_ratio_range": [
+        1.15,
+        1.15
+      ],
+      "min_pt_min": 8.562,
+      "frame_slack_range": [
+        0,
+        0
+      ],
+      "note": null,
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.562,
+          "max_pt": 10.925,
+          "max_ratio": 1.15,
+          "frame_slack": 0,
+          "scale_passes": 2,
+          "worst_contrast": 4.727,
+          "source": "probe:w5s89/sequence-roadmap-vertical-quarter-simple-card__full"
+        }
+      ]
+    },
+    {
+      "template": "sequence-roadmap-vertical-simple",
+      "verdict": "ok-undershoot",
+      "max_ratio_range": [
+        1.11,
+        1.15
+      ],
+      "min_pt_min": 8.259,
+      "frame_slack_range": [
+        -0.036,
+        0.031
+      ],
+      "note": "프레임 초과 -3.6% — 급수 주입이 실내용 폭을 프레임 밖으로 밀어 pt/u가 낮아졌고 라벨이 목표(본문×1.15)에 못 미친 채로 앉았다(최소 8.259pt, 하한 8pt 여유 0.259pt). 항목 수·라벨 길이를 줄일 것.",
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.259,
+          "max_pt": 10.544,
+          "max_ratio": 1.11,
+          "frame_slack": -0.036,
+          "scale_passes": 3,
+          "worst_contrast": 4.727,
+          "source": "probe:w5s89/sequence-roadmap-vertical-simple__full"
+        },
+        {
+          "style": "insight",
+          "width_key": "twothirds",
+          "width_mm": 106,
+          "body_pt": 9.5,
+          "min_pt": 8.559,
+          "max_pt": 10.926,
+          "max_ratio": 1.15,
+          "frame_slack": 0.031,
+          "scale_passes": 3,
+          "worst_contrast": 4.727,
+          "source": "probe:w5s89/sequence-roadmap-vertical-simple__twothirds"
+        }
+      ]
+    },
+    {
+      "template": "sequence-roadmap-vertical-underline-text",
+      "verdict": "ok-undershoot",
+      "max_ratio_range": [
+        1.11,
+        1.11
+      ],
+      "min_pt_min": 8.259,
+      "frame_slack_range": [
+        -0.036,
+        -0.036
+      ],
+      "note": "프레임 초과 -3.6% — 급수 주입이 실내용 폭을 프레임 밖으로 밀어 pt/u가 낮아졌고 라벨이 목표(본문×1.15)에 못 미친 채로 앉았다(최소 8.259pt, 하한 8pt 여유 0.259pt). 항목 수·라벨 길이를 줄일 것.",
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.259,
+          "max_pt": 10.544,
+          "max_ratio": 1.11,
+          "frame_slack": -0.036,
+          "scale_passes": 3,
+          "worst_contrast": 4.727,
+          "source": "probe:w5s89/sequence-roadmap-vertical-underline-text__full"
+        }
+      ]
+    },
+    {
+      "template": "sequence-snake-steps-simple",
+      "verdict": "ok-undershoot",
+      "max_ratio_range": [
+        1.079,
+        1.137
+      ],
+      "min_pt_min": 8.031,
+      "frame_slack_range": [
+        -0.066,
+        -0.011
+      ],
+      "note": "프레임 초과 -6.6% — 급수 주입이 실내용 폭을 프레임 밖으로 밀어 pt/u가 낮아졌고 라벨이 목표(본문×1.15)에 못 미친 채로 앉았다(최소 8.031pt, 하한 8pt 여유 0.031pt). 항목 수·라벨 길이를 줄일 것.",
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.465,
+          "max_pt": 10.8,
+          "max_ratio": 1.137,
+          "frame_slack": -0.011,
+          "scale_passes": 2,
+          "worst_contrast": 6.897,
+          "source": "probe:w5s89/sequence-snake-steps-simple__full"
+        },
+        {
+          "style": "insight",
+          "width_key": "twothirds",
+          "width_mm": 106,
+          "body_pt": 9.5,
+          "min_pt": 8.031,
+          "max_pt": 10.248,
+          "max_ratio": 1.079,
+          "frame_slack": -0.066,
+          "scale_passes": 2,
+          "worst_contrast": 6.897,
+          "source": "probe:w5s89/sequence-snake-steps-simple__twothirds"
+        }
+      ]
+    },
+    {
+      "template": "sequence-snake-steps-simple-illus",
+      "verdict": "ok",
+      "max_ratio_range": [
+        1.15,
+        1.15
+      ],
+      "min_pt_min": 8.558,
+      "frame_slack_range": [
+        0.005,
+        0.005
+      ],
+      "note": null,
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.558,
+          "max_pt": 10.927,
+          "max_ratio": 1.15,
+          "frame_slack": 0.005,
+          "scale_passes": 2,
+          "worst_contrast": 6.897,
+          "source": "probe:w5s89/sequence-snake-steps-simple-illus__full"
+        }
+      ]
+    },
+    {
+      "template": "sequence-snake-steps-underline-text",
+      "verdict": "ok",
+      "max_ratio_range": [
+        1.137,
+        1.137
+      ],
+      "min_pt_min": 8.465,
+      "frame_slack_range": [
+        -0.011,
+        -0.011
+      ],
+      "note": null,
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.465,
+          "max_pt": 10.8,
+          "max_ratio": 1.137,
+          "frame_slack": -0.011,
+          "scale_passes": 2,
+          "worst_contrast": 4.727,
+          "source": "probe:w5s89/sequence-snake-steps-underline-text__full"
+        }
+      ]
+    },
+    {
+      "template": "sequence-timeline-simple",
+      "verdict": "ok-slack",
+      "max_ratio_range": [
+        1.15,
+        1.15
+      ],
+      "min_pt_min": 8.556,
+      "frame_slack_range": [
+        0.462,
+        0.49
+      ],
+      "note": "프레임 여백 49% — 라벨을 밴드 안으로 넣으면 도형이 명목 폭을 다 채우지 못한다. 이 폭에는 항목 수가 적거나 템플릿이 세로형이라는 뜻이므로 bf.width를 twothirds로 내리거나 항목을 늘릴 것.",
+      "measurements": [
+        {
+          "style": "insight",
+          "width_key": "full",
+          "width_mm": 130,
+          "body_pt": 9.5,
+          "min_pt": 8.556,
+          "max_pt": 10.923,
+          "max_ratio": 1.15,
+          "frame_slack": 0.49,
+          "scale_passes": 2,
+          "worst_contrast": 6.897,
+          "source": "probe:w5s89/sequence-timeline-simple__full"
+        },
+        {
+          "style": "insight",
+          "width_key": "twothirds",
+          "width_mm": 106,
+          "body_pt": 9.5,
+          "min_pt": 8.564,
+          "max_pt": 10.923,
+          "max_ratio": 1.15,
+          "frame_slack": 0.462,
+          "scale_passes": 2,
+          "worst_contrast": 6.897,
+          "source": "probe:w5s89/sequence-timeline-simple__twothirds"
+        }
+      ]
+    }
+  ],
+  "blocked": [
+    {
+      "template": "sequence-roadmap-vertical-badge-card",
       "verdict": "blocked",
-      "note": "grid 계열 5.6~6.4pt — 전 계열 차단(프리픽스 매칭)"
+      "axis": "label-paint(role/contrast HARD)",
+      "measured": "render fail — metrics 미발행",
+      "evidence": "위반 6건 — '오프라인 작동' #262626 on #1e7aad 3.201 · '네트워크…' #5a5a5a on #1e7aad 1.459 · … (insight full 130mm, 3항목)",
+      "reason": "라벨 급수는 밴드 안에 들어오지만 **역할·대비 HARD**(7단계)가 반드시 반려한다 — 이 템플릿은 AntV `theme.palette` 채움 카드 위에 기본 잉크색(#262626/#5a5a5a) 라벨을 얹는다. 그런데 그 채움 채널에 넘기는 슬롯은 `antvPaletteChannel`이 **백색 knockout 가능한 슬롯만** 고른 것이므로(contrast(slot,#ffffff) ≥ 4.5) 정의상 어두운 색이고(L ≤ 0.1833), 그 위의 #262626(L 0.0219) 대비는 산술 상한이 **3.24**로 4.5를 넘을 수 없다. 즉 팔레트 값과 무관한 구조적 미달이며 사이드카·폭 조정으로 구제되지 않는다(항목 datum의 color는 무시되고 콘텐츠 theme 블록은 applyTheme가 재작성한다 — w5-step7.md §3.1 실증). 유일한 예외 가능성은 0번(브랜드) 슬롯만 쓰는 1항목 도해다 — 0번은 knockout 필터를 면제받기 때문이며, 그 경우에도 렌더 시 역할·대비 HARD가 최종 판정한다."
+    },
+    {
+      "template": "sequence-roadmap-vertical-pill-badge",
+      "verdict": "blocked",
+      "axis": "label-paint(role/contrast HARD)",
+      "measured": "render fail — metrics 미발행",
+      "evidence": "위반 3건 — #262626 on #1e7aad 3.201 / on #14577d 1.938 / on #5a6167 2.407 (insight full 130mm)",
+      "reason": "라벨 급수는 밴드 안에 들어오지만 **역할·대비 HARD**(7단계)가 반드시 반려한다 — 이 템플릿은 AntV `theme.palette` 채움 카드 위에 기본 잉크색(#262626/#5a5a5a) 라벨을 얹는다. 그런데 그 채움 채널에 넘기는 슬롯은 `antvPaletteChannel`이 **백색 knockout 가능한 슬롯만** 고른 것이므로(contrast(slot,#ffffff) ≥ 4.5) 정의상 어두운 색이고(L ≤ 0.1833), 그 위의 #262626(L 0.0219) 대비는 산술 상한이 **3.24**로 4.5를 넘을 수 없다. 즉 팔레트 값과 무관한 구조적 미달이며 사이드카·폭 조정으로 구제되지 않는다(항목 datum의 color는 무시되고 콘텐츠 theme 블록은 applyTheme가 재작성한다 — w5-step7.md §3.1 실증). 유일한 예외 가능성은 0번(브랜드) 슬롯만 쓰는 1항목 도해다 — 0번은 knockout 필터를 면제받기 때문이며, 그 경우에도 렌더 시 역할·대비 HARD가 최종 판정한다."
+    },
+    {
+      "template": "sequence-snake-steps-pill-badge",
+      "verdict": "blocked",
+      "axis": "label-paint(role/contrast HARD)",
+      "measured": "render fail — metrics 미발행",
+      "evidence": "위반 4건 — 같은 조합. 라벨이 배지 안에서 '오프라인 작'/'동'으로 끊기기까지 한다(insight full 130mm)",
+      "reason": "라벨 급수는 밴드 안에 들어오지만 **역할·대비 HARD**(7단계)가 반드시 반려한다 — 이 템플릿은 AntV `theme.palette` 채움 카드 위에 기본 잉크색(#262626/#5a5a5a) 라벨을 얹는다. 그런데 그 채움 채널에 넘기는 슬롯은 `antvPaletteChannel`이 **백색 knockout 가능한 슬롯만** 고른 것이므로(contrast(slot,#ffffff) ≥ 4.5) 정의상 어두운 색이고(L ≤ 0.1833), 그 위의 #262626(L 0.0219) 대비는 산술 상한이 **3.24**로 4.5를 넘을 수 없다. 즉 팔레트 값과 무관한 구조적 미달이며 사이드카·폭 조정으로 구제되지 않는다(항목 datum의 color는 무시되고 콘텐츠 theme 블록은 applyTheme가 재작성한다 — w5-step7.md §3.1 실증). 유일한 예외 가능성은 0번(브랜드) 슬롯만 쓰는 1항목 도해다 — 0번은 knockout 필터를 면제받기 때문이며, 그 경우에도 렌더 시 역할·대비 HARD가 최종 판정한다."
+    },
+    {
+      "template": "list-grid-badge-card",
+      "verdict": "blocked",
+      "axis": "label-paint(role/contrast HARD)",
+      "measured": "render fail — metrics 미발행",
+      "evidence": "위반 6건 — 라벨·설명 전부 채움 카드 위(insight full 130mm)",
+      "reason": "라벨 급수는 밴드 안에 들어오지만 **역할·대비 HARD**(7단계)가 반드시 반려한다 — 이 템플릿은 AntV `theme.palette` 채움 카드 위에 기본 잉크색(#262626/#5a5a5a) 라벨을 얹는다. 그런데 그 채움 채널에 넘기는 슬롯은 `antvPaletteChannel`이 **백색 knockout 가능한 슬롯만** 고른 것이므로(contrast(slot,#ffffff) ≥ 4.5) 정의상 어두운 색이고(L ≤ 0.1833), 그 위의 #262626(L 0.0219) 대비는 산술 상한이 **3.24**로 4.5를 넘을 수 없다. 즉 팔레트 값과 무관한 구조적 미달이며 사이드카·폭 조정으로 구제되지 않는다(항목 datum의 color는 무시되고 콘텐츠 theme 블록은 applyTheme가 재작성한다 — w5-step7.md §3.1 실증). 유일한 예외 가능성은 0번(브랜드) 슬롯만 쓰는 1항목 도해다 — 0번은 knockout 필터를 면제받기 때문이며, 그 경우에도 렌더 시 역할·대비 HARD가 최종 판정한다."
+    },
+    {
+      "template": "list-grid-candy-card-lite",
+      "verdict": "blocked",
+      "axis": "label-paint(role/contrast HARD)",
+      "measured": "render fail — metrics 미발행",
+      "evidence": "위반 6건 — 같은 구조(insight full 130mm)",
+      "reason": "라벨 급수는 밴드 안에 들어오지만 **역할·대비 HARD**(7단계)가 반드시 반려한다 — 이 템플릿은 AntV `theme.palette` 채움 카드 위에 기본 잉크색(#262626/#5a5a5a) 라벨을 얹는다. 그런데 그 채움 채널에 넘기는 슬롯은 `antvPaletteChannel`이 **백색 knockout 가능한 슬롯만** 고른 것이므로(contrast(slot,#ffffff) ≥ 4.5) 정의상 어두운 색이고(L ≤ 0.1833), 그 위의 #262626(L 0.0219) 대비는 산술 상한이 **3.24**로 4.5를 넘을 수 없다. 즉 팔레트 값과 무관한 구조적 미달이며 사이드카·폭 조정으로 구제되지 않는다(항목 datum의 color는 무시되고 콘텐츠 theme 블록은 applyTheme가 재작성한다 — w5-step7.md §3.1 실증). 유일한 예외 가능성은 0번(브랜드) 슬롯만 쓰는 1항목 도해다 — 0번은 knockout 필터를 면제받기 때문이며, 그 경우에도 렌더 시 역할·대비 HARD가 최종 판정한다."
+    }
+  ],
+  "content_sensitive": [
+    {
+      "template": "sequence-snake-steps-compact-card",
+      "verdict": "content-sensitive",
+      "axis": "text-overlap",
+      "evidence": "text overlap: '오프라인 작동' ↔ '네트워크 없이 이어지는' (full 130mm) / '…이어' (twothirds 106mm)",
+      "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
+    },
+    {
+      "template": "list-grid-compact-card",
+      "verdict": "content-sensitive",
+      "axis": "text-overlap",
+      "evidence": "text overlap: '응답 지연' ↔ '결과가 얼마나 빨리 오는' (full 130mm) / '오프라인 작동' ↔ '네트워크 없이 이어지' (twothirds 106mm)",
+      "reason": "표준 프로브 콘텐츠(라벨 6자 + 설명 12자 × 3항목)에서 fo2text 겹침 검사가 HARD 반려했다. 겹침은 **콘텐츠 길이 의존**이고 처방(라벨 축약)이 존재하므로 차단하지 않는다 — 렌더 시 겹침 검사가 판정한다."
+    }
+  ],
+  "superseded_v1": [
+    {
+      "template": "sequence-timeline-simple",
+      "old": {
+        "width_mm": 106,
+        "min_pt": 11.7,
+        "verdict": "ok"
+      },
+      "reband": "violation",
+      "now": "ok",
+      "flip": true,
+      "evidence": "구 행은 min_pt만 기록했다. min_pt 11.7pt ÷ 본문 9.5pt = **1.232×**로 새 밴드 cap 1.20을 이미 넘는다 — 최대 라벨은 최소 라벨 이상이므로 max_ratio ≥ 1.232가 **증명**되어 재판정은 위반이다(구 width_mm 106 귀속은 W5 2~4단계 폭 교정으로 무효이나, 이 판정은 폭과 무관하게 성립한다: 밴드는 본문 대비 상대비이고 폭은 상·하한을 함께 옮긴다). 현행 재실측은 6단계 급수 강제 이후 1.150×로 통과 — 단 frameSlack 0.462~0.490으로 도형이 명목 폭의 절반만 채운다."
+    },
+    {
+      "template": "list-row-horizontal-icon-arrow",
+      "old": {
+        "width_mm": 130,
+        "min_pt": 11.2,
+        "verdict": "ok"
+      },
+      "reband": "ok",
+      "now": "ok",
+      "flip": false,
+      "evidence": "min_pt 11.2 ÷ 9.5 = 1.179× ≤ cap 1.20 — 하한만으로는 위반이 증명되지 않는다. 현행 재실측 max_ratio 1.150 · frameSlack 0.0으로 실제로도 통과(코퍼스 실책 2권 + 프로브 2폭)."
+    },
+    {
+      "template": "sequence-ascending-steps",
+      "old": {
+        "width_mm": 106,
+        "min_pt": 8.35,
+        "verdict": "label-only",
+        "note": "desc 넣으면 하한 미달"
+      },
+      "reband": "ok",
+      "now": "ok",
+      "flip": true,
+      "evidence": "'라벨만 허용' 제한은 **해제된다**. 6단계 급수 강제가 desc를 body×0.90(하한 8pt의 107%)로 주입하므로 desc를 넣어도 하한을 깨지 않는다 — 재실측: desc 포함 full 8.563~10.928(×1.15) · twothirds 8.560~10.923(×1.15), desc 없는 대조 9.497~10.928. 구 8.35pt는 강제 이전 수치다."
+    },
+    {
+      "template": "sequence-roadmap-vertical*",
+      "old": {
+        "width_mm": 106,
+        "min_pt": 4.7,
+        "verdict": "blocked"
+      },
+      "reband": "n/a",
+      "now": "unblocked (하한 축)",
+      "flip": true,
+      "evidence": "**bare name `sequence-roadmap-vertical`는 벤더 카탈로그에 실존하지 않는다**(getTemplate 미해석 — 구 원장의 sequence-column-vertical-arrow 오기와 같은 부류). 등록 변형 7종 중 6종을 실측: 하한 축은 전건 통과(min 8.259~9.231pt). 하한 차단은 6단계 급수 강제로 근거를 잃었다. 대신 badge-card·pill-badge 2종이 **역할·대비 축**에서 차단된다(위 blocked 행)."
+    },
+    {
+      "template": "sequence-snake-steps*",
+      "old": {
+        "width_mm": 106,
+        "min_pt": 5.8,
+        "verdict": "blocked"
+      },
+      "reband": "n/a",
+      "now": "unblocked (하한 축)",
+      "flip": true,
+      "evidence": "bare name 미실존. 등록 변형 5종 중 4종 실측 — 하한 축 전건 통과(min 8.031~8.558pt, 최소 여유 0.031pt로 얇다). pill-badge는 역할·대비 축 차단, compact-card는 겹침(콘텐츠 의존)."
+    },
+    {
+      "template": "list-grid*",
+      "old": {
+        "width_mm": 130,
+        "min_pt": 6.4,
+        "verdict": "blocked",
+        "note": "grid 계열 5.6~6.4pt 전 계열 차단"
+      },
+      "reband": "n/a",
+      "now": "unblocked (하한 축)",
+      "flip": true,
+      "evidence": "bare name 미실존. 등록 변형 8종 전량 실측 — 하한 축 전건 통과(min 8.127~9.503pt). badge-card·candy-card-lite는 역할·대비 축 차단, compact-card는 겹침. '전 계열 차단'은 급수 강제 이전의 판정이었다."
     }
   ],
   "blocked_prefixes": [
-    "sequence-roadmap-vertical",
-    "sequence-snake-steps",
-    "list-grid"
-  ]
+    "sequence-roadmap-vertical-badge-card",
+    "sequence-roadmap-vertical-pill-badge",
+    "sequence-snake-steps-pill-badge",
+    "list-grid-badge-card",
+    "list-grid-candy-card-lite"
+  ],
+  "_blocked_prefixes_note": "render_diagrams.mjs가 SSR 전에 startsWith로 사전 차단한다. **v1의 하한(min_pt) 근거 3건은 전부 폐기됐다** — 6단계 급수 강제 이후 등록 변형 28건 실측에서 하한 미달이 0건이다(최소 8.031pt). v2의 차단 근거는 **역할·대비 HARD가 구조적으로 반드시 반려하는 템플릿**이며, 이는 렌더 시 검사와 이중 방어다(차단이 없어도 렌더가 죽는다 — 사전 차단의 이득은 SSR 4초를 아끼고 템플릿 단위 처방을 주는 것뿐이다). 대안: 원장 ok 템플릿(sequence-timeline-simple · list-row-horizontal-icon-arrow · list-column-simple-vertical-arrow · sequence-ascending-steps · list-grid-simple · sequence-snake-steps-simple 등).",
+  "authored_track": {
+    "_note": "authored 트랙은 템플릿이 없으므로 원장의 템플릿 축 밖이다. 밴드 승격 판정에 쓴 스타일별 집계만 남긴다(정본은 각 스타일 tokens.json의 _labelBand_evidence).",
+    "insight": {
+      "n": 56,
+      "max_ratio_range": [
+        0.912,
+        1.169
+      ],
+      "verdict": "ok"
+    },
+    "magazine": {
+      "n": 2,
+      "max_ratio_range": [
+        1.15,
+        1.15
+      ],
+      "verdict": "ok",
+      "note": "수리 전 1.338(최대 라벨 12.71pt vs 본문 9.5pt)이 코퍼스 유일 위반이었다 — adv-g16/mag-diag(-oldpal)/fig-01의 라벨 13/12/11u를 11.2/10.3/9.5u로 축소해 해소(W5 8단계)."
+    },
+    "practical/academic/essay/business": {
+      "n": 9,
+      "verdict": "ok",
+      "note": "실 원고 코퍼스 0건 — w5s3 폭 프로브뿐이고 그마저 8단계에서 라벨을 축소해 통과시켰다. 이 4스타일의 cap 1.20은 실측 근거 없는 하우스 등급 상속값이다."
+    }
+  }
 }

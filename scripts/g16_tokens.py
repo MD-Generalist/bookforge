@@ -7,6 +7,7 @@ Usage: python3 scripts/g16_tokens.py <style>        # 단일 스타일 사람 �
   G16-SYNC     : 스타일 팩의 색·수치 계약 정합. engine↔팩 실물 일치 · diagram.palette 존재 ·
                  palette_roles 무결성 · brand_default↔palette[0] 동기 ·
                  contrast_contract 형식(enforce bool)과 토큰명 해석 가능성 ·
+                 diagram.labelBand 형식(maxRatio 양수 · enforce bool — 라벨 상한 승격 스위치) ·
                  front_frame_mm 선언값 타당성 · **diagram.widths ↔ theme.css $fig_* 치환
                  계약**(도해 폭의 단일 진리원이 tokens임을 배선으로 못박는다 — html 한정)
   G16-CONTRAST : contrast_contract 선언 페어의 WCAG 대비를 pt·bold 파생 하한과 대조
@@ -17,8 +18,8 @@ Usage: python3 scripts/g16_tokens.py <style>        # 단일 스타일 사람 �
      불투명 리터럴 hex로 해석되는 페어만이 어떤 렌더링으로도 구제되지 않는다.
      알파·그라데이션·해석 불가 배경은 전부 WARN이고, 물리적 강제는 렌더 후
      G14-C(tocgate.py)가 픽셀 샘플로 계속 담당한다.
-  ② 승격은 전역 플래그가 아니라 스타일별 데이터 스위치(contrast_contract.enforce)다.
-     전역 --g16-warn-only는 긴급 탈출구로만 남는다(build.py).
+  ② 승격은 전역 플래그가 아니라 스타일별 데이터 스위치(contrast_contract.enforce ·
+     diagram.labelBand.enforce)다. 전역 --g16-warn-only는 긴급 탈출구로만 남는다(build.py).
 
 부재는 결함이지만 잉여는 아니다 — 미사용 팔레트 슬롯·미사용 CSS 토큰은 영구 WARN이며
 절대 FAIL로 올리지 않는다.
@@ -778,6 +779,29 @@ def g16_sync(style, tokens, theme_text, brand=None, style_dir=None):
         bad = [(i, r) for i, r in enumerate(roles) if r not in ROLES]
         for i, r in bad:
             out.append(_f("SYNC", "FAIL", f"diagram.palette_roles[{i}]={r!r} — 허용값 {'|'.join(ROLES)} 밖"))
+
+    # ---- HARD ①' diagram.labelBand 형식 (승격 스위치) ----
+    # contrast_contract.enforce와 **같은 계약**이다: JSON bool만 허용하고 부재도 malformed다.
+    # 문자열 "false"는 truthy로 읽혀 승격이 반대로 켜지고(S9 오탐의 재발), 부재를 조용히
+    # false로 읽으면 "아직 판단하지 않았다"와 "false로 판단했다"가 구별되지 않는다.
+    # maxRatio도 함께 못박는다 — 미선언이면 render_diagrams의 상한 검사가 통째로 꺼진다.
+    lb = dg.get("labelBand")
+    if lb is not None:
+        if not isinstance(lb, dict):
+            out.append(_f("SYNC", "FAIL",
+                          f"diagram.labelBand가 객체가 아님({type(lb).__name__}) — "
+                          f"{{maxRatio: 수치, enforce: bool}} 형식"))
+        else:
+            mr = lb.get("maxRatio")
+            if not isinstance(mr, (int, float)) or isinstance(mr, bool) or mr <= 0:
+                out.append(_f("SYNC", "FAIL",
+                              f"diagram.labelBand.maxRatio={mr!r} — 양수 수치여야 한다. "
+                              f"부재 시 render_diagrams의 라벨 상한 검사가 통째로 꺼진다"))
+            if not isinstance(lb.get("enforce"), bool):
+                out.append(_f("SYNC", "FAIL",
+                              f"diagram.labelBand.enforce={lb.get('enforce')!r} — true/false(JSON bool) "
+                              f"만 허용(부재·문자열 불가). 문자열은 truthy로 읽혀 승격이 오작동한다 "
+                              f"(contrast_contract.enforce와 같은 계약)"))
 
     # ---- HARD ② brand_default ↔ palette[0] 동기 ----
     # render_diagrams.mjs:38이 book.json brand로 palette[0]을 덮어쓴다 = 0번 슬롯은

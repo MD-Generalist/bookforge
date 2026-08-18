@@ -13,7 +13,8 @@ antv 트랙의 핵심 우회: AntV 원본 출력은 텍스트가 `<foreignObject
 <book_dir>/diagrams/fig-01.json      ← 콘텐츠가 작성 (DSL 사이드카)
 <book_dir>/assets/fig-01.svg         ← 빌드 산출 (직접 만들지 않는다)
 <book_dir>/assets/fig-01.labels.json ← 빌드 산출 (G13 대조 정본)
-<book_dir>/assets/fig-01.metrics.json ← 빌드 산출 (라벨 급수 실측 — 밴드 판정 근거)
+<book_dir>/assets/fig-01.metrics.json ← 빌드 산출 (라벨 급수·도장 실측 — 밴드 판정 근거이자
+                                          diagram-ledger 재도출 입력. antv는 `template` 축을 갖는다)
 chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단독 문단
 ```
 
@@ -39,9 +40,13 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
   `diagrams/fig-NN.svg`(에이전트가 직접 그린 SVG 소스)가 입력이다 — 아래 §authored 트랙.
 - `dsl`: (antv 전용) 문자열 또는 줄 배열. 첫 줄은 반드시 `infographic <template-name>`.
   템플릿 문법은 infographic-creator 스킬(~/.claude/skills/infographic-creator)이 정본.
-- `bf.width`: `full`(기본) | `twothirds`. **지면에 실제로 앉는 폭이자** 도해 내 최소 글자 크기
-  검사의 물리 폭 기준이다 — 둘은 같은 값이어야 하고, 그 값은 스타일 팩의
-  `tokens.json diagram.widths.<키>`(mm) 하나뿐이다. HTML 트랙은 빌더가 `twothirds`를
+- `bf.width`: `full`(기본) | `twothirds`. **검사와 실렌더의 단일 진리원**이다 —
+  지면에 실제로 앉는 물리 폭이면서 동시에 도해 라벨 급수 검사(하한 `minFontPt` HARD ·
+  상한 `labelBand.maxRatio`)가 pt를 환산하는 기준 폭이고, **둘은 같은 값이어야 한다**.
+  이 둘이 갈라지면 검사는 지면에 없는 폭을 재게 된다: W5 이전에는 선언폭이 실렌더폭과
+  최대 1.128배(essay 78 vs 88) 어긋나 하한이 과엄격하게, business는 1.072배 느슨하게
+  돌았다. 값은 스타일 팩의 `tokens.json diagram.widths.<키>`(mm) 하나뿐이고 CSS·typst는
+  파생이다. HTML 트랙은 빌더가 `twothirds`를
   `<figure class="svgfig twothirds">`로 발행하고 theme.css가 `$fig_full_mm`·`$fig_twothirds_mm`
   치환으로 그 mm를 받는다(G16-SYNC widths 축이 배선을 HARD로 지킨다).
   Typst 트랙은 `md2typ.py`가 사이드카를 읽어 `#bf-fig(..., width: Nmm)`으로 같은 mm를 발행한다
@@ -59,8 +64,14 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
 - **라벨 급수 밴드**: 하한과 상한이 **다른 키·다른 강도**다.
   - 하한 `diagram.minFontPt`(전 스타일 8pt) — `bf.width` 물리 폭으로 환산해 위반 시
     렌더가 **실패(HARD)**한다. 대응은 라벨 축약 또는 항목 수 축소(글자 확대 아님).
-  - 상한 `diagram.labelBand.maxRatio`(전 스타일 1.2) — 라벨 최대 pt가 `body_pt × maxRatio`를
-    넘으면 **WARN**. 대응 방향이 하한과 정반대다: **라벨 font-size 축소 또는 viewBox 확대**
+  - 상한 `diagram.labelBand.maxRatio`(전 스타일 1.2 [하우스]) — 라벨 최대 pt가
+    `body_pt × maxRatio`를 넘으면 위반이고, **강도는 같은 블록의 `labelBand.enforce`가 정한다**:
+    `true`면 그 도해가 **실패(HARD)**하고 `false`면 WARN이다. 6스타일 전부 `true`
+    (W5 8단계 승격 — 승격 조건은 "그 스타일 코퍼스 위반 0"이었고, 스타일별 근거는
+    각 `tokens.json`의 `_labelBand_evidence`에 실측과 함께 남아 있다). `enforce`는 JSON bool만
+    허용하며 부재·문자열은 G16-SYNC HARD FAIL이다(`contrast_contract.enforce`와 같은 계약 —
+    문자열 `"false"`가 truthy로 읽혀 강제가 반대로 켜지는 구멍을 막는다).
+    대응 방향이 하한과 정반대다: **라벨 font-size 축소 또는 viewBox 확대**
     (폭 확대·글자 확대는 위반을 키운다). 축척은 상·하한을 함께 옮기므로, 도해 내부
     최대/최소 활자비가 `(body_pt × maxRatio) ÷ minFontPt`를 넘으면 어떤 폭으로도 두 술어를
     동시에 만족할 수 없다 — 그때는 라벨 간 상대 급수를 좁혀야 한다(렌더러가 그 진단을 낸다).
@@ -74,7 +85,8 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
   - 도해마다 실측이 `assets/fig-NN.metrics.json`(급수 전량·min/max pt·본문 대비 비)으로 남는다.
     `labels.json` 스키마는 건드리지 않는다(G13 무영향).
   - `labelBand.maxRatio`·`body_pt` 중 하나라도 없으면 상한 검사가 꺼지고, **꺼졌다는 사실이
-    WARN으로 출력된다** — 미선언이 위반보다 조용해서는 안 된다.
+    출력된다** — 미선언이 위반보다 조용해서는 안 된다. `enforce: true`인 스타일에서는
+    **꺼짐 자체가 반려**다(승격 선언이 아무것도 뜻하지 않게 되므로).
 - **라벨 색의 역할과 대비**: 렌더 후 SVG를 실좌표에서 다시 재 **HARD**로 판정한다(7단계).
   - ① 역할 — 글자의 fill은 `diagram.palette_roles`가 `label`이라 선언한 슬롯이거나
     백색 knockout(`#ffffff`)이어야 한다(브랜드 치환을 반영한 해석 팔레트 기준). 채움용
@@ -100,7 +112,12 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
 
 - **회전·세로쓰기 라벨 금지** — fo2text가 감지 시 즉시 실패한다.
 - **템플릿명 오타 주의** — AntV는 미지 템플릿을 조용히 기본형으로 폴백하지만,
-  빌드가 설치본 카탈로그(276종)로 실명 검증해 미지명은 즉시 실패시킨다.
+  빌드가 벤더 번들 카탈로그로 실명 검증해 미지명은 즉시 실패시킨다. **계열 이름은
+  템플릿이 아니다**: `list-grid`·`sequence-snake-steps`·`sequence-roadmap-vertical` 같은
+  bare name은 문서에 자주 등장하지만 `getTemplate`이 해석하지 못한다(실제 등록명은
+  `list-grid-simple`처럼 변형 접미사까지 붙은 이름이며, 번들 실측 **123종**이다).
+  bare name을 쓰면 즉시 반려된다 — 원장 v1이 실측치를 그런 이름에 귀속시켜 두었던 것이
+  W5 8단계 재도출의 발단이었다.
 - **라벨 겹침** — SSR 박스 계산과 Pretendard 실폭의 차이로 긴 라벨이 이웃 텍스트를
   덮으면 변환기가 감지해 실패한다. 대응은 라벨 축약(글자 확대 아님).
 - 산출 `assets/fig-NN.svg` 수동 편집 금지 — 첫 줄 해시가 어긋나도 캐시가 남는다.
@@ -114,20 +131,36 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
 | 정보 구조 | 템플릿 계열 |
 |---|---|
 | 병렬 요점 | `list-column-*` `list-grid-*` |
-| 순서·단계 | `sequence-timeline-simple`(106mm 실측 11.7pt) — `sequence-ascending-steps`는 desc 없이 라벨만(8.35pt 경계) |
+| 순서·단계 | `sequence-timeline-simple` · `sequence-ascending-steps` · `sequence-snake-steps-simple` |
 | 비교·SWOT | `compare-binary-*` `compare-swot` |
 | 계층·트리 | `hierarchy-tree-*` `hierarchy-mindmap-*` |
 | 수치 추이 | `chart-line-plain-text` `chart-bar-plain-text` (본문 실재 수치만) |
 
-판형이 좁은 스타일(essay 78mm)은 가로형 템플릿(`list-row-*`, 가로 타임라인)을 피한다.
-**106mm 실측에서 이미 불가 판정된 템플릿**(라벨이 8pt 하한 미달): `sequence-roadmap-vertical-*`
-4.7pt · `sequence-snake-steps` 5.8pt · `list-grid-*` 계열 5.6~6.4pt(130mm 기준) — 더 좁은
-판형에서는 당연히 더 불가. 세로 단계는 `sequence-timeline-simple`(세로 타임라인)을 쓴다.
+판형이 좁은 스타일(essay 88mm)은 가로형 템플릿(`list-row-*`, 가로 타임라인)을 피한다.
+
+**템플릿 적합성의 정본은 `references/diagram-ledger.json`이다**(v2, W5 8단계 재도출). 여기에
+수치를 옮겨 적지 않는다 — 두 곳이 갈리면 원장이 무의미해진다. 원장이 판정하는 축 넷:
+`min_pt`(8pt 하한) · `max_ratio`(밴드 상한) · `frame_slack`(도형이 명목 폭을 채우는가) ·
+`label_paint`(역할·대비). 읽을 때 알아 둘 것:
+
+- **하한(8pt) 축으로 차단된 템플릿은 이제 없다.** 6단계 라벨 급수 강제 이후 등록 변형
+  28건 실측에서 하한 미달이 0건이다(최소 8.031pt). 원장 v1의 blocked 3건(4.7 / 5.8 / 6.4pt)은
+  전부 강제 이전 수치였다.
+- **차단은 `label_paint` 축으로 옮겨갔다** — 채움 카드 위에 기본 잉크 라벨을 얹는 템플릿
+  (`*-badge-card` · `*-pill-badge` · `*-candy-card-lite` 계열)은 팔레트 값과 무관하게 대비
+  상한이 3.24로 4.5를 넘을 수 없어 구조적으로 반려된다. 원장 `blocked_prefixes`가 SSR 전에 막는다.
+- **세로형·항목 적은 템플릿은 `frame_slack`을 본다.** `sequence-timeline-simple`은 130mm에서
+  여백 49%로, 도형이 명목 폭의 절반만 채운다 — `bf.width`를 `twothirds`로 내리거나 항목을 늘릴 것.
 
 ## 캐시와 오프라인
 
 산출 SVG 첫 줄 `<!--bf:dsl=sha256:…-->`가 DSL+옵션 해시다. 일치하면 프리렌더를
 건너뛰므로 **재빌드는 네트워크 없이 재현**된다(아이콘 API 재접근 불필요).
+**캐시 히트 조건은 3점 세트 전부**다: SVG 첫 줄 해시 + `labels.json` 존재 +
+`metrics.json`의 `cacheKey`가 같은 해시일 것. 마지막 조건이 없으면 metrics와 SVG가
+갈라진다 — HARD 반려(밴드 enforce·역할·대비)는 metrics를 쓴 뒤 SVG를 쓰기 전에 죽으므로
+직전 성공 SVG 옆에 실패 회차의 metrics가 남고, 소스를 되돌리면 SVG 해시는 맞아
+캐시가 히트하면서 **옛 위반 판정이 재생**된다(W5 8단계에서 실측으로 잡은 오탐).
 DSL·팔레트·변환기 버전, 그리고 **판정 파라미터**(해당 폭의 실검사 `widthMm` ·
 `minFontPt` · `labelBand` · `body_pt` · `palette_roles` · 도장 판정 정책)가 바뀌면 자동 재렌더 — 검사 기준이 바뀐 도해가 옛 캐시로
 조용히 통과하는 일이 없다. DSL 트랙 해시에는 **라벨 급수 주입 정책**(역할별 배수·목표 pt)도
@@ -147,7 +180,7 @@ DSL·팔레트·변환기 버전, 그리고 **판정 파라미터**(해당 폭�
 
 AntV 카탈로그는 "인포그래픽형 요점 시각화"에 강하고, **UML 시퀀스·상태머신·ER·
 스위밍레인·간트·레이더·벤·산점도·조직도·루프·권한 매트릭스** 같은 기술도해는 0건이다
-(276종 접두어 실측). 이 11계열은 에이전트가 SVG를 직접 그려 `diagrams/fig-NN.svg`에
+(카탈로그 접두어 실측 — 번들 등록 123종은 list·sequence·compare·hierarchy·chart·relation 6계열뿐이다). 이 11계열은 에이전트가 SVG를 직접 그려 `diagrams/fig-NN.svg`에
 두고, 사이드카를 `{"kind":"authored","bf":{"width":...}}`로 선언한다.
 
 ### 파이프라인 (antv 트랙과 동일 산출 계약)
@@ -157,15 +190,37 @@ AntV 카탈로그는 "인포그래픽형 요점 시각화"에 강하고, **UML �
 ② 렌더 실측 라벨 수집 → `labels.json` (G13 대조 정본 — antv와 동일)
 ③ 회전·전단 라벨 즉시 실패 ④ 텍스트 겹침 실측 감지 즉시 실패
 ⑤ 팔레트 강제: `tokens.diagram.palette` + 뉴트럴(무채색 램프) 밖 유채색 즉시 실패
-⑥ 글자 하한(minFontPt) 검사(HARD) + 상한(labelBand.maxRatio) 판정(WARN)
+⑥ 글자 하한(minFontPt) 검사(HARD) + 상한(labelBand.maxRatio) 판정(강도는 labelBand.enforce)
   + 라벨 역할·실배경 대비 검사(HARD) ⑦ 외부 참조(CDN·원격) 즉시 실패
 ⑧ 원본↔정규화 pixelmatch 자기검증 ⑨ `<!--bf:authored=sha256:…-->` 해시 캐시.
 
-### viewBox 환산 규칙 (하한 미달의 90%가 여기서 발생)
+### viewBox 환산 규칙 (라벨 급수 위반의 90%가 여기서 발생)
 
-렌더 pt = `font-size(u) × 폭mm × 2.835 ÷ viewBox폭(u)`. **viewBox 폭 상한 =
-`폭mm × 2.835 × font-size ÷ 8pt`** — 예: full 106mm에 12u 라벨이면 viewBox 폭 ≤ 450u.
-좁게 그리고 크게 라벨하라. 106mm면 viewBox 400~420이 안전 대역이다.
+렌더 pt = `font-size(u) × 폭mm × 2.835 ÷ viewBox폭(u)`. 여기에 **상한과 하한이 함께**
+걸린다 — 이전 판이 "좁게 그리고 크게 라벨하라"고만 적어 상한을 말하지 않은 것이
+본문보다 큰 도해 라벨(최대 실측 본문 ×3.88)이 통과하던 공동 원인이다. 축척은 두 끝을
+**같이** 옮기므로 한쪽만 보고 폭을 정하면 반대쪽이 반드시 깨진다.
+
+**양방 공식** (`W` = `bf.width` mm, `V` = 트림 후 viewBox 폭 u, `s` = `minPt` 실 최소
+font-size u, `L` = 실 최대 font-size u, `body` = `tokens.body_pt`, `cap` = `labelBand.maxRatio`):
+
+```
+하한(HARD)  s × W × 2.835 ÷ V ≥ minFontPt        → V ≤ W × 2.835 × s ÷ minFontPt
+상한(HARD·enforce)  L × W × 2.835 ÷ V ≤ body × cap → V ≥ W × 2.835 × L ÷ (body × cap)
+⇒ 안전 대역   W × 2.835 × L ÷ (body×cap)  ≤  V  ≤  W × 2.835 × s ÷ minFontPt
+```
+
+- 예(insight full 130mm · body 9.5pt · cap 1.20 · 하한 8pt · 라벨 10~13u):
+  `130×2.835×13 ÷ 11.4 = 420u ≤ V ≤ 130×2.835×10 ÷ 8 = 460u` — **420~460u가 안전 대역**이다.
+- **대역이 비면 폭으로는 못 푼다.** 대역이 성립할 조건은 `L ÷ s ≤ (body×cap) ÷ minFontPt`,
+  즉 **도해 내부 활자비 ≤ 밴드 허용 내부비**(insight면 11.4 ÷ 8 = 1.425×)다. 이걸 넘으면
+  viewBox를 어떻게 잡아도 두 술어를 동시에 만족할 수 없고, 처방은 폭이 아니라
+  **라벨 간 상대 급수를 좁히는 것**(최대 라벨만 축소)이다. 반려 메시지가 이 수치를 직접 적어준다.
+- 방향이 반대라는 점을 기억할 것: 하한 위반의 처방(viewBox 축소 = 유효 pt 확대)과
+  상한 위반의 처방(viewBox 확대 = 유효 pt 축소)은 서로를 되돌린다.
+- AntV(dsl) 트랙은 이 계산을 사람이 하지 않는다 — 렌더가 역할별 목표 pt(title `body×1.15` ·
+  text `body×1.00` · desc `max(body×0.90, minFontPt×1.07)`)를 주입하고 폭 프레임을 고정해
+  대역 안에 앉힌다. authored 트랙만 저자가 위 대역을 지켜 그려야 한다.
 
 ### 타입 라우팅 (무엇을 그릴 것인가)
 

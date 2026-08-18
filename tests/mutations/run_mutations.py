@@ -42,14 +42,18 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
   M9c 면제 차감 불변식  — `collide_exempt_pages`가 도비라·앞부속을 어떤 입력에서도 빼는지
                          (표지가 fullbleed여도) 직접 어서션 — W4 판정 D2의 회귀 고정
   M15 라벨 밴드 상한    — 임시 책 사본에 **합성 authored 도해**를 심는다: 폭·viewBox를 알고
-                         있으므로 라벨 pt를 원하는 값으로 정확히 놓을 수 있다. 두 표본을
-                         한 쌍으로 돌린다 — ㉠상한 초과분(본문×maxRatio를 크게 넘고 하한은
-                         지키는 라벨) → render_diagrams가 **WARN**(exit 0)으로 검출하고
-                         metrics.json에 verdict=violation을 남기는가, ㉡대조군(밴드 안)
-                         → WARN 0·verdict=ok(오탐 없음). 강도까지 어서션하는 것이 핵심이다:
-                         이 축은 **HARD가 아니어야** 정상이다(설계 report/w5-design.md 리스크 1
-                         — 0.92 HARD는 코퍼스 68/92를 폭으로 구제 불가 상태로 반려해 릴리스를
-                         세운다). rc!=0이면 그 자체가 회귀다.
+                         있으므로 라벨 pt를 원하는 값으로 정확히 놓을 수 있다. 8단계에서
+                         이 축이 스타일별 스위치(`diagram.labelBand.enforce`)로 승격되면서
+                         **강도가 둘**이 됐으므로, 임시 스타일 사본 + `--style-dir`로
+                         다섯 표본을 한 묶음으로 돌린다 — ㉠enforce:false + 상한 초과 →
+                         **WARN**(exit 0)·verdict=violation·level=WARN(리스크 1 방어:
+                         cap 0.92 HARD는 코퍼스 68/92를 구제 불가 상태로 반려해 릴리스를
+                         세운다. 승격하지 않은 스타일에서 rc!=0이면 그 자체가 회귀다),
+                         ㉡enforce:true + **같은 표본** → HARD(exit≠0, 사유가 밴드 상한),
+                         ㉢enforce:true + 밴드 안 → exit 0·verdict=ok(승격이 오탐을 만들지
+                         않는다), ㉣enforce가 문자열 "false" → malformed FAIL(truthy 오독
+                         차단, contrast_contract.enforce와 같은 계약), ㉤enforce:true인데
+                         body_pt 미선언으로 검사가 꺼짐 → FAIL(조용한 무력화 차단).
   M16 라벨 역할·대비   — 임시 책 사본에 **합성 authored 도해**를 심어 색만 결함으로 만든다
                          (급수는 밴드 안·하한 위에 정확히 앉혀 다른 축을 밟지 않는다).
                          ㉠role이 `label`이 아닌 팔레트 슬롯을 글자색으로(대비는 ≥4.5로 깔아
@@ -373,8 +377,13 @@ def paint_probe_book(root, style, tokens, mode):
             "role": dict(zip(pal, roles)).get(fg)}
 
 
-def run_render_diagrams(book_dir, style):
-    """render_diagrams.mjs를 실제로 돌린다. (rc, stdout+stderr) 반환."""
+def run_render_diagrams(book_dir, style, style_dir=None):
+    """render_diagrams.mjs를 실제로 돌린다. (rc, stdout+stderr) 반환.
+
+    style_dir를 주면 `--style-dir`로 스타일 팩 **임시 사본**을 읽힌다(저장소 styles/는
+    절대 변조하지 않는다는 M10·M12·M14와 같은 원칙). 승격 스위치처럼 저장소 값에 따라
+    강도가 달라지는 축은 이 통로가 없으면 한쪽 분기를 영영 밟지 못한다.
+    """
     import os
     import subprocess
     env = dict(os.environ)
@@ -383,9 +392,11 @@ def run_render_diagrams(book_dir, style):
                                           text=True).stdout.strip()
     except OSError:
         pass
-    r = subprocess.run(["node", str(SKILL / "scripts" / "render_diagrams.mjs"),
-                        str(book_dir), "--style", style],
-                       capture_output=True, text=True, env=env)
+    cmd = ["node", str(SKILL / "scripts" / "render_diagrams.mjs"),
+           str(book_dir), "--style", style]
+    if style_dir:
+        cmd += ["--style-dir", str(style_dir)]
+    r = subprocess.run(cmd, capture_output=True, text=True, env=env)
     return r.returncode, (r.stdout or "") + (r.stderr or "")
 
 
@@ -718,43 +729,90 @@ def main():
         else:
             print("      (M14 건너뜀 — typeset/book-final.html 부재(typst 엔진))")
 
-        # M15 — 라벨 밴드 상한(WARN 축). 위반 표본과 대조군을 한 쌍으로 돌려
-        # 감도(검출)와 특이도(오탐 0)를 함께 고정하고, **강도가 WARN**임을 rc로 어서션한다.
+        # M15 — 라벨 밴드 상한. 5단계에 **WARN으로 출생**해 8단계에서 스타일별 데이터
+        # 스위치(`diagram.labelBand.enforce`)로 승격됐다. 그래서 이 축은 이제 강도가
+        # **둘**이고, 어느 쪽도 검증 없이 두면 안 된다:
+        #   ㉠ enforce:false → 위반이 WARN이고 exit 0 (릴리스를 세우지 않는다 = 리스크 1 방어)
+        #   ㉡ enforce:true  → 같은 위반이 그 도해의 fail() (승격이 실제로 문다)
+        #   ㉢ enforce:true  → 합법 도해는 그대로 통과 (승격이 오탐을 만들지 않는다)
+        #   ㉣ enforce가 bool이 아니면 malformed FAIL (문자열 "false"가 truthy로 읽히는 구멍)
+        #   ㉤ enforce:true인데 검사가 꺼지면(body_pt 미선언) FAIL (조용한 무력화 차단)
+        # 저장소 styles/의 현재 값에 의존하면 승격 상태가 바뀔 때마다 이 뮤테이션의
+        # 의미가 흔들린다 → **임시 스타일 사본 + `--style-dir`**로 두 분기를 직접 만든다
+        # (M10·M12·M14가 g16에 대해 쓰는 것과 같은 원칙: 저장소 styles/는 절대 변조하지 않는다).
         dgm = tokens.get("diagram") or {}
         if not (isinstance(dgm.get("labelBand"), dict) and tokens.get("body_pt")
                 and (dgm.get("widths") or {}).get("full") and dgm.get("palette")):
             print("      (M15 건너뜀 — 이 스타일에 diagram.labelBand/body_pt/widths.full 미선언)")
         else:
-            def band_run(tag, ratio_of_cap):
+            def band_style(tag, enforce, drop_body_pt=False):
+                """스타일 팩 임시 사본에 enforce를 강제로 심는다. (dir, tokens) 반환."""
+                sd = Path(td) / f"m15-style-{tag}"
+                shutil.copytree(SKILL / "styles" / style, sd)
+                tk = json.loads((sd / "tokens.json").read_text(encoding="utf-8"))
+                tk["diagram"]["labelBand"] = dict(tk["diagram"]["labelBand"], enforce=enforce)
+                if drop_body_pt:
+                    tk.pop("body_pt", None)
+                (sd / "tokens.json").write_text(json.dumps(tk, ensure_ascii=False, indent=2),
+                                                encoding="utf-8")
+                return sd, tk
+
+            def band_run(tag, ratio_of_cap, style_dir):
                 bd = Path(td) / f"m15-{tag}"
                 spec_ = band_probe_book(bd, style, tokens, ratio_of_cap)
-                rc_, out_ = run_render_diagrams(bd, style)
+                rc_, out_ = run_render_diagrams(bd, style, style_dir=style_dir)
                 mp = bd / "assets" / "fig-01.metrics.json"
                 met = json.loads(mp.read_text(encoding="utf-8")) if mp.exists() else None
                 return spec_, rc_, out_, met
 
-            spec_v, rc_v, out_v, met_v = band_run("violate", 1.8)
-            spec_c, rc_c, out_c, met_c = band_run("control", 0.9)
-            if rc_v == 0 and rc_c == 0 and met_v and met_c:
-                warn_v = "DIAGRAM-BAND" in out_v and "상한 초과" in out_v
-                warn_c = "상한 초과" not in out_c
-                ok15 = (warn_v and met_v["band"]["verdict"] == "violation"
-                        and met_v["band"]["level"] == "WARN"
-                        and met_v["maxPt"] > met_v["capPt"]
-                        and met_v["minPt"] >= met_v["minFontPt"]      # 하한 HARD를 안 밟았다
-                        and warn_c and met_c["band"]["verdict"] == "ok"
-                        and met_c["maxPt"] <= met_c["capPt"])
-                results["M15-label-band"] = ok15
-                print(f"      (M15 위반본 max {met_v['maxPt']}pt = 본문 {met_v['bodyPt']}pt × "
-                      f"{met_v['ratio']} > 상한 {met_v['maxRatio']}×({met_v['capPt']}pt) "
-                      f"· 최소 {met_v['minPt']}pt ≥ 하한 {met_v['minFontPt']}pt → "
-                      f"WARN 검출 {warn_v} · **exit {rc_v}(HARD 아님)** / "
-                      f"대조군 max {met_c['maxPt']}pt ≤ {met_c['capPt']}pt → WARN 없음 {warn_c})")
+            sd_off, _ = band_style("off", False)
+            sd_on, _ = band_style("on", True)
+            sd_bad, _ = band_style("bad", "false")           # 문자열 — malformed
+            sd_off2, _ = band_style("nobody", True, drop_body_pt=True)
+
+            _, rc_w, out_w, met_w = band_run("warn", 1.8, sd_off)     # ㉠
+            _, rc_h, out_h, met_h = band_run("hard", 1.8, sd_on)      # ㉡
+            _, rc_c, out_c, met_c = band_run("control", 0.9, sd_on)   # ㉢
+            _, rc_m, out_m, _ = band_run("malformed", 0.9, sd_bad)    # ㉣
+            _, rc_o, out_o, _ = band_run("off-axis", 0.9, sd_off2)    # ㉤
+
+            if met_w and met_h and met_c:
+                # ㉠ WARN 강도: 검출되고, metrics가 강도를 WARN이라 말하고, **exit 0**이다.
+                ok_warn = (rc_w == 0 and "상한 초과" in out_w
+                           and met_w["band"]["verdict"] == "violation"
+                           and met_w["band"]["level"] == "WARN"
+                           and met_w["band"].get("enforce") is False
+                           and met_w["maxPt"] > met_w["capPt"]
+                           and met_w["minPt"] >= met_w["minFontPt"])   # 하한 HARD를 안 밟았다
+                # ㉡ HARD 강도: **같은 표본**이 exit != 0이고 사유가 밴드 상한이라고 말한다.
+                ok_hard = (rc_h != 0 and "DIAGRAM FAIL" in out_h and "라벨 밴드 상한" in out_h
+                           and "labelBand.enforce=true" in out_h
+                           and met_h["band"]["verdict"] == "violation"
+                           and met_h["band"]["level"] == "FAIL"
+                           and met_h["band"].get("enforce") is True
+                           and met_h["minPt"] >= met_h["minFontPt"])
+                # ㉢ 특이도: 승격 상태에서도 합법 도해는 통과한다(오탐 0).
+                ok_ctl = (rc_c == 0 and "상한 초과" not in out_c
+                          and met_c["band"]["verdict"] == "ok"
+                          and met_c["maxPt"] <= met_c["capPt"])
+                # ㉣ 형식 계약: 문자열 "false"는 truthy로 읽히면 안 된다 — 실행 자체를 막는다.
+                ok_mal = rc_m != 0 and "enforce" in out_m and "bool" in out_m.lower()
+                # ㉤ 승격 스타일에서 검사가 꺼지면 그 자체가 반려다.
+                ok_off = rc_o != 0 and "검사 꺼짐" in out_o
+                results["M15-label-band"] = bool(ok_warn and ok_hard and ok_ctl
+                                                 and ok_mal and ok_off)
+                print(f"      (M15 위반본 max {met_w['maxPt']}pt = 본문 {met_w['bodyPt']}pt × "
+                      f"{met_w['ratio']} > 상한 {met_w['maxRatio']}×({met_w['capPt']}pt) "
+                      f"· 최소 {met_w['minPt']}pt ≥ 하한 {met_w['minFontPt']}pt → "
+                      f"enforce:false exit {rc_w}/WARN {ok_warn} · enforce:true exit {rc_h}/HARD "
+                      f"{ok_hard} · 대조군(enforce:true) max {met_c['maxPt']}pt ≤ {met_c['capPt']}pt "
+                      f"exit {rc_c} {ok_ctl} · enforce=\"false\"(문자열) exit {rc_m} {ok_mal} · "
+                      f"enforce:true+body_pt 미선언 exit {rc_o} {ok_off})")
             else:
                 results["M15-label-band"] = False
-                head = (out_v or out_c).strip().splitlines()[-1:] or [""]
-                print(f"      (M15 실행 실패 — rc {rc_v}/{rc_c}, metrics {bool(met_v)}/{bool(met_c)}: "
-                      f"{head[0][:120]})")
+                head = (out_w or out_h or out_c).strip().splitlines()[-1:] or [""]
+                print(f"      (M15 실행 실패 — rc {rc_w}/{rc_h}/{rc_c}/{rc_m}/{rc_o}, "
+                      f"metrics {bool(met_w)}/{bool(met_h)}/{bool(met_c)}: {head[0][:120]})")
 
         # M16 — 도해 라벨 **역할·대비 HARD**(7단계). 두 결함을 갈라서 주입하고 대조군까지
         # 셋을 한 묶음으로 돌린다. 밴드(M15)와 달리 이 축은 **HARD여야** 정상이므로
