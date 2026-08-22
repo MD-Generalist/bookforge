@@ -35,7 +35,7 @@
 #let c-high = rgb("#BDD756")            // highlight   — 브랜드 색면 위 라벨 (고정)
 #let c-rule = rgb("#D9DCDE")            // rule        — 점 리더·괘선 (고정)
 
-// ---- cover: STYLE 「표지 문법」 자산 0컷 대안(견본1형) --------------------------
+// ---- cover variant "ribbon" (구 기본 — 옵트인 보존) ---------------------------
 // 파스텔 단색 배경 + 리본 배너 부제(높이 8mm, 좌우 화살 꼬리) + 중앙 정렬 주제목
 // (주제목 중 한 단어만 brand 색 1.6배) + 하단 중앙 발행처 락업.
 #let cover-ribbon(meta) = {
@@ -90,7 +90,7 @@
   })
 }
 
-// ---- cover 확장 variant (표지 한정 — book.json `cover_variant`, 기본 "ribbon") --
+// ---- cover 확장 variant (표지 한정 — book.json `cover_variant`, 기본 "numeral") --
 // 공통 재료: 표제 꼬리가 숫자면 숫자를 디바이스(대형 숫자·모듈 그리드)로 분리한다.
 // 색은 STYLE 「표지 문법」 상한(3종) 준수 — brand 계열 + ink + paper, highlight 미사용.
 // 서체는 Pretendard 1종. 어느 variant도 라틴을 주인공으로 세우지 않는다(라벨만 허용).
@@ -230,8 +230,8 @@
   })
 }
 
-// variant "numeral" — 오버사이즈 고스트 숫자. 백지 + brand-pale 대형 숫자를
-// 우하단 재단 밖으로 크롭, 그 위에 잉크/브랜드 2톤 표제. 오버사이즈 타이포 에디토리얼.
+// variant "numeral" — 오버사이즈 고스트 숫자(기본 표지). 백지 + brand-pale 대형
+// 숫자를 우하단에 최대 크기로 깔고, 그 위에 잉크/브랜드 2톤 표제. 오버사이즈 타이포.
 #let cover-numeral(meta) = {
   let t = TT
   let p = cover-parts(meta)
@@ -239,17 +239,25 @@
   page(margin: 0mm, header: none, footer: none, fill: t.paper, {
     set par(justify: false, first-line-indent: 0em)
     set text(font: t.display-font)
-    // 고스트 디바이스 — 재단 밖 크롭(place가 클립)
-    place(bottom + right, dx: 24mm, dy: 30mm,
-      text(size: 340pt, weight: "black", tracking: -0.05em, fill: c-pale,
-        number-width: "tabular", ghost))
+    // 고스트 디바이스 — 측정 기반 재단 안 맞춤. 재단 밖 크롭(초안 시안)은 G3-OVERFLOW와
+    // 양립 불가: 추출 레이어의 블록 bbox는 클립으로도 줄지 않는다(pymupdf 실측). 폭 상한
+    // 92mm는 좌하단 발행처 락업(~42mm에서 끝)과의 x-겹침(G3-COLLIDE)까지 막는 값이다.
+    context {
+      let gtxt(sz) = text(size: sz, weight: "black", tracking: -0.05em, fill: c-pale,
+        number-width: "tabular", ghost)
+      let fs = 340pt * calc.min(1.0, 92mm / measure(gtxt(340pt)).width)
+      // 추출 라인 bbox는 폰트 메트릭 디센더까지 내려가 typst 레이아웃 박스 밖으로
+      // 샌다(실측 0.161em) — 리프트를 급수 비례(0.19em)로 걸어 재단 안에 앉힌다.
+      place(bottom + right, dx: -5mm, dy: -4mm - 0.19 * fs, gtxt(fs))
+    }
     // 키커 = 부제
     place(top + left, dx: 17mm, dy: 20mm,
       text(size: 11pt, weight: "bold", fill: c-deep, meta.at("subtitle", default: "")))
     place(top + left, dx: 17mm, dy: 26.5mm, rect(width: 14mm, height: 1.1pt, fill: c-brand))
-    // 주제목 — 잉크, 마지막 어절만 brand 2톤
-    place(top + left, dx: 17mm, dy: 36mm,
-      box(width: 121mm, {
+    // 주제목 — 잉크, 마지막 어절만 brand 2톤. 저자 y는 고정 118mm과 제목 실측 하단
+    // 중 아래쪽 — 긴 제목이 3행 이상으로 꺾이면 고정 좌표와 교차한다(G3-COLLIDE 실측).
+    context {
+      let title = box(width: 121mm, {
         set text(size: 54pt, weight: "black", tracking: -0.04em, top-edge: "cap-height")
         let hw = p.head.split(" ")
         text(fill: t.ink, keep-words(hw.slice(0, calc.max(hw.len() - 1, 1)).join(" ")))
@@ -260,16 +268,19 @@
         if p.num != none {
           text(fill: c-brand, number-width: "tabular", " " + p.num)
         }
-      }))
-    place(top + left, dx: 17mm, dy: 118mm, cover-author(meta, t.ink))
+      })
+      place(top + left, dx: 17mm, dy: 36mm, title)
+      place(top + left, dx: 17mm, dy: calc.max(118mm, 36mm + measure(title).height + 9mm),
+        cover-author(meta, t.ink))
+    }
     place(bottom + left, dx: 17mm, dy: -14mm, cover-pub-lockup(meta, c-deep))
   })
 }
 
-// 디스패처 — 미선언이면 기존 리본형 그대로(기존 산출 불변 요건).
+// 디스패처 — 미선언이면 numeral(채택 기본 표지). 구 리본형은 "ribbon" 옵트인으로 보존.
 // 오탈자 variant는 조용한 폴백 대신 즉시 실패(잘림·침묵 실패 금지 원칙과 동일).
 #let make-cover(meta) = {
-  let v = meta.at("cover_variant", default: "ribbon")
+  let v = meta.at("cover_variant", default: "numeral")
   if v == "ribbon" { cover-ribbon(meta) }
   else if v == "block" { cover-block(meta) }
   else if v == "grid" { cover-grid(meta) }
