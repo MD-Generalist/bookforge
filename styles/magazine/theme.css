@@ -107,6 +107,13 @@ body {
      alpha 0.004 는 추출됨). 그러면 목차 쪽번호가 00 으로 남고 북마크가 비어
      G4·G14-A 가 실패한다. 시각적으로는 1px·alpha 0.004 라 보이지 않는다. */
   color: rgba(0, 0, 0, 0.004); }
+/* fg/tb pgmark(@@fgNNN@@/@@tbNNN@@)의 앵커 — tokens.toc_lists 옵트인 시 빌더가 마커를
+   품는 figure/.tablewrap에만 mk-anchor를 발행한다. 없으면 마커가 문서 원점(1면)에 붙어
+   전 쪽번호가 1로 회수된다(포함 단조 사후조건이 잡는다 — M-ORIGIN).
+   🚨 figure/.tablewrap 자체에 무조건 position:relative를 주지 않는다 — positioned 요소는
+   페인트 단계가 뒤로 밀려 **마커 없는 기존 책까지** PDF 텍스트 스트림 순서가 바뀐다
+   (실측: 표 있는 면의 추출 텍스트 순서 변동). 옵트인 요소에만 국한해야 불변이 성립한다. */
+.mk-anchor { position: relative; }
 .opener-num { font-family: var(--num); font-weight: 800; font-size: 126pt;
   line-height: 0.86; letter-spacing: -0.03em; color: var(--key); margin-top: 40mm; }
 .opener-title { font-family: var(--display); font-weight: 800; font-size: 71pt;

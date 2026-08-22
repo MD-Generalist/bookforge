@@ -7,9 +7,10 @@ Theme contract (styles/<style>/):
                 $date $brand $toc $body $fonts_dir placeholders. 다면 목차 스타일은
                 목차 섹션을 <!--BF:TOCPAGE-->로 감싸고 $toc/$toc_mod을 쓴다 —
                 빌더가 substitute 전에 N회 복제해 $toc_i/$toc_mod_i로 만든다.
-Chapter markers: each chapter opener embeds an invisible ⟦chNN⟧ marker; pass 1
-extracts real page numbers with PyMuPDF, injects them into .tocpg spans, pass 2
-prints the final PDF.
+Page markers: each chapter opener embeds an invisible @@chNN@@ marker (sections
+@@chNNsMM@@; captioned figures/tables @@fgNNN@@/@@tbNNN@@ when tokens.toc_lists
+opts in); pass 1 extracts real page numbers with PyMuPDF into per-kind dicts,
+injects them into .tocpg spans, pass 2 prints the final PDF.
 """
 import json, os, re, subprocess, sys
 from html import escape as _esc
@@ -29,6 +30,24 @@ MD = MarkdownIt("commonmark", {"html": True, "typographer": True}) \
     .enable("table").enable("strikethrough")
 
 CALLOUT_RE = re.compile(r"^:::\s*(info|tip|warn|quote|stat|pull)\s*(.*)$")
+
+# ── 페이지 마커 어휘 (pass1 전용 — 최종 PDF에는 존재하지 않는다) ────────────────
+# 종 3가지: ch(장 @@chNN@@ · 절 @@chNNsMM@@) / fg(캡션 그림 @@fgNNN@@) /
+# tb(캡션 표 @@tbNNN@@). fg·tb는 tokens.json `toc_lists` 옵트인 스타일에서만 발행된다
+# (선언 부재 = 발행 0 — 기본 off, 기존 스타일 산출물 불변).
+# 회수(pass1)와 제거(pass2 직전)는 반드시 이 한 어휘를 봐야 한다 — 종전에는 ch 전용
+# 정규식 리터럴이 두 곳에 따로 살아, 어휘를 넓힐 때 한쪽만 고치면 발행분이 회수되지
+# 않거나(회수 누락 → 쪽번호 00) 잔존 마커가 최종 PDF 텍스트 레이어로 새는(제거 누락)
+# 두 방향의 디싱크가 물리적으로 가능했다.
+# 회수 결과는 반드시 종별 딕트로 분리한다 — 한 딕트에 섞으면 min(pages) 소비자
+# (folio_offset, insight decorate.py:29의 무필터 min)가 그림·표 면을 장 시작면으로
+# 오인해 폴리오 원점이 통째로 어긋난다(magazine 폴리오 7면 누락과 동형 결함).
+MARKER_KINDS = ("ch", "fg", "tb")
+_MK_CORE = r"(?:ch\d+(?:s\d+)?|fg\d+|tb\d+)"
+MK_SCAN_RE = re.compile(rf"@@({_MK_CORE})@@")
+MK_STRIP_RE = re.compile(rf'<span class="pgmark">@@{_MK_CORE}@@</span>')
+# toc_lists 허용 어휘 → 마커 종. 차례 발행 자체(별면 조판)는 S5 소관 — 이 단계는 배관만.
+TOC_LIST_KINDS = {"figures": "fg", "tables": "tb"}
 
 
 def die(msg: str):
@@ -620,12 +639,19 @@ TAG_RE = re.compile(r"<[^>]+>")
 
 
 def md_to_html(md: str, book_dir: Path | None = None, ch_idx: int | None = None,
-               sec_marker: str | None = None, sec_titles_out: list | None = None) -> str:
+               sec_marker: str | None = None, sec_titles_out: list | None = None,
+               fg_counter: list | None = None, fg_marks_out: list | None = None) -> str:
     """markdown subset -> html, with ::: callout directive support.
 
     sec_marker(예 "ch01")를 주면 **비콜아웃 청크의 렌더 결과**에 있는 `<h2>`에만 절
     쪽번호 마커 `@@chNNsMM@@`를 주입하고, 주입한 제목을 순서대로 `sec_titles_out`에
-    넣는다. 절 목록과 절 마커가 한 경로에서 나오게 하는 것이 요점이다 —
+    넣는다.
+
+    fg_counter([n], 호출자 보유)를 주면 라벨(`그림 n-m`)이 붙는 그림에만 쪽번호 마커
+    `@@fgNNN@@`을 figure 첫 자식으로 주입하고 마커명을 순서대로 `fg_marks_out`에 넣는다.
+    카운터가 장 경계를 넘어 이어지는 **전역 카운터**인 이유: 마커명은 회수 딕트의 키라
+    문서 전역에서 유일해야 한다 — 장별 리셋(fg{장}-{n})은 라벨 문법(`그림 n-m`)과 어휘가
+    겹쳐 보이지만 회수·재스탬핑 어디에도 장 번호가 필요 없고 자릿수만 늘린다. 절 목록과 절 마커가 한 경로에서 나오게 하는 것이 요점이다 —
     구 구현은 원고 줄 스캔으로 목록을 만들고(콜아웃 안 `## ` 제외) 마커는
     `re.sub(r"<h2>", …, body_html)`로 렌더 결과 전체에 매겼기 때문에
       ㉠ 콜아웃 안 `## `  → 마커만 생기고 목록엔 없다(번호가 한 칸씩 밀림)
@@ -692,9 +718,22 @@ def md_to_html(md: str, book_dir: Path | None = None, ch_idx: int | None = None,
         cap = alt
         if title:
             cap = f"{cap} · {title}" if cap else title
+        fmark = ""
         if cap and ch_idx is not None:
             fig_no[0] += 1
             cap = f'<span class="fig-label">그림 {ch_idx}-{fig_no[0]}</span> {cap}'
+            if fg_counter is not None:
+                fg_counter[0] += 1
+                fmk = f"fg{fg_counter[0]:03d}"
+                if fg_marks_out is not None:
+                    fg_marks_out.append(fmk)
+                # 앵커는 figure 자신 — 마커를 품는 figure에만 mk-anchor 클래스를 발행하고
+                # theme.css `.mk-anchor{position:relative}`가 회수 면 = 그림 실면을 만든다.
+                # 앵커가 없으면 .pgmark{position:absolute}가 문서 원점(1면)에 붙는데,
+                # 그 상태는 전수 회수 사후조건을 통과한다 — 포함 단조 사후조건이 잡는다.
+                # (figure 전역 position:relative는 금지 — 페인트 순서가 밀려 마커 없는
+                # 기존 책의 PDF 텍스트 스트림까지 바뀐다. theme.css 주석 참조)
+                fmark = f'<span class="pgmark">@@{fmk}@@</span>'
         c = f"<figcaption>{cap}</figcaption>" if cap else ""
         # SVG 도해는 <img src> 대신 원문 인라인 — SVG-as-image 모드는 외부 @font-face를
         # 차단해 도해 <text>가 폴백 폰트로 렌더되므로.
@@ -718,7 +757,11 @@ def md_to_html(md: str, book_dir: Path | None = None, ch_idx: int | None = None,
                     bf = json.loads(sidecar.read_text(encoding="utf-8")).get("bf", {})
                     if bf.get("width") == "twothirds":
                         fig_cls = "svgfig twothirds"
-                return f'<figure class="{fig_cls}">{svg}{c}</figure>'
+                if fmark:
+                    fig_cls += " mk-anchor"
+                return f'<figure class="{fig_cls}">{fmark}{svg}{c}</figure>'
+        if fmark:
+            return f'<figure class="mk-anchor">{fmark}<img src="{src}" alt="{alt}">{c}</figure>'
         return f'<figure><img src="{src}" alt="{alt}">{c}</figure>'
     html = re.sub(
         r'<p><img src="(?P<src>[^"]+)" alt="(?P<alt>[^"]*)"(?: title="(?P<title>[^"]*)")?\s*/?></p>',
@@ -770,6 +813,15 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     # (@@chNNsMM@@)도 발행하지 않는다 — 마커가 pages 딕트에 섞이면 decorate.py의
     # openers가 절 시작면을 장 오프너로 오인한다(magazine 폴리오 7면 누락의 원인).
     toc_levels = tokens.get("toc_levels", 2)
+    # toc_lists: 그림·표 차례 옵트인(별면 조판은 S5 소관 — 여기서는 fg/tb 마커 배관만).
+    # 선언이 없으면 발행 0 — 기존 스타일 산출물은 바이트 수준 불변이어야 한다.
+    toc_lists = tokens.get("toc_lists") or []
+    if not isinstance(toc_lists, list) or any(v not in TOC_LIST_KINDS for v in toc_lists):
+        die(f"styles/{style_dir.name}/tokens.json toc_lists가 올바르지 않다(현재: "
+            f"{toc_lists!r}) — {sorted(TOC_LIST_KINDS)}의 부분집합 리스트여야 한다. "
+            "오값을 조용히 무시하면 차례가 꺼진 것과 선언 오타가 구별되지 않는다")
+    emit_fg = "figures" in toc_lists
+    emit_tb = "tables" in toc_lists
     css_src = (style_dir / "theme.css").read_text(encoding="utf-8")
     # $key_label: 브랜드를 **명도만** 낮춰 tokens.json `key_label`이 지정한 배경 위에서
     # 대비 하한을 처음 넘기는 값. 키색을 그대로 쓰면 미달인 자리(magazine
@@ -799,6 +851,10 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
 
     toc_rows, sections, tocmap_items, first_pull = [], [], [], None
     sec_by_ch = {}
+    # fg/tb 전역 카운터 + 발행 대장 [(마커명, 소속 장 idx)] — 발행 순서 = 지면 순서라
+    # 이 대장이 그대로 포함 단조 사후조건의 기대 집합·순서가 된다.
+    fg_counter, tb_counter = [0], [0]
+    fg_marks, tb_marks = [], []
     for idx, ch in enumerate(outline["chapters"], 1):
         mk = f"ch{idx:02d}"
         src = book_dir / "chapters" / ch["file"]
@@ -821,19 +877,31 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
         # 제목을 순서대로 돌려준다. 원고 줄 스캔(구 in_callout 루프)은 삭제됐다.
         # toc_levels < 2면 소비자가 없으므로 수집도 발행도 하지 않는다.
         sec_titles = []
+        ch_fg = []
         body_html = md_to_html(raw, book_dir, idx,
                                sec_marker=(mk if toc_levels >= 2 else None),
-                               sec_titles_out=sec_titles)
+                               sec_titles_out=sec_titles,
+                               fg_counter=(fg_counter if emit_fg else None),
+                               fg_marks_out=ch_fg)
+        fg_marks.extend((fmk, idx) for fmk in ch_fg)
         sec_by_ch[idx] = sec_titles
         # 표 캡션 계약: 콘텐츠가 "[표] 제목 | 자료: 출처" 문단을 준 표만 라벨을 단다.
         # 자동 필러 라벨 금지 — 캡션 없는 표는 라벨 없이 그대로 렌더된다.
         tno = [0]
         def wrap_tbl(m):
             tno[0] += 1
+            tmark, tcls = "", "tablewrap"
+            if emit_tb:
+                # 앵커는 .tablewrap 자신 — fg 마커와 동일 계약(mk-anchor 조건 발행)
+                tb_counter[0] += 1
+                tmk = f"tb{tb_counter[0]:03d}"
+                tb_marks.append((tmk, idx))
+                tmark = f'<span class="pgmark">@@{tmk}@@</span>'
+                tcls = "tablewrap mk-anchor"
             title = m.group(1).strip()
             source = (m.group(2) or "").strip()
             src_html = f'<div class="tbl-source">자료: {source}</div>' if source else ""
-            return (f'<div class="tablewrap"><div class="tbl-caption">'
+            return (f'<div class="{tcls}">{tmark}<div class="tbl-caption">'
                     f'<span class="no">표 {idx}-{tno[0]}.</span> {title}</div>'
                     f'{m.group(3)}{src_html}</div>')
         body_html = re.sub(
@@ -928,6 +996,9 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     tocplan = {"style": style_name, "toc_levels": toc_levels,
                "rows": len(toc_rows),
                "section_markers": sum(len(v) for v in sec_by_ch.values())}
+    if toc_lists:      # 옵트인 스타일만 — 미선언 스타일의 tocplan은 종전과 동일하게 유지
+        tocplan.update({"toc_lists": toc_lists,
+                        "fig_markers": len(fg_marks), "tbl_markers": len(tb_marks)})
     body_pt = tokens.get("body_pt")
     if not body_pt:
         warn(f"styles/{style_name}/tokens.json에 body_pt가 없다 — 렌더 후 실측 검증이 "
@@ -1020,14 +1091,16 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
         if r.returncode != 0:
             sys.exit("HTML pass1 print failed:\n" + r.stderr)
 
-        # pass 1: locate markers + 목차 면 실측
+        # pass 1: locate markers + 목차 면 실측. 회수는 종별 딕트로 분리한다(어휘 주석 참조)
         doc = fitz.open(pdf1)
         pass1_pages = doc.page_count
-        pages = {}
+        pages_by_kind = {k: {} for k in MARKER_KINDS}
         for pno in range(doc.page_count):
             norm = re.sub(r"\s+", "", doc[pno].get_text())
-            for m in re.findall(r"@@(ch\d+(?:s\d+)?)@@", norm):
-                pages.setdefault(m, pno + 1)
+            for m in MK_SCAN_RE.findall(norm):
+                pages_by_kind[m[:2]].setdefault(m, pno + 1)
+        # pages = ch 종만 — folio_offset·목차 스탬핑·북마크·decorate ctx가 전부 이걸 본다
+        pages = pages_by_kind["ch"]
         toc_pnos = list(range(1, 1 + n_toc_pages))          # 0-base: 표지(0) 다음 연속
         first_ch_abs = min(pages.values()) if pages else None
         if first_ch_abs is not None and first_ch_abs != n_toc_pages + 2:
@@ -1117,21 +1190,53 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     (ts / "tocplan.json").write_text(
         json.dumps(tocplan, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    # 사후조건 ① 마커 전수 회수 — 발행한 마커 수와 회수 수가 같아야 한다. 어긋나면
-    # 마커가 잘렸거나(면 넘침) 텍스트 레이어에서 사라진 것이고, 그 상태의 목차
-    # 쪽번호·북마크는 조용히 틀린다.
-    want_mk = {r["mk"] for r in toc_rows}
-    missing = sorted(want_mk - set(pages))
-    if missing:
-        die(f"pass1에서 마커 {len(missing)}개 미회수: {missing[:6]} "
-            f"(발행 {len(want_mk)} / 회수 {len(pages)}) — 목차 넘침·클리핑 의심")
-    # 역방향도 본다. 구 구현은 want_mk − pages 단방향이라 **목차 행이 없는 잉여 마커**를
-    # 통과시켰고, 그 잉여가 절 번호를 한 칸씩 밀어 절 쪽번호·레벨 2 북마크를 조용히
-    # 오배정했다(적대검토 D3). R2로 두 경로를 합쳤으므로 이 검사는 그 통합의 사후조건이다.
-    extra = sorted(set(pages) - want_mk)
-    if extra:
-        die(f"pass1에서 목차 행이 없는 잉여 마커 {len(extra)}개 회수: {extra[:6]} — "
-            "절 목록과 절 마커가 어긋났다(md_to_html의 마커 주입 경로 확인)")
+    # 사후조건 ① 마커 전수 회수 — **종별로** 발행 집합과 회수 집합이 정확히 일치해야
+    # 한다. 미회수는 마커가 잘렸거나(면 넘침) 텍스트 레이어에서 사라진 것이고, 그 상태의
+    # 목차 쪽번호·북마크·차례는 조용히 틀린다. 역방향(잉여)도 본다 — 구 구현은 단방향이라
+    # **목차 행이 없는 잉여 마커**를 통과시켰고, 그 잉여가 절 번호를 한 칸씩 밀어 절
+    # 쪽번호·레벨 2 북마크를 조용히 오배정했다(적대검토 D3, md_to_html R2 통합의 사후조건).
+    # 종을 나눠 검사하므로 종 사이 오염(fg가 ch 딕트에 섞이는 류)도 같은 검사가 잡는다.
+    # fg/tb 발행 0인 스타일(현행 전부 — S5 전)은 공집합==공집합으로 자명 통과한다.
+    want_by_kind = {"ch": {r["mk"] for r in toc_rows},
+                    "fg": {fmk for fmk, _ in fg_marks},
+                    "tb": {tmk for tmk, _ in tb_marks}}
+    for kind in MARKER_KINDS:
+        got_mk = set(pages_by_kind[kind])
+        missing = sorted(want_by_kind[kind] - got_mk)
+        if missing:
+            die(f"pass1에서 {kind} 마커 {len(missing)}개 미회수: {missing[:6]} "
+                f"(발행 {len(want_by_kind[kind])} / 회수 {len(got_mk)}) — "
+                "목차 넘침·클리핑 의심")
+        extra = sorted(got_mk - want_by_kind[kind])
+        if extra:
+            die(f"pass1에서 발행 대장에 없는 잉여 {kind} 마커 {len(extra)}개 회수: "
+                f"{extra[:6]} — 발행 경로와 회수 어휘가 어긋났다"
+                "(md_to_html/wrap_tbl의 마커 주입 경로 확인)")
+
+    # 사후조건 ①′ 포함 단조 — fg/tb 마커의 회수 면이 **소속 장의 면 구간 안**에 있고
+    # 발행 순서(=지면 순서)대로 **단조 비감소**해야 한다. 집합 일치(①)만으로는 못 잡는
+    # 함정이 있다: 마커를 품는 figure/.tablewrap의 mk-anchor(position:relative)가 사라지면
+    # .pgmark{position:absolute}가 문서 원점(1면)에 붙어 모든 마커가 1면으로 회수되는데,
+    # 전수 회수 자체는 성공하므로 ①은 충족된다 — 그 상태로 S5 차례가 발행되면 전 항목
+    # 쪽번호가 1로 인쇄된다(magazine theme.css의 h2 실측과 동형). 발행 0이면 자명 통과.
+    # 감도는 M-ORIGIN 뮤테이션(tests/mutations)이 회귀 자산으로 고정한다.
+    ch_start = {i: pages[f"ch{i:02d}"] for i in range(1, len(outline["chapters"]) + 1)
+                if f"ch{i:02d}" in pages}
+    for kind, marks in (("fg", fg_marks), ("tb", tb_marks)):
+        prev_p = 0
+        for mk2, ci in marks:
+            p = pages_by_kind[kind][mk2]
+            lo = ch_start.get(ci)
+            hi = ch_start.get(ci + 1, pass1_pages + 1) - 1
+            if lo is None or not (lo <= p <= hi):
+                die(f"{kind} 마커 {mk2}의 회수 면 {p}이 소속 장 ch{ci:02d} 구간 "
+                    f"[{lo}, {hi}] 밖이다 — mk-anchor(position:relative) 앵커 소실 의심"
+                    "(전형 증상: 전 마커가 1면으로 회수). theme.css의 .mk-anchor 규칙과 "
+                    "빌더의 mk-anchor 클래스 발행을 확인할 것")
+            if p < prev_p:
+                die(f"{kind} 마커 {mk2}의 회수 면 {p}이 직전 마커 면 {prev_p}보다 앞이다 — "
+                    "발행 순(지면 순)과 회수 면이 단조가 아니다(앵커·발행 경로 확인)")
+            prev_p = p
 
     # 목차 쪽번호는 폴리오 기준(본문 1쪽부터 — book-anatomy.md C9). 앞부속(표지·목차)
     # 오프셋 = 첫 장 시작 절대페이지 - 1. 지면 폴리오는 decorate.py가 같은 오프셋으로 찍는다.
@@ -1146,9 +1251,10 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     for mk, abs_page in pages.items():
         html2 = html2.replace(f'<span class="tocpg" data-mk="{mk}">00</span>',
                               f'<span class="tocpg" data-mk="{mk}">{abs_page - folio_offset}</span>')
-    # pass 2에는 마커 불필요 — 잉크·텍스트 레이어 오염 방지를 위해 제거
-    # (.pgmark은 absolute 포지션이라 제거해도 리플로우 없음; 북마크는 pass 1 페이지맵 사용)
-    html2 = re.sub(r'<span class="pgmark">@@ch\d+(?:s\d+)?@@</span>', "", html2)
+    # pass 2에는 마커 불필요 — 잉크·텍스트 레이어 오염 방지를 위해 전 종 제거
+    # (.pgmark은 absolute 포지션이라 제거해도 리플로우 없음; 북마크는 pass 1 페이지맵
+    # 사용. 제거 어휘는 회수와 같은 MK_* 단일 진리원 — 갈라지면 잔존 마커가 최종 PDF로 샌다)
+    html2 = MK_STRIP_RE.sub("", html2)
     page2 = ts / "book-final.html"
     page2.write_text(html2, encoding="utf-8")
 

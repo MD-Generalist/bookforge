@@ -90,6 +90,14 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
                          이름**으로 교체 → 카탈로그 축 FAIL(㉠과 다른 축이다 — ㉠은 실존
                          레이아웃의 남용, ㉣은 미등재 어휘). 넷을 한 사본에 몰지 않는 이유는
                          "하나가 잡으면 나머지가 죽어 있어도 초록"을 회귀 자산이 은폐하기 때문.
+  M-ORIGIN 마커 앵커 소실 — html 엔진 전용. `toc_lists`를 켠 **임시 스타일 사본**으로
+                         캡션 그림 2·캡션 표 2짜리 최소 책을 실빌드해 ㉠앵커 온전(대조군)
+                         → 빌드 성공 + fg/tb 마커 발행 각 2 + 최종 PDF 텍스트 레이어에
+                         마커 잔존 0을 확인하고, ㉡같은 사본에서 `.mk-anchor{position:
+                         relative}` 앵커 규칙만 비워 재빌드 → `.pgmark{position:absolute}`
+                         가 문서 원점(1면)에 붙어 **전수 회수 사후조건(종별 집합 일치)은
+                         충족되는** 상태를 포함 단조 사후조건이 die로 잡는지 어서션한다.
+                         (스타일 팩·스크립트 변조는 임시 사본에만 — M10·M12·M15와 같은 원칙)
   M0  무변조 대조군     — 원본은 G14 전 축 + G1-SCALE + G3-COLLIDE/FIT + G16(SYNC/CONTRAST/
                          BRAND 전 축, 원본 스타일 팩) PASS (오탐 없음 확인)
 
@@ -319,6 +327,44 @@ def mutate_toc_size(style_dir, style, tokens):
     t = t.replace("if toc {", "if toc {\n    let bf-mut-size = text(size: %.1fpt, \"\")" % over, 1)
     typ.write_text(t, encoding="utf-8")
     return over
+
+
+def origin_probe_book(root):
+    """fg/tb 마커 앵커 감도용 최소 책 — 캡션 그림 1·캡션 표 1을 가진 장 2개(합 2·2).
+
+    (book, outline) 반환 — build_html.build()를 직접 부르므로 book.json은 파일로 만들지
+    않고 dict로 준다. 그림은 실물 PNG를 심는다(깨진 src는 Chromium이 alt 폴백으로
+    레이아웃을 바꿔 면 배치가 흔들린다).
+    """
+    d = Path(root)
+    (d / "chapters").mkdir(parents=True, exist_ok=True)
+    (d / "assets").mkdir(exist_ok=True)
+    pm = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 64, 40), False)
+    pm.clear_with(200)
+    pm.save(str(d / "assets" / "probe.png"))
+    para = "앵커 프로브 본문 문단이다. 마커 회수 면 검증을 위한 채움 문장이 이어진다. " * 12
+    tbl = ("[표] 앵커 표본 표 | 자료: 뮤테이션\n\n"
+           "| 항목 | 값 |\n| --- | --- |\n| 가 | 1 |\n| 나 | 2 |\n")
+    fig = "![앵커 표본 그림](../assets/probe.png)\n"
+    for n, name in ((1, "첫째"), (2, "둘째")):
+        (d / "chapters" / f"ch{n}.md").write_text(
+            f"# {name} 장\n\n## {name} 절 하나\n\n{para}\n\n{fig}\n{para}\n\n{tbl}\n"
+            f"{para}\n\n## {name} 절 둘\n\n{para}\n", encoding="utf-8")
+    book = {"style": "-", "title": "앵커 프로브", "author": "mutation"}
+    outline = {"chapters": [{"file": "ch1.md", "title": "첫째 장 표본"},
+                            {"file": "ch2.md", "title": "둘째 장 표본"}]}
+    return book, outline
+
+
+def run_origin_build(book_dir, book, outline, style_dir):
+    """build_html.build를 in-process로 돌린다. 성공 시 None, die() 시 그 메시지(str)."""
+    import build_html
+    build_html.BUILD_WARNS.clear()
+    try:
+        build_html.build(Path(book_dir), book, outline, Path(style_dir), SKILL)
+        return None
+    except SystemExit as e:
+        return str(e.code)
 
 
 def violating_brand(tokens, theme_text):
@@ -943,6 +989,53 @@ def main():
         ok17["d"] = any("카탈로그 밖" in x["msg"] for x in f17d)
         print(f"      (M17-㉣ toc_layout {bogus!r} 주입 → G16-SYNC FAIL {len(f17d)}건)")
         results["M17-toc-layout"] = all(ok17.values())
+
+        # M-ORIGIN — fg/tb 마커 앵커 소실(포함 단조 사후조건의 감도). html 엔진 전용 —
+        # typst 트랙에는 pgmark 마커 계약 자체가 없다. 옵트인(toc_lists)·앵커 제거 전부
+        # **임시 스타일 사본**에만 주입한다(저장소 styles/ 절대 변조 금지).
+        if tokens.get("engine") == "html":
+            so = Path(td) / "style-origin"
+            shutil.copytree(SKILL / "styles" / style, so,
+                            ignore=shutil.ignore_patterns("__pycache__"))
+            tko = json.loads((so / "tokens.json").read_text(encoding="utf-8"))
+            (so / "tokens.json").write_text(
+                json.dumps(dict(tko, toc_lists=["figures", "tables"]),
+                           ensure_ascii=False, indent=2), encoding="utf-8")
+            # ㉠ 대조군: 앵커 온전 → 빌드 성공 + 발행 2·2 + 최종 PDF에 마커 잔존 0
+            bd_ok = Path(td) / "origin-ok"
+            book_o, outline_o = origin_probe_book(bd_ok)
+            err_ok = run_origin_build(bd_ok, book_o, outline_o, so)
+            plan_o, leak = {}, None
+            if err_ok is None:
+                plan_o = json.loads((bd_ok / "typeset" / "tocplan.json")
+                                    .read_text(encoding="utf-8"))
+                dko = fitz.open(bd_ok / "draft" / "book.pdf")
+                leak = [p + 1 for p in range(dko.page_count) if "@@" in dko[p].get_text()]
+                dko.close()
+            # ㉡ 같은 옵트인 사본에서 mk-anchor 앵커 규칙만 비운다 — .pgmark가 문서
+            # 원점(1면)으로 떨어져 종별 집합 일치(전수 회수)는 그대로 충족되는 상태
+            sm = Path(td) / "style-origin-mut"
+            shutil.copytree(so, sm)
+            css_o = (sm / "theme.css").read_text(encoding="utf-8")
+            anchor_rule = ".mk-anchor { position: relative; }"
+            n_anchor = css_o.count(anchor_rule)
+            assert n_anchor == 1, \
+                f"{style} theme.css에서 mk-anchor 앵커 규칙 미발견({n_anchor}) — M-ORIGIN 주입 불가"
+            css_o = css_o.replace(anchor_rule, ".mk-anchor { }")
+            (sm / "theme.css").write_text(css_o, encoding="utf-8")
+            bd_mut = Path(td) / "origin-mut"
+            book_m, outline_m = origin_probe_book(bd_mut)
+            err_mut = run_origin_build(bd_mut, book_m, outline_m, sm)
+            ok_ctl = (err_ok is None and plan_o.get("fig_markers") == 2
+                      and plan_o.get("tbl_markers") == 2 and leak == [])
+            ok_mut = bool(err_mut) and "앵커 소실" in (err_mut or "")
+            results["M-ORIGIN-marker-anchor"] = ok_ctl and ok_mut
+            print(f"      (M-ORIGIN 대조군: 빌드 {'OK' if err_ok is None else 'FAIL'} · "
+                  f"발행 fg {plan_o.get('fig_markers')}/tb {plan_o.get('tbl_markers')} · "
+                  f"최종 PDF 마커 잔존 {leak} → {ok_ctl} / 앵커 제거본: "
+                  f"die {'발화' if ok_mut else '불발'} — {(err_mut or '(없음)')[:96]})")
+        else:
+            print("      (M-ORIGIN 건너뜀 — typst 엔진(pgmark 마커 계약 없음))")
 
         # M13 — G16-BRAND. brand는 book.json 위치(=FAIL 강도)로 주입한다.
         bad_brand = violating_brand(tokens, g16.style_inputs(style)[1])
