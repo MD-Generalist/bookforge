@@ -436,13 +436,31 @@ def mutate_contract_pt(style_dir, tokens, theme_text):
     raise AssertionError("pt를 가진 엔트리가 없다 — M14 주입 불가")
 
 
+def band_probe_ink(dg):
+    """밴드 프로브 라벨 잉크 — 팔레트 안 · role=label · 백색 판면 대비 ≥ 4.5.
+
+    palette[0]을 그대로 쓰면 첫 슬롯의 역할이 label이 아닌 스타일(magazine: #0E7C7B가
+    stroke)에서 7단계 역할 HARD가 밴드 검사보다 먼저 발화한다 — 픽스처가 검사 대상
+    축(밴드)을 밟기 전에 다른 축(role)이 표본을 죽이는 구조라, 밴드 검사의 유일한
+    결함이 되도록 세 제약을 전부 만족하는 색만 고른다."""
+    pal = dg["palette"]
+    roles = dg.get("palette_roles") or []
+    cands = ([c for c, r in zip(pal, roles) if r == "label"]
+             if len(roles) == len(pal) else list(pal))
+    for c in cands:
+        if g16.contrast_ratio(_rgb(c), (255, 255, 255)) >= 4.5:
+            return c
+    return cands[0] if cands else pal[0]
+
+
 def band_probe_book(root, style, tokens, ratio_of_cap):
     """합성 authored 도해 1건짜리 최소 책을 만든다 (render_diagrams 전용 — 빌드하지 않는다).
 
     viewBox 폭을 `widths.full × MM2PT`로 잡으면 트림 전 환산이 1pt/user-unit이라
     라벨 pt를 사실상 직접 지정할 수 있다(트림 패딩만큼만 살짝 줄어들고, 그 오차는
-    어서션이 실측 metrics를 읽으므로 흡수된다). 색은 스타일 팔레트에서만 고른다 —
-    authored 트랙 alienColors가 팔레트 밖 색을 HARD로 죽이기 때문에, 색 때문에 죽으면
+    어서션이 실측 metrics를 읽으므로 흡수된다). 색은 스타일 팔레트의 label 역할
+    슬롯에서만 고른다(band_probe_ink) — authored 트랙 alienColors가 팔레트 밖 색을,
+    7단계 역할·대비 HARD가 role 위반·저대비 색을 각각 죽이기 때문에, 색 때문에 죽으면
     밴드 감도를 재는 것이 아니라 다른 축을 재게 된다.
 
     ratio_of_cap: 상한(body_pt × maxRatio) 대비 최대 라벨 배수. >1이면 위반 표본.
@@ -457,7 +475,7 @@ def band_probe_book(root, style, tokens, ratio_of_cap):
     scale = vb_w / (vb_w + 2 * pad)              # 트림 후 pt/user-unit
     big = (cap * ratio_of_cap) / scale
     small = (floor * 1.15) / scale               # 하한은 넉넉히 통과시킨다(HARD 회피)
-    ink = dg["palette"][0]
+    ink = band_probe_ink(dg)
     d = Path(root)
     (d / "diagrams").mkdir(parents=True, exist_ok=True)
     (d / "book.json").write_text(json.dumps({"style": style, "title": "밴드 프로브"},
@@ -492,7 +510,7 @@ def tspan_band_probe_book(root, style, tokens):
     scale = vb_w / (vb_w + 2 * pad)
     big = (cap * 1.8) / scale                    # 상한의 1.8배 — CSS로만 준다
     small = (floor * 1.15) / scale
-    ink = dg["palette"][0]
+    ink = band_probe_ink(dg)
     d = Path(root)
     (d / "diagrams").mkdir(parents=True, exist_ok=True)
     (d / "book.json").write_text(json.dumps({"style": style, "title": "tspan 급수 프로브"},
@@ -553,13 +571,18 @@ def paint_probe_book(root, style, tokens, mode):
     if not labels:
         return None
     if mode == "role":
-        if not others:
+        # 역할 위반 색 × 그 색과 대비가 가장 큰 label 배경 — 대비 축은 통과시킨다.
+        # others[0] 고정이면 첫 후보가 저대비일 때(magazine: #0E7C7B×#111111 = 3.77)
+        # 표본 구성 자체가 None으로 죽어 role 축이 자명 통과한다 — 전 후보를 순회한다.
+        pair = None
+        for f in others:
+            b = max(labels, key=lambda c: g16.contrast_ratio(_rgb(f), _rgb(c)))
+            if g16.contrast_ratio(_rgb(f), _rgb(b)) >= 4.5:
+                pair = (f, b)
+                break
+        if not pair:
             return None
-        # 역할 위반 색 × 그 색과 대비가 가장 큰 label 배경 — 대비 축은 통과시킨다
-        fg = others[0]
-        bg = max(labels, key=lambda c: g16.contrast_ratio(_rgb(fg), _rgb(c)))
-        if g16.contrast_ratio(_rgb(fg), _rgb(bg)) < 4.5:
-            return None
+        fg, bg = pair
     elif mode in ("contrast", "gradient", "stroke", "edge"):
         pair = None
         for f in labels:                     # 역할은 합법(label), 대비만 깬다
