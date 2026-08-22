@@ -5,6 +5,10 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
 실제로 검출하는지 어서션한다. 전부 검출되어야 exit 0.
 
   M1  목차 쪽번호 변조  — 첫 장의 인쇄 쪽번호를 +7 틀리게 재스탬핑 → G14-A FAIL
+  M18 이미지맵 캡션     — 목차 행과 y-겹침인 썸네일 이미지+캡션 숫자(기대값 +7)를 주입
+                         → G14-A는 캡션을 무시하고 진짜 쪽번호와 페어링해 **문제 0건**
+                         이어야 한다(w7-b3 실측 사고의 역방향 고정: 수리 전 pair_score는
+                         수직 정합인 캡션을 골라 오판 FAIL — 값이 우연히 맞으면 침묵 통과)
   M2  목차 이색(異色)   — 목차 면에 도비라 색 계열과 무관한 마젠타 라벨 주입 → G14-B FAIL
   M3  저대비 텍스트     — 본문 면에 흰 바탕 연회색(#c8c8c8) 캡션 주입 → G14-C FAIL
   M8  절 쪽번호 변조   — 인쇄 목차의 **절 행** 쪽번호를 +5 틀리게 재스탬핑 → G14-D FAIL
@@ -772,6 +776,65 @@ def mutate_toc_number(doc, titles, ch_starts):
     return False
 
 
+def mutate_tocmap_caption(doc, titles, ch_starts):
+    """목차 면 첫 장 행의 제목~쪽번호 사이에 합성 썸네일 이미지 + y-정합 캡션 숫자를
+    주입한다 — magazine $tocmap 이미지맵 오페어링(w7-b3)의 지면 등가물.
+
+    실측 사고 재현: display-numeral 목차에서 .toc-map 썸네일 캡션(장 폴리오)이 목차
+    행과 y-겹침을 만들자 pair_score(수평거리 + 40×수직중심 이탈)가 수직 정합인 캡션을
+    행의 진짜 쪽번호(수직 2.2pt 이탈) 대신 골랐다. 캡션 값이 기대 폴리오와 우연히
+    일치하면 침묵 통과, 어긋나면 오판 FAIL — 어느 쪽도 페어링이 틀렸다는 사실은 같다.
+    주입 캡션은 기대값 +7로 어긋나게 둔다: 수리 전 코드는 캡션을 페어링해 G14-A가
+    오판 FAIL하고, 수리 후(이미지 x-존 캡션 제외)는 진짜 쪽번호와 페어링해 문제
+    0건 + printed == expected여야 한다. 반환: (title, expected) 또는 None(공백 부족)."""
+    toc_pages = find_toc_pages(doc, titles, first_ch=ch_starts[0])
+    if not toc_pages:
+        return None
+    offset = ch_starts[0] - 1
+    for i, title in enumerate(titles):
+        if i >= len(ch_starts):
+            break
+        expected = ch_starts[i] - offset
+        key = "".join(title.split())[:10]
+        t_span = page = None
+        for p in toc_pages:
+            for b in doc[p].get_text("dict")["blocks"]:
+                for l in b.get("lines", []):
+                    for s in l["spans"]:
+                        if key and key in "".join(s["text"].split()):
+                            t_span, page = s, doc[p]
+                            break
+                    if t_span:
+                        break
+                if t_span:
+                    break
+            if t_span:
+                break
+        if t_span is None:
+            continue
+        y0, y1 = t_span["bbox"][1], t_span["bbox"][3]
+        cy = (y0 + y1) / 2
+        # 같은 행의 진짜 쪽번호(PASS 상태이므로 값 == expected) — 그 왼쪽 리더 공백에 주입
+        num = None
+        for b in page.get_text("dict")["blocks"]:
+            for l in b.get("lines", []):
+                for s in l["spans"]:
+                    if (s["text"].strip() == str(expected)
+                            and not (s["bbox"][3] < y0 - 4 or s["bbox"][1] > y1 + 4)
+                            and s["bbox"][0] > t_span["bbox"][2]):
+                        num = s
+        if num is None or num["bbox"][0] - t_span["bbox"][2] < 40:
+            continue                       # 리더 공백 부족 — 다음 장 행 시도
+        ix0, ix1 = t_span["bbox"][2] + 6, num["bbox"][0] - 6
+        pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 8, 8))
+        pix.clear_with(180)
+        page.insert_image(fitz.Rect(ix0, cy - 14, ix1, cy - 3), pixmap=pix)
+        page.insert_text(fitz.Point(ix0 + 6, cy + 3), str(expected + 7),
+                         fontsize=7.5, color=(0.35, 0.35, 0.35))
+        return title, expected
+    return None
+
+
 def mutate_alien_color(doc, titles):
     """목차 면에 마젠타(어느 스타일과도 다른 hue) 텍스트 주입."""
     toc_pages = find_toc_pages(doc, titles)
@@ -883,6 +946,24 @@ def main():
         assert mutate_toc_number(doc, titles, ch_starts), "M1 주입 실패"
         a1, _ = g14a_toc_numbers(doc, titles, ch_starts)
         results["M1-toc-number"] = bool(a1)
+        doc.close()
+
+        # M18 — M1과 반대 방향의 축: 주입이 **검출되면 안 된다**(캡션은 쪽번호가 아니다).
+        # 수리 전 코드는 캡션 +7 값을 그 행의 쪽번호로 페어링해 오판 FAIL했다.
+        work = Path(td) / "m18.pdf"
+        shutil.copy(book_dir / "draft" / "book.pdf", work)
+        doc = fitz.open(work)
+        hit18 = mutate_tocmap_caption(doc, titles, ch_starts)
+        if hit18:
+            t18, exp18 = hit18
+            a18, pairs18 = g14a_toc_numbers(doc, titles, ch_starts)
+            pr18 = next((p for p in pairs18 if p["title"] == t18), None)
+            results["M18-tocmap-caption"] = (not a18 and pr18 is not None
+                                             and pr18["printed"] == exp18)
+            print(f"      (M18 '{t18[:12]}' 행에 캡션 {exp18 + 7} 주입 → 문제 {len(a18)}건 · "
+                  f"페어링 printed={pr18['printed'] if pr18 else '?'} == {exp18})")
+        else:
+            print("      (M18 건너뜀 — 목차 행 리더 공백 부족)")
         doc.close()
 
         # M2

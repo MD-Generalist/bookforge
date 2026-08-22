@@ -166,6 +166,32 @@ def _is_ordinal_decoration(text):
     return len(t) >= 2 and t[0] == "0"
 
 
+def _image_zones(page):
+    """면의 이미지 배치 rect 목록 — 목차 이미지맵(썸네일) 캡션 스팬 제외의 좌표 기반.
+
+    object-fit: cover 크롭은 클립으로 구현되므로 bbox가 보이는 상자보다 클 수 있다
+    (w7-b3 실측: 64×28mm 상자에 배치 rect는 y로 36.5mm — 세로 크롭). x-축은 상자와
+    일치하는 방향이 일반적이라 x-존 판정의 기준으로 삼는다."""
+    return [tuple(i["bbox"]) for i in page.get_image_info()]
+
+
+def _caption_zone(s, zones, pad_x=2, pad_top=2, pad_bot=20):
+    """스팬 s가 이미지 소속 캡션 위치(이미지 x-존 안 · 이미지 세로 범위~직하)면
+    그 존을, 아니면 None을 돌려준다.
+
+    magazine $tocmap 썸네일의 캡션(.tocpg)은 장 폴리오 숫자인데 목차 행과 y-겹침이
+    생긴다 — pair_score(수평거리 + 40×수직중심 이탈)에서 수직 정합인 캡션이 행의
+    진짜 쪽번호(수직 2.2pt 이탈)를 이기는 오페어링이 실재했다(w7-b3: '대화의 업무화'
+    행이 캡션 "1"과 페어링). pad_bot은 크롭 클립 밖·이미지 직하의 캡션 행까지 흡수한다
+    (실측 최대 갭 9.7pt)."""
+    cx = (s["bbox"][0] + s["bbox"][2]) / 2
+    for z in zones:
+        if (z[0] - pad_x <= cx <= z[2] + pad_x
+                and s["bbox"][3] >= z[1] - pad_top and s["bbox"][1] <= z[3] + pad_bot):
+            return z
+    return None
+
+
 def g14a_toc_numbers(doc, titles, ch_starts, toc_pages=None):
     problems, pairs = [], []
     if not ch_starts:
@@ -176,6 +202,7 @@ def g14a_toc_numbers(doc, titles, ch_starts, toc_pages=None):
     if not toc_pages:
         return ["인쇄 목차 면을 찾지 못함(장제목 과반이 실린 면 없음)"], pairs
     spans_by_page = {p: list(_spans(doc[p])) for p in toc_pages}
+    zones_by_page = {p: _image_zones(doc[p]) for p in toc_pages}
     for i, title in enumerate(titles):
         if i >= len(ch_starts):
             break
@@ -192,18 +219,32 @@ def g14a_toc_numbers(doc, titles, ch_starts, toc_pages=None):
             if key not in all_joined:
                 problems.append(f"목차 p{toc_pages[0] + 1}~: '{title[:16]}' 제목 미발견")
             else:
+                # 이미지맵 캡션 숫자는 존재 검사에서도 뺀다 — 캡션이 우연히 기대값과
+                # 같으면(자기 장 폴리오가 그 값이므로 흔하다) 틀린 인쇄값이 침묵 통과한다.
                 nums = {s["text"].strip() for p in toc_pages for s in spans_by_page[p]
-                        if s["text"].strip().isdigit()}
+                        if s["text"].strip().isdigit()
+                        and not _caption_zone(s, zones_by_page[p])}
                 if str(expected) not in nums:
                     problems.append(f"목차 p{toc_pages[0] + 1}~: '{title[:16]}' 기대 쪽번호 {expected} 부재")
             continue
         y0, y1 = t_span["bbox"][1], t_span["bbox"][3]
+
+        def in_image_col(s):
+            # 이미지맵(썸네일 칼럼) 소속 캡션 숫자는 페어링 후보가 아니다. 단, 제목
+            # 자신이 같은 존에 걸쳐 있으면(전폭 배경 아트 위 목차 등 — 존이 엔트리
+            # 칼럼까지 덮는 형태) 제외하지 않는다: 그 형태에서 무조건 제외하면 진짜
+            # 쪽번호까지 전멸해 "행에 쪽번호 없음" 오탐 FAIL이 된다.
+            z = _caption_zone(s, zones_by_page[t_page])
+            return (z is not None
+                    and not (t_span["bbox"][2] > z[0] - 2 and t_span["bbox"][0] < z[2] + 2))
         # 같은 행(y 겹침)의 순수 숫자 스팬 — 좌우 무관, 서수 장식(leading zero) 제외,
-        # 제목과 수평으로 가장 가까운 것이 쪽번호 (다단 목차의 이웃 칼럼 오탐 방지)
+        # 이미지맵 캡션 제외, 제목과 수평으로 가장 가까운 것이 쪽번호
+        # (다단 목차의 이웃 칼럼 오탐 방지)
         cands = [s for s in spans_by_page[t_page]
                  if s["text"].strip().isdigit()
                  and not _is_ordinal_decoration(s["text"])
-                 and not (s["bbox"][3] < y0 - 4 or s["bbox"][1] > y1 + 4)]
+                 and not (s["bbox"][3] < y0 - 4 or s["bbox"][1] > y1 + 4)
+                 and not in_image_col(s)]
         if not cands:
             problems.append(f"목차 p{t_page + 1}: '{title[:16]}' 행에 쪽번호 없음")
             continue
