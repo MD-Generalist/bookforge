@@ -895,11 +895,17 @@ TOC_LAYOUTS = {
         "_why": "스프레드 1면 고정 · 장 레벨만 · 대형 제목 + 요약 꼬리. 넘침은 die(toc_overflow=single)",
     },
     "display-numeral": {
-        "styles": ("business",),
+        # W6 S6: magazine이 HTML 이식을 보유(오버레이 toc-display-numeral.css — 기본
+        # 레이아웃이 아니라 book.json `toc_layout` 선언으로만 켜지는 대안 구현이다).
+        "styles": ("business", "magazine"),
         "max_levels": 2,
         "leader": False,
-        "size_cap_pt": None,   # 급수가 tier 변수(ch-size/sec-size/num-size) 주입 — 리터럴 없음
-        "_why": "좌측 대형 장번호 칼럼 + 우측 제목/절, 리더 없음. 1면 완결을 위한 tier 적응 축소",
+        # 급수 상한이 구현마다 다르다 — business는 tier 변수 주입이라 정적 상한이 없고
+        # (None), magazine 오버레이는 리터럴이라 40pt 잠금이다(.toc-bn-num 40pt =
+        # toc_capacity_alt["display-numeral"] 캘리브레이션의 입력. 해석은 toc_size_cap()).
+        "size_cap_pt": {"business": None, "magazine": 40.0},
+        "_why": "좌측 대형 장번호 칼럼 + 우측 제목/절, 리더 없음. business는 1면 완결 "
+                "tier 적응 축소, magazine은 단면 고정 + toc_capacity_alt 용량 계약",
     },
     "twocol-balanced": {
         "styles": ("practical",),
@@ -923,6 +929,23 @@ TOC_LAYOUTS = {
         "_why": "장 레벨만 · 좌측 정렬 + 우단 쪽번호 · 리더선 금지(theme.typ:230 선언)",
     },
 }
+
+# 단면 목차 용량 계약의 필수 7키 — build_html.check_single_page_toc와
+# toc_capacity_alt 오버레이 축(아래 overlay_findings)이 같은 튜플을 소비한다.
+# 정의를 여기(단일 진리원) 두고 build_html이 별칭으로 가져간다 — 반대 방향이면
+# 게이트가 빌더를 import해야 해서 순환이 된다.
+TOC_CAPACITY_KEYS = ("top_mm", "pitch_mm", "tail_mm", "bottom_mm",
+                     "title_avail_mm", "font", "size_pt")
+
+
+def toc_size_cap(spec, style):
+    """레이아웃 급수 상한의 단일 해석기 — 스칼라(전 스타일 공통) 또는 스타일별 dict.
+
+    dict에 그 스타일 키가 없으면 None(상한 미선언)으로 떨어진다 — 구현이 없는 스타일에
+    상한을 발명하지 않는다. 소비자는 layout_findings 축 ⑤·overlay_findings·M17-㉢."""
+    cap = spec["size_cap_pt"]
+    return cap.get(style) if isinstance(cap, dict) else cap
+
 
 # `.toc`로 시작하는 클래스만 겨냥한다(.toc / .toc-title / .tocpg / .toc-page …).
 # `.subtoc` 같은 뒤섞임을 막으려 앞에 단어문자·하이픈이 오면 제외한다.
@@ -981,7 +1004,19 @@ def toc_typ_lines(typ_text):
 
 
 def layout_findings(style, tokens, theme_text, engine, style_dir=None):
-    """G16-SYNC toc_layout 축 — 선언한 목차 레이아웃과 theme 실물의 일치.
+    """G16-SYNC toc_layout 축 전체 = 기본 레이아웃 5축 + 오버레이 축.
+
+    기본 5축(_layout_axes)이 어느 지점에서 끊기든(카탈로그 밖 이름·theme 부재 WARN)
+    오버레이 축은 반드시 돈다 — 오버레이 파일은 기본 선언과 독립된 실물이라, 기본
+    선언이 깨졌다고 오버레이 검사가 조용히 꺼지면 그 틈이 두 번째 무선언 구멍이 된다.
+    """
+    sd = Path(style_dir) if style_dir else (SKILL / "styles" / style)
+    return (_layout_axes(style, tokens, theme_text, engine, sd)
+            + overlay_findings(style, tokens, sd))
+
+
+def _layout_axes(style, tokens, theme_text, engine, sd):
+    """기본 toc_layout 5축 — 선언한 목차 레이아웃과 theme 실물의 일치.
 
     판정 5축(전부 텍스트 레벨 — 렌더 0회):
       ① toc_layout 값이 카탈로그에 있는가
@@ -996,7 +1031,6 @@ def layout_findings(style, tokens, theme_text, engine, style_dir=None):
     게이트는 없는 게이트다.
     """
     out = []
-    sd = Path(style_dir) if style_dir else (SKILL / "styles" / style)
     typ_p, html_p, css_p = sd / "theme.typ", sd / "theme.html", sd / "theme.css"
     if not (typ_p.exists() or html_p.exists() or css_p.exists()):
         return [_f("SYNC", "WARN",
@@ -1060,7 +1094,7 @@ def layout_findings(style, tokens, theme_text, engine, style_dir=None):
                       f"실물만 바꾸면 그 규범이 선언 없이 뒤집힌다"))
 
     # ---- ⑤ 급수 상한 ----
-    cap = spec["size_cap_pt"]
+    cap = toc_size_cap(spec, style)
     if cap is None:
         pass   # 급수가 변수 주입이라 정적 상한이 성립하지 않는다(카탈로그 _why에 근거). 침묵.
     elif size_pt is None:
@@ -1073,6 +1107,122 @@ def layout_findings(style, tokens, theme_text, engine, style_dir=None):
                       f"{where}의 최대 급수 {size_pt:g}pt > toc_layout={name!r} 상한 {cap}pt — "
                       f"목차 급수는 높이 모델·용량 계약의 입력이라 재캘리브레이션 없이 올리면 "
                       f"목차가 넘치고 Chromium 전역 축소로 조용히 출하된다"))
+    return out
+
+
+def overlay_findings(style, tokens, sd):
+    """대안 목차 레이아웃 오버레이(`toc-<layout>.css`)와 그 용량 계약의 정합 (W6 S6).
+
+    오버레이 = 팩 **기본이 아닌** 레이아웃의 실물 CSS. build_html은 book.json이
+    `toc_layout`으로 그 이름을 선언한 빌드에서만 theme.css 뒤에 이어붙인다 — theme.css에
+    섞으면 기본 레이아웃의 급수 잠금(축 ⑤)이 오버레이 리터럴에 오염돼 상한을 올리거나
+    (잠금 해체) 상시 FAIL(오탐)이 되므로 파일을 물리로 가른다. 그 대가로 오버레이
+    자신이 여기서 기본과 같은 강도의 검사를 받는다:
+      ⑥ 파일명의 레이아웃 이름 ∈ 카탈로그(TOC_LAYOUTS)
+      ⑦ 이 스타일 ∈ 그 레이아웃의 styles(구현 보유 팩 선언)
+      ⑧ html 엔진 전용 · 팩 기본 toc_layout과 같은 이름 금지(기본 구현은 theme.css가 정본)
+      ⑨ 오버레이의 점선 리더 리터럴 유무 ↔ 카탈로그 leader 선언 일치
+      ⑩ 오버레이 `.toc*` 급수 리터럴 최대 ≤ toc_size_cap — 상한 미선언(None)이면 그
+         자체가 FAIL이다(오버레이는 리터럴 구현이라 "변수 주입이라 상한 없음"이 성립
+         하지 않고, 상한 없는 리터럴은 캘리브레이션 잠금이 아예 없다는 뜻이다)
+      ⑪ 단면(toc_overflow=single) 스타일이면 tokens `toc_capacity_alt[이름]`이
+         TOC_CAPACITY_KEYS 7키 전부로 실재하고 size_pt ≤ 상한. 역방향 —
+         toc_capacity_alt에만 있고 오버레이 실물이 없는 이름도 FAIL(선언만 있는
+         용량 계약은 실물 없는 레이아웃을 약속한다)
+    오버레이가 하나도 없고 toc_capacity_alt도 없으면 산출 0 — 기존 5팩 오탐 0의 근거.
+    """
+    out = []
+    engine = tokens.get("engine", "typst")
+    # `_` 접두 키는 메타(_why류)다 — toc_capacity의 _why와 같은 관례.
+    alt_caps = {k: v for k, v in (tokens.get("toc_capacity_alt") or {}).items()
+                if not k.startswith("_")}
+    seen = set()
+    for ov in sorted(sd.glob("toc-*.css")):
+        oname = ov.stem[len("toc-"):]
+        seen.add(oname)
+        # ---- ⑧ 엔진 ----
+        if engine != "html":
+            out.append(_f("SYNC", "FAIL",
+                          f"styles/{style}/{ov.name}: engine={engine}인데 목차 오버레이 CSS가 있다 — "
+                          f"오버레이는 html 엔진 전용 실물이라 이 팩에서는 소비자가 없다(죽은 "
+                          f"구현은 선언과 지면의 괴리 그 자체다)"))
+            continue
+        # ---- ⑥ 이름 ∈ 카탈로그 ----
+        ospec = TOC_LAYOUTS.get(oname)
+        if ospec is None:
+            out.append(_f("SYNC", "FAIL",
+                          f"styles/{style}/{ov.name}: 오버레이 레이아웃 {oname!r}은 카탈로그 밖이다 — "
+                          f"허용값 {'|'.join(sorted(TOC_LAYOUTS))} (TOC_LAYOUTS가 단일 진리원). "
+                          f"카탈로그가 모르는 오버레이는 어떤 불변식도 못 받는다"))
+            continue
+        # ---- ⑦ 스타일 ∈ styles ----
+        if style not in ospec["styles"]:
+            out.append(_f("SYNC", "FAIL",
+                          f"styles/{style}/{ov.name}: {oname!r}은 {'/'.join(ospec['styles'])}가 "
+                          f"구현 보유를 선언한 레이아웃이다 — 오버레이를 두려면 "
+                          f"TOC_LAYOUTS['{oname}']['styles']에 이 팩을 먼저 추가할 것"))
+        # ---- ⑧ 기본과 중복 ----
+        if oname == tokens.get("toc_layout"):
+            out.append(_f("SYNC", "FAIL",
+                          f"styles/{style}/{ov.name}: 팩 기본 toc_layout={oname!r}과 같은 이름의 "
+                          f"오버레이 — 기본 레이아웃 구현은 theme.css가 정본이라 같은 문법의 "
+                          f"실물이 두 곳이 되면 축 ④⑤가 어느 쪽을 보는지 갈라진다"))
+        text = ov.read_text(encoding="utf-8")
+        osize, oleader = toc_css_facts(text)
+        # ---- ⑨ 점선 리더 ----
+        if oleader != ospec["leader"]:
+            got = "있음" if oleader else "없음"
+            decl = "있음" if ospec["leader"] else "없음"
+            out.append(_f("SYNC", "FAIL",
+                          f"styles/{style}/{ov.name}: 점선 리더 실물 {got} ≠ toc_layout={oname!r} "
+                          f"선언 {decl} — 리더는 목차 문법의 식별 자질이다(기본 레이아웃 축 ④와 "
+                          f"같은 계약)"))
+        # ---- ⑩ 급수 상한 ----
+        cap = toc_size_cap(ospec, style)
+        if cap is None:
+            out.append(_f("SYNC", "FAIL",
+                          f"styles/{style}/{ov.name}: toc_layout={oname!r}의 급수 상한이 이 스타일에 "
+                          f"미선언(None)이다 — 오버레이는 리터럴 CSS 구현이라 상한 없는 잠금이 "
+                          f"성립하지 않는다. TOC_LAYOUTS['{oname}']['size_cap_pt']에 "
+                          f"{style} 상한을 실측으로 선언할 것"))
+        elif osize is None:
+            out.append(_f("SYNC", "WARN",
+                          f"styles/{style}/{ov.name}: `.toc*` 규칙에 font-size 리터럴 0건 — "
+                          f"상한 {cap}pt가 관측 대상을 잃었다(축이 조용히 꺼진 상태)"))
+        elif osize > cap + 1e-6:
+            out.append(_f("SYNC", "FAIL",
+                          f"styles/{style}/{ov.name}: 오버레이 최대 급수 {osize:g}pt > "
+                          f"toc_layout={oname!r} 상한 {cap}pt — 목차 급수는 toc_capacity_alt "
+                          f"용량 계약의 입력이라 재캘리브레이션 없이 올리면 목차가 넘치고 "
+                          f"Chromium 전역 축소로 조용히 출하된다"))
+        # ---- ⑪ 용량 계약 (단면 스타일만 — 다면은 toc_profile 소관) ----
+        if tokens.get("toc_overflow") == "single":
+            alt = alt_caps.get(oname)
+            if not isinstance(alt, dict):
+                out.append(_f("SYNC", "FAIL",
+                              f"styles/{style}/tokens.json: 오버레이 {ov.name} 실물이 있는데 "
+                              f"`toc_capacity_alt[{oname!r}]` 용량 계약이 없다 — 단면 목차는 "
+                              f"용량 선언 없이는 넘침이 검사 없이 전역 축소로 간다"
+                              f"(toc_capacity와 같은 7키: {', '.join(TOC_CAPACITY_KEYS)})"))
+            else:
+                missing = [k for k in TOC_CAPACITY_KEYS if k not in alt]
+                if missing:
+                    out.append(_f("SYNC", "FAIL",
+                                  f"styles/{style}/tokens.json `toc_capacity_alt[{oname!r}]`에 "
+                                  f"키 누락: {missing}"))
+                sz = alt.get("size_pt")
+                if cap is not None and isinstance(sz, (int, float)) \
+                        and not isinstance(sz, bool) and sz > cap + 1e-6:
+                    out.append(_f("SYNC", "FAIL",
+                                  f"styles/{style}/tokens.json `toc_capacity_alt[{oname!r}]` "
+                                  f"size_pt {sz:g} > 상한 {cap}pt — 용량 계약이 자기 레이아웃의 "
+                                  f"급수 잠금을 넘는 급수로 접힘을 판정하게 된다"))
+    # ---- ⑪ 역방향: 실물 없는 용량 선언 ----
+    for oname in sorted(set(alt_caps) - seen):
+        out.append(_f("SYNC", "FAIL",
+                      f"styles/{style}/tokens.json `toc_capacity_alt[{oname!r}]`: 대응하는 "
+                      f"오버레이 실물(toc-{oname}.css)이 없다 — 선언만 있는 용량 계약은 "
+                      f"구현 없는 레이아웃을 약속한다(빌드는 die하지만 계약은 썩는다)"))
     return out
 
 

@@ -578,8 +578,9 @@ def expand_toc_pages(tpl_text, n_pages):
 # 구 구현은 `if style != "magazine": return`으로 **폴더 이름**이 방어선이었고, 단면 목차
 # 팩을 하나 더 만들면 용량 검사가 조용히 사라졌다(적대검토 D6). 상수를 tokens.json의
 # `toc_capacity`로 올려 계약으로 바꾼다 — 선언이 없으면 빌드를 세운다.
-TOC_CAPACITY_KEYS = ("top_mm", "pitch_mm", "tail_mm", "bottom_mm",
-                     "title_avail_mm", "font", "size_pt")
+# 7키 튜플의 정본은 g16_tokens(오버레이 축 ⑪이 같은 키로 toc_capacity_alt를 판정) —
+# 별칭만 남긴다. 두 벌이면 게이트와 빌더가 서로 다른 "필수 키"를 갖게 된다.
+TOC_CAPACITY_KEYS = g16_tokens.TOC_CAPACITY_KEYS
 
 # tokens.json `toc_overflow` 허용값 ↔ theme.html BF:TOCPAGE 블록 유무. 종전엔 이 분기가
 # 토큰이 아니라 템플릿 실물(`"<!--BF:TOCPAGE" in tpl_src`)만으로 갈렸다 — 계약이 코드에
@@ -1053,6 +1054,9 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
             tsum = tsum[:40].rstrip(" ,.·") + "…"
         toc_rows.append({
             "kind": "ch", "title": ch["title"], "mk": mk, "lines": 1,
+            # num·sum: 대안 레이아웃(display-numeral)의 행 마크업 재조립 재료 — 기본
+            # 레이아웃은 아래 "li" 완성본만 쓰므로 이 두 키는 소비자가 없어도 무해하다.
+            "num": idx, "sum": tsum,
             # has_sec: 이 장이 목차에 실을 절을 가졌는가. 장 고아 금지 제약은 떼어놓을
             # 첫 절이 있을 때만 의미가 있다(plan_toc_pages 주석 참조).
             "has_sec": bool(sec_titles),
@@ -1112,6 +1116,44 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     # 다면 목차만 캘리브레이션 프로파일이 필요하다 — toc_layout 이름으로 명시 해석하고
     # (기본값 폴백 금지), 이름에 대응하는 프로파일이 없으면 toc_profile()이 die한다.
     prof = toc_profile(style_name, tokens) if multipage else None
+
+    # ── 대안 목차 레이아웃 (W6 S6) ────────────────────────────────────────────
+    # book.json `toc_layout`은 팩 기본(tokens.json toc_layout)이 아닌 레이아웃을 **책
+    # 단위로** 켜는 선언이다(brand가 brand_default를 덮는 것과 같은 자리). 미선언이면
+    # active == 기본이고 아래 분기 전부가 잠들어 산출이 바이트 수준으로 불변이다.
+    # 실물은 팩의 오버레이 CSS(toc-<이름>.css) — theme.css에 섞으면 G16-SYNC 축 ⑤의
+    # 기본 레이아웃 급수 잠금이 오버레이 리터럴에 오염되므로 파일을 갈라 두고, 선언된
+    # 빌드에서만 theme.css 뒤에 이어붙인다(뒤가 이긴다). 오버레이 자체의 불변식은
+    # g16_tokens.overlay_findings가 렌더 전에 지킨다.
+    declared_layout = tokens.get("toc_layout")
+    active_layout = book.get("toc_layout") or declared_layout
+    if active_layout != declared_layout:
+        spec = g16_tokens.TOC_LAYOUTS.get(active_layout)
+        if spec is None:
+            die(f"book.json toc_layout={active_layout!r} — 카탈로그 밖이다. 허용값 "
+                f"{'|'.join(sorted(g16_tokens.TOC_LAYOUTS))} (g16_tokens.TOC_LAYOUTS가 "
+                f"단일 진리원)")
+        if style_name not in spec["styles"]:
+            die(f"book.json toc_layout={active_layout!r}는 {'/'.join(spec['styles'])}가 구현한 "
+                f"레이아웃인데 style={style_name}이 선언했다 — 구현 없는 이름 전환은 "
+                f"기본 레이아웃 CSS 위에 남의 문법 마크업을 얹는다")
+        if multipage:
+            die(f"book.json toc_layout 전환은 단면 목차(toc_overflow=single) 스타일 전용이다 — "
+                f"다면 스타일({style_name})의 레이아웃 전환은 높이 모델 17상수 재적합 없이는 "
+                f"예측이 전부 허수가 된다(toc_profile 캘리브레이션 참조)")
+        if toc_levels >= 2:
+            die(f"toc_layout={active_layout!r} 전환은 레벨 1 목차만 구현돼 있다 — "
+                f"toc_levels={toc_levels}면 절 엔트리 행 마크업이 없어 절이 조용히 "
+                f"목차에서 빠진다")
+        overlay_p = style_dir / f"toc-{active_layout}.css"
+        if not overlay_p.exists():
+            die(f"styles/{style_name}에 toc_layout={active_layout!r}의 오버레이 실물 "
+                f"({overlay_p.name})이 없다 — 선언은 카탈로그에 있으나 이 팩에 CSS 구현이 "
+                f"없다(TOC_LAYOUTS[...]['styles'] 선언과 실물이 갈라진 상태)")
+        css += "\n" + Template(overlay_p.read_text(encoding="utf-8")).safe_substitute(
+            fonts_dir=(skill / "assets" / "fonts").as_uri(),
+            key_color=key, key_tint=f"rgba({r_},{g_},{b_},0.08)", key_label=key_label,
+            **fig_widths)
     tocplan = {"style": style_name, "toc_levels": toc_levels,
                "rows": len(toc_rows),
                "section_markers": sum(len(v) for v in sec_by_ch.values())}
@@ -1213,15 +1255,41 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
                   f"예측 바닥 {bottoms}mm (미학 {prof['limit_aesthetic_mm']} / 물리 {prof['limit_physical_mm']})")
             limit_phys, limit_aes = prof["limit_physical_mm"], prof["limit_aesthetic_mm"]
         else:
-            # 단면 목차 스타일 — 스프레드 1면 고정. 넘치면 조용히 잘리므로 명시 실패.
-            pred = check_single_page_toc(style_name, toc_rows, tokens.get("toc_capacity"))
+            # 단면 목차 스타일 — 1면 고정. 넘치면 조용히 잘리므로 명시 실패.
+            # 용량 계약은 **활성 레이아웃의 것**을 쓴다: 기본이면 toc_capacity, 대안이면
+            # toc_capacity_alt[이름] — 행 문법이 다르면 top/pitch/tail 전부 다른 실측이라
+            # 기본 용량으로 대안 레이아웃을 판정하면 예측이 통째로 허수다.
+            if active_layout == declared_layout:
+                cap_spec = tokens.get("toc_capacity")
+            else:
+                cap_spec = (tokens.get("toc_capacity_alt") or {}).get(active_layout)
+                if not cap_spec:
+                    die(f"styles/{style_name}/tokens.json에 `toc_capacity_alt`"
+                        f"[{active_layout!r}] 선언이 없다 — 대안 레이아웃의 단면 용량 계약 "
+                        f"없이는 넘침이 검사 없이 전역 축소로 간다"
+                        f"(필수 키: {', '.join(TOC_CAPACITY_KEYS)})")
+            pred = check_single_page_toc(style_name, toc_rows, cap_spec)
             tpl_text = tpl_src
-            toc_pages_html = {"toc": '<ol class="toc">'
-                                     + "\n".join(r["li"] for r in toc_rows) + "</ol>"}
+            if active_layout == "display-numeral" and active_layout != declared_layout:
+                # business 대형 번호 문법의 HTML 이식(레벨 1): 좌측 대형 장번호 칼럼 +
+                # 우측 제목·우단 쪽번호, 리더 없음. .tocpg[data-mk]는 그대로라 2-pass
+                # 스탬핑·G14-A가 레이아웃과 무관하게 성립한다.
+                rows_html = "\n".join(
+                    f'<li data-sum="{_esc(r["sum"], quote=True)}">'
+                    f'<span class="toc-bn-num">{r["num"]:02d}</span>'
+                    f'<span class="toc-title">{r["title"]}</span>'
+                    f'<span class="tocpg" data-mk="{r["mk"]}">00</span></li>'
+                    for r in toc_rows)
+                toc_pages_html = {"toc": f'<ol class="toc toc-bn">{rows_html}</ol>'}
+            else:
+                toc_pages_html = {"toc": '<ol class="toc">'
+                                         + "\n".join(r["li"] for r in toc_rows) + "</ol>"}
             n_toc_pages = 1
             bottoms = [round(pred, 2)]
             tocplan.update({"toc_pages": 1, "predicted_bottom_mm": bottoms})
-            limit_phys = limit_aes = float(tokens["toc_capacity"]["bottom_mm"])
+            if active_layout != declared_layout:
+                tocplan["toc_layout"] = active_layout   # 미선언 빌드의 tocplan은 불변
+            limit_phys = limit_aes = float(cap_spec["bottom_mm"])
 
         tpl = Template(tpl_text)
         html = tpl.substitute(

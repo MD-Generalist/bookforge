@@ -73,11 +73,22 @@ base의 `book()`을 그대로 쓰거나(practical처럼 토큰만 교체), 완�
 각 팩은 이미 **서로 다른 목차 레이아웃**을 구현하고 있었지만 그 사실이 어디에도 선언돼 있지 않았다. 선언이 없으면 레벨 수·리더·급수 같은 레이아웃 불변식이 조용히 깨져도 신호가 없다(리더 점선을 넣어도, 급수를 올려도 전 게이트 초록). `toc_overflow`와 같은 형태의 무선언 구멍이다.
 
 - **`tokens.json`에 `toc_layout`을 반드시 선언한다**(엔진 무관 — html·typst 6종 전부). 값은 카탈로그의 레이아웃 이름이고, 허용값·불변식의 단일 진리원은 `scripts/g16_tokens.py`의 **`TOC_LAYOUTS`** 딕셔너리다. 팩은 이름만 고른다 — 정의를 팩마다 복제하면 그 자체가 제2의 진리원이 된다(`toc_overflow`의 허용값 표가 `build_html.TOC_OVERFLOW_MULTIPAGE`에 있는 것과 같은 배치).
-- 현행 6종: `hanging-two-level`(insight) · `spread-single-level`(magazine) · `display-numeral`(business) · `twocol-balanced`(practical) · `academic-flow`(academic) · `flush-single-level`(essay).
+- 현행 6종: `hanging-two-level`(insight) · `spread-single-level`(magazine 기본) · `display-numeral`(business, magazine 오버레이) · `twocol-balanced`(practical) · `academic-flow`(academic) · `flush-single-level`(essay).
 - 카탈로그 항목의 필드와 출처(전부 theme 실물 실측): `styles`(그 레이아웃을 **구현한** 팩 — 레이아웃은 theme 파일에 사는 물건이라 목록에 스타일을 추가하려면 구현이 먼저 있어야 한다) · `max_levels`(싣는 최대 표제 레벨) · `leader`(점선 리더 사용 여부) · `size_cap_pt`(목차 급수 리터럴 상한. **여백이 아니라 캘리브레이션 잠금**이다 — insight 30pt는 `build_html`의 목차 높이 모델 입력이고 magazine 22pt는 `toc_capacity.size_pt`와 같은 수다. `None`이면 급수가 변수 주입이라 정적 상한이 성립하지 않는다는 뜻).
 - **G16-SYNC가 렌더 전에 5축을 기계 검증한다**(새 게이트명 없이 기존 배열에 합류 — 축을 이름으로 쪼개면 배선이 늘고 어느 하나가 빠지는 순간 조용히 꺼진다): ①값 ∈ 카탈로그 ②스타일 ∈ `styles` ③`toc_levels` ≤ `max_levels` ④`theme.css`/`theme.typ`의 점선 리더 리터럴(`dotted`·점 그라데이션·생성 콘텐츠 점열 / typst `repeat(`) 유무 ↔ 선언 `leader` 일치 ⑤`.toc*` 겨냥 규칙(html) 또는 목차 코드 줄(typst)의 최대 급수 ≤ `size_cap_pt`.
 - **`theme.css`/`theme.html`/`theme.typ`이 하나도 없는 디렉토리는 WARN 1행으로 skip한다** — 목차 구현이 없는 작업 중 산출물에서 FAIL 더미를 뱉으면 게이트가 무시당하고, 무시당하는 게이트는 없는 게이트다.
-- 감도 회귀 자산은 `tests/mutations/run_mutations.py`의 **M17**(㉠허용 밖 스타일 배정 ㉡리더 실물 뒤집기 ㉢급수 상한 초과 ㉣카탈로그 밖 이름)이며, 넷을 각각 다른 임시 사본에 주입한다.
+- 감도 회귀 자산은 `tests/mutations/run_mutations.py`의 **M17**(㉠허용 밖 스타일 배정 ㉡리더 실물 뒤집기 ㉢급수 상한 초과 ㉣카탈로그 밖 이름)이며, 넷을 각각 다른 임시 사본에 주입한다. 오버레이 보유 팩은 **M17 오버레이 축**(㉤오버레이 리더 주입 ㉥오버레이 급수 초과 ㉦파일명 카탈로그 밖 개명 ㉧`toc_capacity_alt` 항목 삭제)이 추가로 돈다.
+
+### 대안 레이아웃 오버레이 (책 단위 `toc_layout` 전환 — html 단면 전용, W6 S6)
+
+한 팩이 **두 번째 목차 레이아웃**을 구현할 수 있다(magazine의 `display-numeral`이 최초 사례 — business 대형 번호 문법의 HTML 이식). 규칙:
+
+- **켜는 곳은 `book.json`의 `toc_layout`이다**(brand가 `brand_default`를 덮는 것과 같은 자리). 미선언 책은 팩 기본(tokens.json `toc_layout`)으로 빌드되고 **산출이 바이트 수준으로 불변**이어야 한다 — 대안 레이아웃 분기는 전부 `active != declared`일 때만 깬다(`build_html.py`「대안 목차 레이아웃」).
+- **실물 CSS는 `toc-<레이아웃이름>.css` 오버레이 파일이다. `theme.css`에 섞지 말 것** — 축 ⑤의 기본 레이아웃 급수 잠금이 오버레이 리터럴에 오염되면 상한을 올리거나(잠금 해체) 상시 FAIL(오탐)이 된다. 빌더는 선언된 빌드에서만 오버레이를 theme.css 뒤에 이어붙인다(뒤가 이긴다). 행 골격(`li` flex·`.tocpg[data-mk]`·요약 `data-sum`)은 기본 레이아웃 것을 상속해 2-pass 스탬핑·G14-A·접힘 금지가 레이아웃 무관으로 남게 한다.
+- **용량 계약은 `tokens.json` `toc_capacity_alt[<이름>]`** — `toc_capacity`와 같은 7키. 행 문법이 다르면 top/pitch/tail 전부 다른 실측이라 기본 용량으로 판정할 수 없다. 값은 프로브 실측 재적합으로만 넣고 근거를 `_why`에 남긴다.
+- 카탈로그 `size_cap_pt`는 **스타일별 dict를 허용한다**(`{"business": None, "magazine": 40.0}`) — 같은 문법이라도 구현마다 잠금이 다르다. 해석은 `g16_tokens.toc_size_cap()` 하나만 안다.
+- **G16-SYNC 오버레이 축(⑥~⑪, `overlay_findings`)이 렌더 전에 지킨다**: ⑥파일명 이름 ∈ 카탈로그 ⑦스타일 ∈ `styles` ⑧html 엔진 전용·팩 기본과 같은 이름 금지 ⑨오버레이 리더 리터럴 ↔ 선언 ⑩오버레이 최대 급수 ≤ 상한(오버레이는 리터럴 구현이라 상한 `None` 자체가 FAIL) ⑪단면 스타일이면 `toc_capacity_alt[<이름>]` 7키 실재·`size_pt` ≤ 상한, 역방향(실물 없는 용량 선언)도 FAIL.
+- 다면(paginate) 스타일의 책 단위 전환은 **금지**(빌더 die) — 높이 모델 17상수 재적합 없이는 예측이 전부 허수다(리스크: 조용한 전역 축소 재발). `toc_levels ≥ 2`도 금지(대안 레이아웃은 레벨 1 행 마크업만 구현).
 
 ## 검증 루프
 

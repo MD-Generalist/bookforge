@@ -325,9 +325,11 @@ def mutate_toc_leader(style_dir, style, tokens):
 
 
 def mutate_toc_size(style_dir, style, tokens):
-    """목차 급수 리터럴을 상한 위로 올린다 → 축 ⑤. 상한 None(변수 주입) 스타일은 skip."""
+    """목차 급수 리터럴을 상한 위로 올린다 → 축 ⑤. 상한 None(변수 주입) 스타일은 skip.
+
+    상한 해석은 g16.toc_size_cap 하나만 안다 — 스칼라/스타일별 dict(display-numeral) 양쪽."""
     sd = Path(style_dir)
-    cap = g16.TOC_LAYOUTS[tokens["toc_layout"]]["size_cap_pt"]
+    cap = g16.toc_size_cap(g16.TOC_LAYOUTS[tokens["toc_layout"]], style)
     if cap is None:
         return None
     over = cap + 6.0
@@ -1029,6 +1031,69 @@ def main():
         ok17["d"] = any("카탈로그 밖" in x["msg"] for x in f17d)
         print(f"      (M17-㉣ toc_layout {bogus!r} 주입 → G16-SYNC FAIL {len(f17d)}건)")
         results["M17-toc-layout"] = all(ok17.values())
+
+        # M17 오버레이 축(W6 S6) — 대안 레이아웃 실물(toc-<이름>.css)과 용량 계약
+        # (toc_capacity_alt)의 감도. 오버레이를 보유한 팩(현재 magazine)만 성립한다.
+        # ㉠~㉣과 같은 원칙: 축마다 다른 임시 사본, 저장소 styles/ 무변조.
+        #   ㉤ 오버레이에 점선 리더 주입          → 축 ⑨ FAIL
+        #   ㉥ 오버레이 급수를 상한 +6pt로 주입    → 축 ⑩ FAIL
+        #   ㉦ 오버레이 파일명을 카탈로그 밖으로   → 축 ⑥ FAIL + 용량 계약 고아 FAIL
+        #   ㉧ toc_capacity_alt 항목 삭제         → 축 ⑪ FAIL
+        overlays = sorted((SKILL / "styles" / style).glob("toc-*.css"))
+        if not overlays:
+            print(f"      (M17 오버레이 축 건너뜀 — {style}에 toc-*.css 오버레이 없음)")
+        else:
+            oname = overlays[0].stem[len("toc-"):]
+            okov = {}
+
+            def ov_fails(tag, mutate):
+                sdir = Path(td) / f"style17{tag}"
+                shutil.copytree(SKILL / "styles" / style, sdir)
+                mutate(sdir)
+                t_, c_ = g16.style_inputs(style, style_dir=sdir)
+                return g16.fails_of(g16.run(style, t_, c_, style_dir=sdir)["G16-SYNC"])
+
+            def inj_leader(sdir):
+                p = sdir / overlays[0].name
+                p.write_text(p.read_text(encoding="utf-8")
+                             + "\n.toc-bn .toc-leader { border-bottom: 0.4pt dotted #999; }\n",
+                             encoding="utf-8")
+
+            f_e = ov_fails("e", inj_leader)
+            okov["e"] = any("점선 리더" in x["msg"] for x in f_e)
+            print(f"      (M17-㉤ {overlays[0].name}에 dotted 주입 → G16-SYNC FAIL {len(f_e)}건)")
+
+            cap_ov = g16.toc_size_cap(g16.TOC_LAYOUTS[oname], style)
+            over_ov = (cap_ov or 0) + 6.0
+
+            def inj_size(sdir):
+                p = sdir / overlays[0].name
+                p.write_text(p.read_text(encoding="utf-8")
+                             + "\n.toc-bn .toc-title { font-size: %.1fpt; }\n" % over_ov,
+                             encoding="utf-8")
+
+            f_f = ov_fails("f", inj_size)
+            okov["f"] = any("최대 급수" in x["msg"] for x in f_f)
+            print(f"      (M17-㉥ 오버레이 급수 {over_ov}pt 주입 → G16-SYNC FAIL {len(f_f)}건)")
+
+            def rename_ov(sdir):
+                (sdir / overlays[0].name).rename(sdir / "toc-mut-nonexistent-layout.css")
+
+            f_g = ov_fails("g", rename_ov)
+            okov["g"] = (any("카탈로그 밖" in x["msg"] for x in f_g)
+                         and any("toc_capacity_alt" in x["msg"] for x in f_g))
+            print(f"      (M17-㉦ 오버레이 파일명 카탈로그 밖 개명 → G16-SYNC FAIL {len(f_g)}건)")
+
+            def drop_alt(sdir):
+                tk = json.loads((sdir / "tokens.json").read_text(encoding="utf-8"))
+                tk.get("toc_capacity_alt", {}).pop(oname, None)
+                (sdir / "tokens.json").write_text(
+                    json.dumps(tk, ensure_ascii=False, indent=2), encoding="utf-8")
+
+            f_h = ov_fails("h", drop_alt)
+            okov["h"] = any("toc_capacity_alt" in x["msg"] for x in f_h)
+            print(f"      (M17-㉧ toc_capacity_alt[{oname!r}] 삭제 → G16-SYNC FAIL {len(f_h)}건)")
+            results["M17-toc-overlay"] = all(okov.values())
 
         # M-ORIGIN — fg/tb 마커 앵커 소실(포함 단조 사후조건의 감도). html 엔진 전용 —
         # typst 트랙에는 pgmark 마커 계약 자체가 없다. 옵트인(toc_lists)·앵커 제거 전부
