@@ -229,6 +229,16 @@
         place(top + left, dx: t.margin.left + cw + toc-gutter / 2, dy: toc-list-y,
           line(angle: 90deg, length: calc.max(h1, h2), stroke: 0.3pt + c-brand))
       } else {
+        // 1단 경로도 같은 금지가 적용된다 — 위 분기는 groups.len() > 1일 때만 2단으로
+        // 빠지므로, 단일 장 책이 넘치면 여기로 온다(1장×60절 실증: panic 없이 절 13개
+        // 무음 삭제 + 224.9mm 물리 잘림, verify-w6/s0-verdict.md). 가드가 한쪽 분기에만
+        // 있으면 원리 선언("잘림은 허용하지 않는다")보다 봉합 범위가 좁아진다.
+        if total-1col > avail {
+          panic("목차가 판면을 넘음(1단 목차 "
+            + str(calc.round(total-1col / 1mm, digits: 1)) + "mm > 가용 "
+            + str(calc.round(avail / 1mm, digits: 1)) + "mm) — 절 수를 줄이거나 "
+            + "outline.json의 toc_line을 축약할 것. 잘림은 허용하지 않는다")
+        }
         place(top + left, dx: t.margin.left, dy: toc-list-y,
           block(width: list-w, for i in range(0, groups.len()) { group-block(i, list-w) }))
       }
