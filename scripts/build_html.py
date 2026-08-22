@@ -992,9 +992,16 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
         raw = src.read_text(encoding="utf-8")
         # strip the leading H1 (title comes from outline)
         raw = re.sub(r"^#\s+.*\n", "", raw, count=1)
-        img_m = re.search(r"!\[[^\]]*\]\((\.\./assets/[^) \"]+)", raw)
-        # 목차 이미지 맵(magazine $tocmap): 챕터 첫 컷 4~6장. 캡션은 해당 쪽번호만 —
-        # 좌측 리스트와 같은 .tocpg[data-mk] 마크업이라 2-pass 스탬핑이 같이 채운다.
+        # 목차 이미지 맵(magazine $tocmap): 챕터 첫 **래스터** 컷 4~6장. SVG 도해는
+        # 제외한다 — 본문은 SVG를 인라인해 @font-face를 살리지만(md_to_html의 svgfig
+        # 경로 주석) 여기는 <img src>라 SVG-as-image 모드가 되고, 도해 <text>가 폴백
+        # 폰트로 떨어져 **목차 면에 Type3 글리프**가 유입된다(G2 FAIL — w7-b3 실측:
+        # 도해가 장 첫 이미지인 magazine 북은 역대 전부 이 경로로 실패했다). 64×28mm
+        # cover-크롭에서 도해는 시각적으로도 의미가 없으므로 래스터 컷만 쓴다.
+        # 캡션은 해당 쪽번호만 — 좌측 리스트와 같은 .tocpg[data-mk] 마크업이라 2-pass
+        # 스탬핑이 같이 채운다.
+        img_m = next((m for m in re.finditer(r"!\[[^\]]*\]\((\.\./assets/[^) \"]+)", raw)
+                      if not m.group(1).endswith(".svg")), None)
         if img_m and len(tocmap_items) < 5:
             tocmap_items.append(
                 f'<figure><img src="{img_m.group(1)}" alt="">'

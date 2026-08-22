@@ -636,9 +636,12 @@ def main():
             report["warns"].append(msg + " (WARN — 쪽수는 조판을 압박하지 않는다, INV-1)")
 
     # ---- G2 font embedding ----
-    # Type3 = Chromium이 CFF(.otf)를 서브셋 못해 글리프를 페이지별 벡터로 그린 것.
-    # "임베드된 폰트"가 아니라 텍스트 추출·검색·접근성이 깨진 상태이므로 FAIL.
-    # 대응: 폰트를 TrueType으로(scripts/convert_fonts.py), .otf를 @font-face에 쓰지 말 것.
+    # Type3 = Chromium이 글리프를 외부 폰트 없이 페이지별 벡터로 그린 것. 실측된 유입
+    # 경로는 두 갈래다: ① CFF(.otf) @font-face(서브셋 실패), ② <img src=*.svg> 안의
+    # <text>(SVG-as-image 모드는 문서 @font-face를 차단해 폴백 폰트로 렌더 — w7-b3:
+    # magazine $tocmap이 도해 SVG를 썸네일로 참조하던 경로가 이것이었다).
+    # 어느 쪽이든 텍스트 추출·검색·접근성이 깨진 상태이므로 FAIL.
+    # 대응: ①은 TTF로 교체(scripts/convert_fonts.py), ②는 SVG 인라인 또는 래스터 참조.
     not_embedded = set()
     type3_pages = []
     for pno in range(n):
@@ -659,7 +662,8 @@ def main():
         fails.append(f"G2: fonts not embedded: {sorted(not_embedded)}")
     if type3_pages:
         fails.append(f"G2: Type3 글리프 페이지 {type3_pages[:8]}{'…' if len(type3_pages) > 8 else ''} "
-                     f"— CFF(.otf) @font-face가 원인, TTF로 교체할 것 (convert_fonts.py)")
+                     f"— 원인 후보: CFF(.otf) @font-face(→ TTF 교체, convert_fonts.py) 또는 "
+                     f"<img src=*.svg> 안의 <text>(→ SVG 인라인 또는 래스터 참조)")
 
     # ---- G3-OVERFLOW / G3-COLLIDE 수집 ----
     # 같은 루프에서 `get_text("dict")` 1회 호출을 공유한다. 겹침의 **면제**는 구조 파생
