@@ -63,47 +63,107 @@ def warn(msg: str):
 #        전 프로브 재측정(report/w3.md 캘리브레이션 표). CSS 출처는 theme.css의
 #        `.toc-body{top:41mm}` `.toc-word{30pt; margin-bottom:14mm}`
 #        `.toc li{margin-top:8mm; line-height:1.3}` `li.toc-sec{margin-top:2.5mm}`.
-TOC_TOP_MM = 61.429          # [실측] 1면 첫 행 글리프 top (41 + 워드 라인박스 6.174 + 붕괴마진 14 + 글리프오프셋 0.255)
-TOC_TOP_CONT_MM = 49.258     # [실측] 2면 이후 첫 행 글리프 top (워드 display:none → 붕괴마진이 8mm)
-TOC_TOP_CONT_SEC_MM = 43.508 # [실측] 2면 이후가 절 행으로 시작할 때(장 내 분할) — 붕괴마진 8→2.5mm.
-                             #        fix-within(1장 40절)이 이 경로를 처음 실행해 확정했다
-                             #        (구 파생 추정 43.825 대비 −0.317)
-# 행 종류 전이별 피치(앞 행 글리프 top → 뒤 행 글리프 top). 3구간인 이유는 margin-top이
-# 장 8mm / 절 2.5mm로 다르고 행 높이도 급수(10.9 / 9.9pt)에 따라 다르기 때문.
-# [실측] 프로브 7권 × 목차 14면의 (마지막 행 top − 첫 행 top)에 대한 최소자승 적합
-#        (확정 후 9권 × 18면 전수 재검증: 예측 바닥 오차 최대 0.126mm).
-#        잔차 최대 0.128mm = Chromium이 행 박스 top을 정수 CSS px(0.2646mm)에 스냅하는
-#        ±½px 한계와 일치한다(누적 오차 없음 — 각 행이 정확 누적값을 개별 반올림).
-TOC_PITCH_MM = {
-    ("sec", "sec"): 7.028,   # [실측] CSS 유래 2.5mm + 12.87pt = 7.039과 0.011 일치
-    ("ch", "sec"): 7.761,    # [실측] CSS 유래 7.499보다 1px 큼 — 장 행 플렉스 baseline 정렬 실효 높이
-    ("sec", "ch"): 12.525,   # [실측] CSS 유래 8mm + 12.87pt = 12.539와 0.014 일치
-    ("ch", "ch"): 13.229,    # [실측] 절 0개 장 연속에서만 발생. adv-zero15 실렌더로 확정
-                             #        (구 파생 추정 13.261 대비 −0.032)
+#
+# ── 캘리브레이션 프로파일 (toc_profile) ──────────────────────────────────────
+# 아래 17개 스칼라는 전부 **하나의 목차 레이아웃**(insight의 `hanging-two-level`)을
+# 실측한 값 묶음이다. 모듈 전역 상수로 흩어져 있던 동안에는 ㉠어느 값이 어느 레이아웃의
+# 것인지 ㉡새 레이아웃을 붙이려면 무엇을 다시 재야 하는지가 코드 어디에도 없었고, 그래서
+# "상수를 조금 고쳐 다른 스타일에도 쓴다"가 물리적으로 가능했다(그 경로의 실패는
+# 조용한 전역 축소이고 신호는 G1-SCALE 하나뿐이다). 이름 붙은 프로파일 하나로 묶어
+# 그 경계를 명시한다 — **값은 이전과 한 자리도 다르지 않다(순수 구조 리팩터)**.
+#
+# 저장 위치가 스타일 팩이 아니라 스킬(빌더)인 이유 — 코드 실태 근거 3:
+#   ㉠ 이 값들은 팩의 **디자인 선언**이 아니라 팩 + Chromium 조합의 **렌더 실측**이다.
+#      top_mm 61.429는 CSS 41mm에 워드 라인박스 6.174 · 붕괴마진 14 · 글리프 오프셋
+#      0.255를 더한 값이고, pitch/fold는 Chromium이 행 박스를 정수 CSS px에 스냅하는
+#      동작에서 나온다(주석 참조). 팩이 "선언"할 수 있는 종류의 수가 아니다.
+#   ㉡ 팩으로 옮기면 html 팩 전부에 17키 필수 토큰이 생기고(부재는 die여야 의미가 있다),
+#      단면 목차 팩(magazine)은 그 17키를 영원히 쓰지 않는다 — `toc_capacity`가 단면
+#      전용으로 팩에 있는 것과 대칭이 아니라 **비대칭**이 커진다.
+#   ㉢ 팩 선언은 곧 "팩마다 하나씩" 을 부르고, 2개째 프로파일은 재적합 없이는 만들 수
+#      없다(아래 경고). 구조만 만들고 값을 늘리지 않는 것이 이번 사이클의 계약이다.
+# 대신 팩과의 연결은 **이름**으로 한다: `tokens.json`의 `toc_layout`이 프로파일의
+# `layout`과 일치해야 하고(아래 `toc_profile()`), 그 토큰 자체는 G16-SYNC가 theme 실물과
+# 대조한다(g16_tokens.TOC_LAYOUTS). 팩·게이트·빌더가 같은 한 단어를 가리킨다.
+#
+# ⚠ **2개째 프로파일 금지(이번 사이클)**: 값은 CSS 좌표·급수·서체·letter-spacing이
+#    전부 얽힌 최소자승 적합의 산물이라, 다른 레이아웃에 "비슷한 값"을 넣으면 예측이
+#    조용히 어긋나고 목차가 넘쳐 Chromium 전역 축소로 나간다. 새 프로파일은 프로브
+#    재렌더 → 스팬 bbox 실측 → 재적합 → tocplan 예측/실측 대조를 다시 밟아야 한다.
+TOC_PROFILES = {
+    "insight-hanging-v1": {
+        # styles/insight/tokens.json의 `toc_layout`과 일치해야 한다(toc_profile()이 대조).
+        "layout": "hanging-two-level",
+        "top_mm": 61.429,          # [실측] 1면 첫 행 글리프 top (41 + 워드 라인박스 6.174 + 붕괴마진 14 + 글리프오프셋 0.255)
+        "top_cont_mm": 49.258,     # [실측] 2면 이후 첫 행 글리프 top (워드 display:none → 붕괴마진이 8mm)
+        "top_cont_sec_mm": 43.508, # [실측] 2면 이후가 절 행으로 시작할 때(장 내 분할) — 붕괴마진 8→2.5mm.
+                                   #        fix-within(1장 40절)이 이 경로를 처음 실행해 확정했다
+                                   #        (구 파생 추정 43.825 대비 −0.317)
+        # 행 종류별 전이 피치(앞 행 글리프 top → 뒤 행 글리프 top). 3구간인 이유는 margin-top이
+        # 장 8mm / 절 2.5mm로 다르고 행 높이도 급수(10.9 / 9.9pt)에 따라 다르기 때문.
+        # [실측] 프로브 7권 × 목차 14면의 (마지막 행 top − 첫 행 top)에 대한 최소자승 적합
+        #        (확정 후 9권 × 18면 전수 재검증: 예측 바닥 오차 최대 0.126mm).
+        #        잔차 최대 0.128mm = Chromium이 행 박스 top을 정수 CSS px(0.2646mm)에 스냅하는
+        #        ±½px 한계와 일치한다(누적 오차 없음 — 각 행이 정확 누적값을 개별 반올림).
+        "pitch_mm": {
+            ("sec", "sec"): 7.028,   # [실측] CSS 유래 2.5mm + 12.87pt = 7.039과 0.011 일치
+            ("ch", "sec"): 7.761,    # [실측] CSS 유래 7.499보다 1px 큼 — 장 행 플렉스 baseline 정렬 실효 높이
+            ("sec", "ch"): 12.525,   # [실측] CSS 유래 8mm + 12.87pt = 12.539와 0.014 일치
+            ("ch", "ch"): 13.229,    # [실측] 절 0개 장 연속에서만 발생. adv-zero15 실렌더로 확정
+                                     #        (구 파생 추정 13.261 대비 −0.032)
+        },
+        # 2줄 접힘 1행당 추가 높이 = **다음 행 top까지의 기여분**(행 안의 1→2행 델타가 아니다).
+        # [실측] 구 값(장 5.027 / 절 4.498)은 한 행 안의 델타를 그대로 쓴 것이라 절에서 행마다
+        # 0.055mm씩 모자랐고, 접힘 13건 도서에서 예측이 실측보다 0.80mm 낮게 나왔다(fix-fold·
+        # fix-shrink 실측). Chromium이 행 박스를 정수 CSS px에 스냅해 델타가 4.498/4.762로
+        # 교번하기 때문이며, 누적에 쓰는 값은 그 **평균 기여분**이어야 한다.
+        #   절: (다음 행 top − 이 행 top) − pitch(sec,sec) 평균 = 4.553  [fix-fold 8구간·fix-shrink 45구간]
+        #   장: 같은 방식 평균은 4.88이지만 표본 2건뿐이라 보수값 5.027을 유지한다(과대 = 안전).
+        "fold_mm": {"ch": 5.027, "sec": 4.553},
+        # 마지막 행의 글리프 top → 글리프 bottom(디센더 포함). 목차 바닥 측정값과 직접 비교되는 값.
+        # [실측] sec 4.166(14면 전수 동일) / ch 4.586(probe-6c17s 장 행 bbox)
+        "tail_mm": {"ch": 4.586, "sec": 4.166},
+        # 제목 가용 폭 = .toc-body 폭 105mm − .tocpg 6.5mm − (절은 padding-left 2mm)
+        "avail_mm": {"ch": 98.5, "sec": 96.5},
+        # 폭 추정을 보수적으로 — 접힘을 늦게 잡으면 면이 넘친다
+        "fold_safety": 0.98,
+        # 미학 한계: 233mm. 여백 리듬 기준(가용 172mm = 233 − 61.43)이며 분할의 1차 목표.
+        "limit_aesthetic_mm": 233.0,
+        # 물리 한계: 판면은 257mm지만 실측으로 축소 미발생이 확인된 최대는 252.47mm이고
+        # 발생 최소는 259.20mm다(ledger). 인증된 안전 구간 안쪽으로 잡는다 — 미학 한계가
+        # 항상 실현 가능하므로 이 값은 사실상 단정문(assertion)이다.
+        "limit_physical_mm": 252.0,
+        # 장 내 분할(면이 절 행으로 시작) 벌점 — 장 제목 없는 절 나열 면은 마지막 면 균형을
+        # 위해서만 허용한다. 단위는 (mm)^2와 같으므로 5000 ≈ 71mm 슬랙에 해당.
+        "within_group_penalty": 5000.0,
+    },
 }
-# 2줄 접힘 1행당 추가 높이 = **다음 행 top까지의 기여분**(행 안의 1→2행 델타가 아니다).
-# [실측] 구 값(장 5.027 / 절 4.498)은 한 행 안의 델타를 그대로 쓴 것이라 절에서 행마다
-# 0.055mm씩 모자랐고, 접힘 13건 도서에서 예측이 실측보다 0.80mm 낮게 나왔다(fix-fold·
-# fix-shrink 실측). Chromium이 행 박스를 정수 CSS px에 스냅해 델타가 4.498/4.762로
-# 교번하기 때문이며, 누적에 쓰는 값은 그 **평균 기여분**이어야 한다.
-#   절: (다음 행 top − 이 행 top) − PITCH(sec,sec) 평균 = 4.553  [fix-fold 8구간·fix-shrink 45구간]
-#   장: 같은 방식 평균은 4.88이지만 표본 2건뿐이라 보수값 5.027을 유지한다(과대 = 안전).
-TOC_FOLD_MM = {"ch": 5.027, "sec": 4.553}
-# 마지막 행의 글리프 top → 글리프 bottom(디센더 포함). 목차 바닥 측정값과 직접 비교되는 값.
-# [실측] sec 4.166(14면 전수 동일) / ch 4.586(probe-6c17s 장 행 bbox)
-TOC_TAIL_MM = {"ch": 4.586, "sec": 4.166}
-# 제목 가용 폭 = .toc-body 폭 105mm − .tocpg 6.5mm − (절은 padding-left 2mm)
-TOC_AVAIL_MM = {"ch": 98.5, "sec": 96.5}
-TOC_FOLD_SAFETY = 0.98       # 폭 추정을 보수적으로 — 접힘을 늦게 잡으면 면이 넘친다
-# 미학 한계: 233mm. 여백 리듬 기준(가용 172mm = 233 − 61.43)이며 분할의 1차 목표.
-TOC_LIMIT_AESTHETIC_MM = 233.0
-# 물리 한계: 판면은 257mm지만 실측으로 축소 미발생이 확인된 최대는 252.47mm이고
-# 발생 최소는 259.20mm다(ledger). 인증된 안전 구간 안쪽으로 잡는다 — 미학 한계가
-# 항상 실현 가능하므로 이 값은 사실상 단정문(assertion)이다.
-TOC_LIMIT_PHYSICAL_MM = 252.0
-# 장 내 분할(면이 절 행으로 시작) 벌점 — 장 제목 없는 절 나열 면은 마지막 면 균형을
-# 위해서만 허용한다. 단위는 (mm)^2와 같으므로 5000 ≈ 71mm 슬랙에 해당.
-TOC_WITHIN_GROUP_PENALTY = 5000.0
+# 프로파일을 인자로 받지 않는 호출 경로(외부 진단 스크립트·단위 실험)를 위한 기본값.
+# build()는 항상 toc_profile()로 명시 해석해 넘긴다 — 기본값에 기대지 않는다.
+DEFAULT_TOC_PROFILE = "insight-hanging-v1"
+
+
+def _prof(prof=None):
+    """프로파일 해석 — None이면 기본 프로파일. 함수 시그니처 기본값에 dict를 두지 않으려는 우회."""
+    return prof if prof is not None else TOC_PROFILES[DEFAULT_TOC_PROFILE]
+
+
+def toc_profile(style_name, tokens):
+    """다면 목차 스타일의 캘리브레이션 프로파일을 `toc_layout` 토큰으로 해석한다.
+
+    팩이 선언한 레이아웃 이름과 프로파일의 `layout`이 일치할 때만 돌려준다 — 이름이
+    맞지 않으면 그 레이아웃은 아직 캘리브레이션되지 않은 것이고, "비슷한 값으로 돌려
+    보는" 경로는 조용한 전역 축소로 끝난다(위 ⚠). 그래서 폴백하지 않고 die한다."""
+    lay = tokens.get("toc_layout")
+    for name, prof in TOC_PROFILES.items():
+        if prof["layout"] == lay:
+            return prof
+    have = ", ".join("%s(layout=%s)" % (n, p["layout"]) for n, p in TOC_PROFILES.items())
+    die(f"styles/{style_name}: toc_layout={lay!r}에 대한 다면 목차 캘리브레이션 프로파일이 "
+        f"없다(보유: {have}). "
+        f"다면 목차(toc_overflow=paginate)는 높이 모델 17개 상수의 실측 적합이 선행돼야 "
+        f"한다 — 프로브 재렌더 → 스팬 bbox 실측 → 재적합 → tocplan 예측/실측 대조를 "
+        f"밟고 TOC_PROFILES에 새 프로파일을 추가할 것")
 
 
 # ── 문자 폭: 동봉 폰트의 실제 advance에서 계산한다 ────────────────────────────
@@ -127,7 +187,7 @@ TOC_LS_EM = -0.02            # theme.css body{letter-spacing:-0.02em} — 목차
 # [실측] 남는 잔차를 흡수하는 **단일 가산 보정**. 한글은 −0.04px/자로 일정하므로 그 값을
 # 그대로 쓴다(보정 후 fix-fold2 26자 행에서 모델 96.44 vs 실측 96.36 = +0.08mm).
 # 힌팅이 1px 올라가는 일부 숫자·기호(−1.04px/자)까지 슬랙으로 덮으면 한글 45자 제목이
-# 12mm 과대추정돼 불필요하게 3행이 된다(실측) — 그 몫은 보수 계수 TOC_FOLD_SAFETY
+# 12mm 과대추정돼 불필요하게 3행이 된다(실측) — 그 몫은 보수 계수 fold_safety
 # 0.98(절 기준 1.93mm ≈ 7px)과 R1 렌더 후 실측 검증이 받는다.
 TOC_HINT_SLACK_PX = 0.04
 PX_PER_PT = 4 / 3            # CSS px = 0.75pt
@@ -175,10 +235,10 @@ def _text_width_mm(kind, text):
     return _string_width_mm(_font(name), text, size)
 
 
-def _wrap_lines(kind, text, avail_mm):
+def _wrap_lines(kind, text, avail_mm, prof=None):
     """keep-all 환경의 그리디 어절 줄바꿈 시뮬레이션 → 행 수.
     공백 없는 단일 어절이 가용 폭을 넘으면 (lines, overflow=True)."""
-    limit = avail_mm * TOC_FOLD_SAFETY
+    limit = avail_mm * _prof(prof)["fold_safety"]
     words = text.split()
     if not words:
         return 1, False
@@ -209,48 +269,50 @@ TOC_CONNECTOR_RECT = (138.0, 150.0, 60.0, 72.0)   # x0, x1, y0, y1 (mm)
 TOC_ROW_LEFT_MM = {"ch": 57.0, "sec": 59.0}       # .toc-body left 57 + 절 padding-left 2
 
 
-def _row_band(y_top, r):
+def _row_band(y_top, r, prof=None):
     """행 글리프 밴드 [top, bottom] — 접힘분 포함."""
-    return y_top, y_top + TOC_TAIL_MM[r["kind"]] + TOC_FOLD_MM[r["kind"]] * (r["lines"] - 1)
+    P = _prof(prof)
+    return y_top, y_top + P["tail_mm"][r["kind"]] + P["fold_mm"][r["kind"]] * (r["lines"] - 1)
 
 
-def _connector_avail(rows):
+def _connector_avail(rows, prof=None):
     """1면에서 커넥터 예약 사각과 y로 겹치는 행의 인덱스 → 축소 가용 폭(mm).
 
     접힘은 뒤 행을 아래로만 밀므로 교차 집합은 단조 축소한다 → 최대 4회로 수렴한다."""
+    P = _prof(prof)
     cx0, _cx1, cy0, cy1 = TOC_CONNECTOR_RECT
     narrowed = {}
     for _ in range(4):
         # 현재 narrowed 가정으로 행 수를 다시 잡고 y를 누적
         for i, r in enumerate(rows):
-            avail = narrowed.get(i, TOC_AVAIL_MM[r["kind"]])
-            r["lines"], _ = _wrap_lines(r["kind"], r["title"], avail)
+            avail = narrowed.get(i, P["avail_mm"][r["kind"]])
+            r["lines"], _ = _wrap_lines(r["kind"], r["title"], avail, P)
         hit = {}
-        y = TOC_TOP_MM
+        y = P["top_mm"]
         for i, r in enumerate(rows):
-            top, bot = _row_band(y, r)
+            top, bot = _row_band(y, r, P)
             if top > cy1:
                 break                       # 이후 행은 전부 사각 아래
             if bot >= cy0:
                 hit[i] = cx0 - TOC_ROW_LEFT_MM[r["kind"]]
             if i + 1 >= len(rows):
                 break
-            y += TOC_PITCH_MM[(r["kind"], rows[i + 1]["kind"])]
-            y += TOC_FOLD_MM[r["kind"]] * (r["lines"] - 1)
+            y += P["pitch_mm"][(r["kind"], rows[i + 1]["kind"])]
+            y += P["fold_mm"][r["kind"]] * (r["lines"] - 1)
         if hit == narrowed:
             return narrowed
         narrowed = hit
     return narrowed
 
 
-def _li_with_reserve(r):
+def _li_with_reserve(r, prof=None):
     """커넥터 예약으로 좁아진 행은 **렌더에도** 그 폭을 강제한다.
 
     모델에서만 좁히면 예측 높이만 커지고 브라우저는 여전히 전폭으로 1행에 그려 장식을
     침범한다(모델과 실물이 갈린다). 제목 스팬에 max-width를 인라인으로 실어 실제 접힘을
     만든다 — 폭 값의 단일 출처를 build_html.py에 두려고 CSS 클래스가 아니라 인라인이다.
     `.toc-leader{flex:1}`가 남는 폭을 흡수하므로 `.tocpg` 칼럼(우단 162mm)은 불변이다."""
-    full = TOC_AVAIL_MM[r["kind"]]
+    full = _prof(prof)["avail_mm"][r["kind"]]
     avail = r.get("avail_mm", full)
     if avail >= full:
         return r["li"]
@@ -259,43 +321,45 @@ def _li_with_reserve(r):
                            f'<span class="{cls}" style="max-width:{avail:.1f}mm">', 1)
 
 
-def toc_row_metrics(rows, connector_reserve=True):
+def toc_row_metrics(rows, connector_reserve=True, prof=None):
     """각 목차 행의 렌더 행 수를 확정한다(접힘 예산). 반환은 어절 단위로도 안 들어가는
     제목 목록. 넘침 판정은 **원 가용 폭** 기준이다 — 커넥터 예약으로 좁아진 폭에서만
     안 들어가는 제목은 빌드를 세울 사유가 아니라 장식 침범 경고 사유다."""
+    P = _prof(prof)
     over = []
-    narrowed = _connector_avail(rows) if connector_reserve else {}
+    narrowed = _connector_avail(rows, P) if connector_reserve else {}
     for i, r in enumerate(rows):
-        avail = narrowed.get(i, TOC_AVAIL_MM[r["kind"]])
-        r["lines"], _ = _wrap_lines(r["kind"], r["title"], avail)
+        avail = narrowed.get(i, P["avail_mm"][r["kind"]])
+        r["lines"], _ = _wrap_lines(r["kind"], r["title"], avail, P)
         r["avail_mm"] = round(avail, 2)
-        _, ovf_full = _wrap_lines(r["kind"], r["title"], TOC_AVAIL_MM[r["kind"]])
+        _, ovf_full = _wrap_lines(r["kind"], r["title"], P["avail_mm"][r["kind"]], P)
         if ovf_full:
             over.append(r["title"])
         elif i in narrowed:
-            _, ovf_narrow = _wrap_lines(r["kind"], r["title"], avail)
+            _, ovf_narrow = _wrap_lines(r["kind"], r["title"], avail, P)
             if ovf_narrow:
                 warn(f"목차 1면 {i + 1}행 '{r['title'][:20]}'의 한 어절이 커넥터 예약 폭 "
                      f"{avail:.0f}mm를 넘는다 — 장식 침범이 남는다(제목 어절을 나눌 것)")
     return over
 
 
-def _toc_page_bottom(rows, i, j, first_page):
+def _toc_page_bottom(rows, i, j, first_page, prof=None):
     """rows[i:j]를 한 면에 실을 때의 마지막 행 글리프 bottom(mm)."""
+    P = _prof(prof)
     k0 = rows[i]["kind"]
     if first_page:
-        y = TOC_TOP_MM
+        y = P["top_mm"]
     else:
-        y = TOC_TOP_CONT_MM if k0 == "ch" else TOC_TOP_CONT_SEC_MM
+        y = P["top_cont_mm"] if k0 == "ch" else P["top_cont_sec_mm"]
     for k in range(i + 1, j):
         prev = rows[k - 1]
-        y += TOC_PITCH_MM[(prev["kind"], rows[k]["kind"])]
-        y += TOC_FOLD_MM[prev["kind"]] * (prev["lines"] - 1)
+        y += P["pitch_mm"][(prev["kind"], rows[k]["kind"])]
+        y += P["fold_mm"][prev["kind"]] * (prev["lines"] - 1)
     last = rows[j - 1]
-    return y + TOC_TAIL_MM[last["kind"]] + TOC_FOLD_MM[last["kind"]] * (last["lines"] - 1)
+    return y + P["tail_mm"][last["kind"]] + P["fold_mm"][last["kind"]] * (last["lines"] - 1)
 
 
-def plan_toc_pages(rows, limit_mm=TOC_LIMIT_AESTHETIC_MM):
+def plan_toc_pages(rows, limit_mm=None, prof=None):
     """목차 행 리스트를 N면으로 분할. 그리디 금지 — refit.py §관례에 따라 후보를
     전수 평가하고(DP) ①면 수 최소 ②균형 최적 순으로 고른다.
 
@@ -306,6 +370,9 @@ def plan_toc_pages(rows, limit_mm=TOC_LIMIT_AESTHETIC_MM):
     침묵 위반). 균형 비용 = Σ(limit − 면 바닥)² + 장 내 분할 벌점 → 마지막 면만 1~2행
     남는 분할은 비용이 커서 자동으로 배제되고, 필요하면 앞 면에서 행을 넘겨 균형을
     맞춘다."""
+    P = _prof(prof)
+    if limit_mm is None:
+        limit_mm = P["limit_aesthetic_mm"]
     n = len(rows)
     if n == 0:
         return []
@@ -318,12 +385,12 @@ def plan_toc_pages(rows, limit_mm=TOC_LIMIT_AESTHETIC_MM):
             if j < n:
                 if rows[j - 1]["kind"] == "ch" and rows[j - 1].get("has_sec"):
                     continue            # 장 고아 금지: 절 있는 장 행이 면 마지막일 수 없다
-            bottom = _toc_page_bottom(rows, i, j, i == 0)
+            bottom = _toc_page_bottom(rows, i, j, i == 0, P)
             if bottom > limit_mm:
                 break                   # bottom은 j에 단조증가 — 더 큰 j는 전부 초과
             if best[j] == INF:
                 continue
-            pen = TOC_WITHIN_GROUP_PENALTY if (j < n and rows[j]["kind"] == "sec") else 0.0
+            pen = P["within_group_penalty"] if (j < n and rows[j]["kind"] == "sec") else 0.0
             cand = (best[j][0] + 1, best[j][1] + (limit_mm - bottom) ** 2 + pen)
             if cand < best[i]:
                 best[i] = cand
@@ -855,6 +922,9 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
             f"{'있음(다면)' if template_multipage else '없음(단면)'})과 어긋난다 — 계약(토큰)과 "
             "실물(템플릿)의 디싱크는 조용히 넘어가지 않는다. tokens.json의 toc_overflow를 "
             "고치거나 theme.html의 BF:TOCPAGE 블록을 맞출 것")
+    # 다면 목차만 캘리브레이션 프로파일이 필요하다 — toc_layout 이름으로 명시 해석하고
+    # (기본값 폴백 금지), 이름에 대응하는 프로파일이 없으면 toc_profile()이 die한다.
+    prof = toc_profile(style_name, tokens) if multipage else None
     tocplan = {"style": style_name, "toc_levels": toc_levels,
                "rows": len(toc_rows),
                "section_markers": sum(len(v) for v in sec_by_ch.values())}
@@ -874,41 +944,41 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     replanned = False
     for attempt in range(2):
         if multipage:
-            overflow_titles = toc_row_metrics(toc_rows)
+            overflow_titles = toc_row_metrics(toc_rows, prof=prof)
             for r in toc_rows:                       # 실측 접힘 실태를 하한으로 반영
                 r["lines"] = max(r["lines"], measured_lines.get(r["mk"], 1))
             if overflow_titles:
                 die("목차 제목이 어절 단위로도 가용 폭에 들어가지 않는다(word-break:keep-all이라 "
                     f"어절 중간 개행 불가 → 가로 넘침): {overflow_titles[:3]}. "
                     "outline.json의 제목을 줄이거나 어절을 나눌 것")
-            limit_used = TOC_LIMIT_AESTHETIC_MM
-            spans = plan_toc_pages(toc_rows)
+            limit_used = prof["limit_aesthetic_mm"]
+            spans = plan_toc_pages(toc_rows, prof=prof)
             if spans is None:
-                limit_used = TOC_LIMIT_PHYSICAL_MM
-                spans = plan_toc_pages(toc_rows, TOC_LIMIT_PHYSICAL_MM)
+                limit_used = prof["limit_physical_mm"]
+                spans = plan_toc_pages(toc_rows, prof["limit_physical_mm"], prof=prof)
                 zero_sec = sum(1 for r in toc_rows if r["kind"] == "ch" and not r.get("has_sec"))
-                warn(f"목차 미학 한계 {TOC_LIMIT_AESTHETIC_MM}mm 해 없음 — 물리 한계 "
-                     f"{TOC_LIMIT_PHYSICAL_MM}mm로 폴백했다(절 0개 장 {zero_sec}개). "
+                warn(f"목차 미학 한계 {prof['limit_aesthetic_mm']}mm 해 없음 — 물리 한계 "
+                     f"{prof['limit_physical_mm']}mm로 폴백했다(절 0개 장 {zero_sec}개). "
                      "STYLE.md가 규범으로 선언한 여백 리듬이 그만큼 침해된다")
             if spans is None:
                 die("목차 분할 해 없음 — 물리 한계 "
-                    f"{TOC_LIMIT_PHYSICAL_MM}mm 안에 들어가는 분할이 존재하지 않는다. "
+                    f"{prof['limit_physical_mm']}mm 안에 들어가는 분할이 존재하지 않는다. "
                     "원인은 보통 ㉠분할점 부족(절이 0개인 장이 연속되면 그 구간은 통째로 한 "
                     "면에 들어간다) ㉡한 항목의 접힘 과다다 — 대응: 절이 없는 장에 절을 "
                     "추가하거나 장을 병합하고, 접히는 제목을 줄일 것. "
                     f"(장 {sum(1 for r in toc_rows if r['kind']=='ch')}개 / 절 "
                     f"{sum(1 for r in toc_rows if r['kind']=='sec')}개 / 접힘 "
                     f"{sum(1 for r in toc_rows if r['lines'] > 1)}건)")
-            bottoms = [round(_toc_page_bottom(toc_rows, i, j, i == 0), 2) for (i, j) in spans]
-            over = [b for b in bottoms if b > TOC_LIMIT_PHYSICAL_MM]
+            bottoms = [round(_toc_page_bottom(toc_rows, i, j, i == 0, prof), 2) for (i, j) in spans]
+            over = [b for b in bottoms if b > prof["limit_physical_mm"]]
             if over:
-                die(f"목차 면 예측 바닥 {over}mm > 물리 한계 {TOC_LIMIT_PHYSICAL_MM}mm — "
+                die(f"목차 면 예측 바닥 {over}mm > 물리 한계 {prof['limit_physical_mm']}mm — "
                     "분할 로직 결함(높이 모델과 제약을 재확인할 것)")
             tpl_text = expand_toc_pages(tpl_src, len(spans))
             toc_pages_html = {}
             for pi, (i, j) in enumerate(spans, 1):
                 toc_pages_html[f"toc_{pi}"] = ('<ol class="toc">'
-                                               + "\n".join(_li_with_reserve(r)
+                                               + "\n".join(_li_with_reserve(r, prof)
                                                            for r in toc_rows[i:j])
                                                + "</ol>")
                 toc_pages_html[f"toc_mod_{pi}"] = "" if pi == 1 else "toc-cont"
@@ -919,8 +989,8 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
                             "limit_used_mm": limit_used,
                             "folded_rows": [r["title"] for r in toc_rows if r["lines"] > 1]})
             print(f"목차 {n_toc_pages}면 발행 — 행 {[j - i for (i, j) in spans]}, "
-                  f"예측 바닥 {bottoms}mm (미학 {TOC_LIMIT_AESTHETIC_MM} / 물리 {TOC_LIMIT_PHYSICAL_MM})")
-            limit_phys, limit_aes = TOC_LIMIT_PHYSICAL_MM, TOC_LIMIT_AESTHETIC_MM
+                  f"예측 바닥 {bottoms}mm (미학 {prof['limit_aesthetic_mm']} / 물리 {prof['limit_physical_mm']})")
+            limit_phys, limit_aes = prof["limit_physical_mm"], prof["limit_aesthetic_mm"]
         else:
             # 단면 목차 스타일 — 스프레드 1면 고정. 넘치면 조용히 잘리므로 명시 실패.
             pred = check_single_page_toc(style_name, toc_rows, tokens.get("toc_capacity"))

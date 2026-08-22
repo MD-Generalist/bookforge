@@ -875,7 +875,7 @@ def widths_findings(style, tokens, theme_text, engine, style_dir=None):
 #   leader       : 점선 리더 사용 여부. theme.css/theme.typ 리터럴과 대조한다.
 #   size_cap_pt  : `.toc*`(html) / 목차 코드(typst)에 리터럴로 박힌 급수의 상한.
 #                  값은 현행 최대치 그대로다 — 여백이 아니라 **캘리브레이션 잠금**이다
-#                  (insight 30pt는 build_html TOC_TOP_MM 61.429의 입력이고, magazine
+#                  (insight 30pt는 build_html 다면 프로파일 top_mm 61.429의 입력이고, magazine
 #                  22pt는 toc_capacity.size_pt와 같은 수다. 올리면 재캘리브레이션 없이는
 #                  목차가 넘치고 Chromium 전역 축소로 조용히 나간다).
 #                  None = 급수가 리터럴이 아니라 변수 주입이라 정적 상한이 성립하지 않음.
