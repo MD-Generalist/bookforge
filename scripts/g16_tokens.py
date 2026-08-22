@@ -855,6 +855,227 @@ def widths_findings(style, tokens, theme_text, engine, style_dir=None):
     return out
 
 
+# ------------------------------------------------- toc_layout 카탈로그 (G16-SYNC)
+# 왜: 각 스타일의 목차는 이미 **서로 다른 레이아웃**이지만(insight 행잉 2레벨 /
+# magazine 대형 단면 / business 대형 번호 / practical 2단 균형 / academic 번호칼럼
+# 흐름 / essay 무리더 단일 레벨) 그 사실이 어디에도 선언돼 있지 않았다. 선언이 없으면
+# ㉠팩을 고칠 때 "이 스타일이 어떤 목차 문법인가"가 theme 파일을 읽어야만 알 수 있고
+# ㉡레벨 수·리더·급수 같은 레이아웃 불변식이 조용히 깨져도 신호가 없다(리더 점선을
+# 넣어도, 급수를 올려도 전 게이트 초록 — S1 toc_overflow와 같은 형태의 무선언 구멍).
+#
+# 카탈로그를 **스킬 한 곳**에 둔다(팩이 아니라). 레이아웃은 여러 팩이 공유할 수 있는
+# 어휘이고, 팩마다 정의를 복제하면 그 자체가 제2의 진리원이 된다. 팩은 이름만 고른다
+# (tokens.json `toc_layout`) — toc_overflow가 값만 선언하고 허용값 표는 build_html의
+# TOC_OVERFLOW_MULTIPAGE에 있는 것과 같은 배치다.
+#
+# 각 필드의 출처는 **theme 실물**이며 값은 현행 구현의 실측이다:
+#   styles       : 그 레이아웃을 실제로 구현한 팩. 레이아웃은 theme 파일에 사는 물건이라
+#                  목록에 스타일을 추가하려면 그 팩에 구현이 먼저 있어야 한다.
+#   max_levels   : 목차가 싣는 최대 표제 레벨(html은 tokens.toc_levels와 대조).
+#   leader       : 점선 리더 사용 여부. theme.css/theme.typ 리터럴과 대조한다.
+#   size_cap_pt  : `.toc*`(html) / 목차 코드(typst)에 리터럴로 박힌 급수의 상한.
+#                  값은 현행 최대치 그대로다 — 여백이 아니라 **캘리브레이션 잠금**이다
+#                  (insight 30pt는 build_html TOC_TOP_MM 61.429의 입력이고, magazine
+#                  22pt는 toc_capacity.size_pt와 같은 수다. 올리면 재캘리브레이션 없이는
+#                  목차가 넘치고 Chromium 전역 축소로 조용히 나간다).
+#                  None = 급수가 리터럴이 아니라 변수 주입이라 정적 상한이 성립하지 않음.
+TOC_LAYOUTS = {
+    "hanging-two-level": {
+        "styles": ("insight",),
+        "max_levels": 2,
+        "leader": False,
+        "size_cap_pt": 30.0,   # .toc-word 30pt(Contents 워드마크) — 높이 모델의 입력
+        "_why": "장 행 + 들여쓴 절 행, 리더 없이 우단 쪽번호. 넘치면 다면 발행(toc_overflow=paginate)",
+    },
+    "spread-single-level": {
+        "styles": ("magazine",),
+        "max_levels": 1,
+        "leader": False,
+        "size_cap_pt": 22.0,   # .toc-title 22pt = tokens.toc_capacity.size_pt
+        "_why": "스프레드 1면 고정 · 장 레벨만 · 대형 제목 + 요약 꼬리. 넘침은 die(toc_overflow=single)",
+    },
+    "display-numeral": {
+        "styles": ("business",),
+        "max_levels": 2,
+        "leader": False,
+        "size_cap_pt": None,   # 급수가 tier 변수(ch-size/sec-size/num-size) 주입 — 리터럴 없음
+        "_why": "좌측 대형 장번호 칼럼 + 우측 제목/절, 리더 없음. 1면 완결을 위한 tier 적응 축소",
+    },
+    "twocol-balanced": {
+        "styles": ("practical",),
+        "max_levels": 2,
+        "leader": True,        # toc-leader = repeat(circle) 점선
+        "size_cap_pt": 23.0,
+        "_why": "헤더 밴드 + CH│NN 칩 · 점선 리더 · 넘치면 2단 균형 분할(S0 가드가 잘림을 panic으로)",
+    },
+    "academic-flow": {
+        "styles": ("academic",),
+        "max_levels": 2,
+        "leader": False,
+        "size_cap_pt": 16.0,
+        "_why": "번호 칼럼 14mm + 제목 + 우단 쪽번호, 리더 점선 없음(theme.typ:297 선언)",
+    },
+    "flush-single-level": {
+        "styles": ("essay",),
+        "max_levels": 1,
+        "leader": False,
+        "size_cap_pt": 13.0,
+        "_why": "장 레벨만 · 좌측 정렬 + 우단 쪽번호 · 리더선 금지(theme.typ:230 선언)",
+    },
+}
+
+# `.toc`로 시작하는 클래스만 겨냥한다(.toc / .toc-title / .tocpg / .toc-page …).
+# `.subtoc` 같은 뒤섞임을 막으려 앞에 단어문자·하이픈이 오면 제외한다.
+_TOC_SEL_RE = re.compile(r"(?<![\w-])\.toc[\w-]*")
+_TOC_FONT_SIZE_RE = re.compile(r"(?<![\w-])font-size\s*:\s*([\d.]+)\s*(pt|px|mm)")
+# CSS 점선 리더의 실현 수단 전량. 어느 하나라도 `.toc*` 규칙 안에 있으면 "점선 리더 있음".
+# (border 계열 dotted · 점 배경 그라데이션 · 생성 콘텐츠 점열 · leader() 함수)
+_CSS_LEADER_RE = re.compile(
+    r"(?<![\w-])dotted(?![\w-])|repeating-linear-gradient|radial-gradient"
+    r"|(?<![\w-])leader\s*\(|content\s*:\s*[^;}]*\.\s*\.\s*\.")
+# typst의 리더 관용구는 `repeat(...)`/`repeat[...]` 하나다(practical toc-leader).
+_TYP_LEADER_RE = re.compile(r"(?<![\w-])repeat\s*[(\[]")
+_TYP_SIZE_PT_RE = re.compile(r"(?<![\w-])size\s*:\s*([\d.]+)\s*pt(?![\w-])")
+_PT_PER = {"pt": 1.0, "px": 0.75, "mm": 72.0 / 25.4}
+
+
+def toc_css_facts(css_text):
+    """theme.css의 `.toc*` 겨냥 규칙만 골라 (최대 급수pt, 점선 리더 유무).
+
+    급수가 하나도 없으면 (None, …) — "관측 대상 없음"과 "0pt"를 구별한다.
+    """
+    mx, leader = None, False
+    for sel, body in _CSS_RULE.findall(_css_code(css_text)):
+        s = sel.strip()
+        if not s or s.startswith("@"):
+            continue
+        if not any(_TOC_SEL_RE.search(p) for p in s.split(",")):
+            continue
+        for v, unit in _TOC_FONT_SIZE_RE.findall(body):
+            pt = float(v) * _PT_PER[unit]
+            mx = pt if mx is None else max(mx, pt)
+        if _CSS_LEADER_RE.search(body):
+            leader = True
+    return mx, leader
+
+
+def toc_typ_lines(typ_text):
+    """theme.typ의 **목차 코드 줄**. `toc`를 언급하는 줄에서 시작해 빈 줄까지 이어진다.
+
+    왜 중괄호 균형이 아니라 줄 단위인가: typst의 목차 코드는 `#let toc-leader(pad) =
+    box(...)`처럼 **괄호 본문**으로도 쓰여 중괄호 매칭이 통째로 빗나간다(practical
+    toc-leader가 정확히 그 형태이고, 그것이 이 팩에서 유일한 리더 선언이다). 반면 4종
+    팩 모두 목차 코드는 빈 줄로 구분된 덩어리 안에 있고 그 덩어리의 첫 줄은 반드시
+    `toc`를 이름에 포함한다(`#let toc-*`, `if toc {`, `#let practical-toc`).
+    주석은 먼저 걷어낸다 — `// ---- TOC ----` 같은 표제가 구간을 열면 안 된다.
+    """
+    out, inreg = [], False
+    for line in typ_code(typ_text).split("\n"):
+        if "toc" in line.lower():
+            inreg = True
+        elif inreg and not line.strip():
+            inreg = False
+        if inreg:
+            out.append(line)
+    return out
+
+
+def layout_findings(style, tokens, theme_text, engine, style_dir=None):
+    """G16-SYNC toc_layout 축 — 선언한 목차 레이아웃과 theme 실물의 일치.
+
+    판정 5축(전부 텍스트 레벨 — 렌더 0회):
+      ① toc_layout 값이 카탈로그에 있는가
+      ② 이 스타일이 그 레이아웃의 allowed_styles(=구현 보유 팩)에 있는가
+      ③ tokens.toc_levels ≤ 레이아웃 max_levels
+      ④ theme.css/theme.typ의 점선 리더 리터럴 유무 ↔ 선언 leader 일치
+      ⑤ `.toc*`(html) / 목차 코드(typst) 급수 리터럴 최대 ≤ size_cap_pt
+
+    **폭발 금지**: theme 실물이 하나도 없는 디렉토리(styles/blueprint-web처럼 tokens.json
+    만 있는 작업 중 산출물)는 목차 구현 자체가 없으므로 WARN 1행으로 skip한다 —
+    전수 스캔이 그런 디렉토리에서 FAIL 더미를 뱉으면 게이트가 무시당하고, 무시당하는
+    게이트는 없는 게이트다.
+    """
+    out = []
+    sd = Path(style_dir) if style_dir else (SKILL / "styles" / style)
+    typ_p, html_p, css_p = sd / "theme.typ", sd / "theme.html", sd / "theme.css"
+    if not (typ_p.exists() or html_p.exists() or css_p.exists()):
+        return [_f("SYNC", "WARN",
+                   f"styles/{style}: theme.css/theme.html/theme.typ 모두 부재 — 목차 구현이 "
+                   f"없는 디렉토리라 toc_layout 축 skip(계약 없는 팩은 전수 스캔의 폭발원이다)")]
+
+    # ---- ① 값 ∈ 카탈로그 ----
+    name = tokens.get("toc_layout")
+    spec = TOC_LAYOUTS.get(name) if isinstance(name, str) else None
+    if spec is None:
+        out.append(_f("SYNC", "FAIL",
+                      f"styles/{style}/tokens.json의 `toc_layout`={name!r} — 카탈로그 밖이거나 "
+                      f"미선언이다. 허용값 {'|'.join(sorted(TOC_LAYOUTS))} "
+                      f"(g16_tokens.TOC_LAYOUTS가 단일 진리원). 선언이 없으면 목차 문법이 "
+                      f"theme 파일 실물에만 있어 레벨 수·리더·급수 불변식이 조용히 깨진다"))
+        return out
+
+    # ---- ② 스타일 ∈ allowed_styles ----
+    if style not in spec["styles"]:
+        out.append(_f("SYNC", "FAIL",
+                      f"toc_layout={name!r}는 {'/'.join(spec['styles'])}가 구현한 레이아웃인데 "
+                      f"styles/{style}이 선언했다 — 레이아웃은 theme 실물에 사는 물건이라 "
+                      f"이름만 빌려 오면 선언과 지면이 갈라진다. 이 팩에 구현을 먼저 넣고 "
+                      f"TOC_LAYOUTS['{name}']['styles']에 추가할 것"))
+
+    # ---- ③ toc_levels ≤ max_levels ----
+    lv = tokens.get("toc_levels")
+    if isinstance(lv, int) and not isinstance(lv, bool) and lv > spec["max_levels"]:
+        out.append(_f("SYNC", "FAIL",
+                      f"toc_levels={lv} > toc_layout={name!r}의 max_levels {spec['max_levels']} — "
+                      f"레이아웃이 싣지 못하는 레벨을 목차 계약이 요구한다"))
+
+    # ---- ④⑤ theme 실물 스캔 ----
+    if engine == "html":
+        if theme_text is None:
+            out.append(_f("SYNC", "WARN",
+                          f"styles/{style}: engine=html인데 theme.css를 읽지 못했다 — "
+                          f"toc_layout ④리더·⑤급수 축 skip"))
+            return out
+        size_pt, leader = toc_css_facts(theme_text)
+        where, unit_note = "theme.css `.toc*` 규칙", "font-size"
+    else:
+        if not typ_p.exists():
+            out.append(_f("SYNC", "WARN",
+                          f"styles/{style}: engine={engine}인데 theme.typ 부재 — "
+                          f"toc_layout ④리더·⑤급수 축 skip"))
+            return out
+        lines = toc_typ_lines(typ_p.read_text(encoding="utf-8"))
+        leader = any(_TYP_LEADER_RE.search(ln) for ln in lines)
+        sizes = [float(m.group(1)) for ln in lines for m in _TYP_SIZE_PT_RE.finditer(ln)]
+        size_pt = max(sizes) if sizes else None
+        where, unit_note = "theme.typ 목차 코드", "size:"
+
+    # ---- ④ 점선 리더 ----
+    if leader != spec["leader"]:
+        got = "있음" if leader else "없음"
+        decl = "있음" if spec["leader"] else "없음"
+        out.append(_f("SYNC", "FAIL",
+                      f"점선 리더 실물 {got} ≠ toc_layout={name!r} 선언 {decl} ({where}). "
+                      f"리더는 목차 문법의 식별 자질이고 각 팩 STYLE.md가 명시로 금지/허용한다 — "
+                      f"실물만 바꾸면 그 규범이 선언 없이 뒤집힌다"))
+
+    # ---- ⑤ 급수 상한 ----
+    cap = spec["size_cap_pt"]
+    if cap is None:
+        pass   # 급수가 변수 주입이라 정적 상한이 성립하지 않는다(카탈로그 _why에 근거). 침묵.
+    elif size_pt is None:
+        out.append(_f("SYNC", "WARN",
+                      f"{where}에 {unit_note} 리터럴 0건 — toc_layout={name!r}의 급수 상한 "
+                      f"{cap}pt가 관측 대상을 잃었다(축이 조용히 꺼진 상태). 급수를 변수로 "
+                      f"옮겼다면 TOC_LAYOUTS['{name}']['size_cap_pt']를 None으로 명시할 것"))
+    elif size_pt > cap + 1e-6:
+        out.append(_f("SYNC", "FAIL",
+                      f"{where}의 최대 급수 {size_pt:g}pt > toc_layout={name!r} 상한 {cap}pt — "
+                      f"목차 급수는 높이 모델·용량 계약의 입력이라 재캘리브레이션 없이 올리면 "
+                      f"목차가 넘치고 Chromium 전역 축소로 조용히 출하된다"))
+    return out
+
+
 # ------------------------------------------------------------------- G16-SYNC
 
 def g16_sync(style, tokens, theme_text, brand=None, style_dir=None):
@@ -991,6 +1212,12 @@ def g16_sync(style, tokens, theme_text, brand=None, style_dir=None):
     # ---- HARD ⑤ diagram.widths ↔ 실렌더 폭 계약 (폭 3원 동기화) ----
     # html: theme.css $fig_*_mm 치환 배선 / typst: theme.typ bf-fig 배선 + 판면폭 값 대조
     out += widths_findings(style, tokens, theme_text, engine, sd)
+
+    # ---- HARD ⑥ toc_layout ↔ theme 실물 (목차 문법 계약) ----
+    # 새 게이트명을 만들지 않는다 — 이것은 "스타일 팩의 색·**수치** 계약 정합"이라는
+    # G16-SYNC의 표방 범위 안이고, 축을 이름으로 쪼개면 qc_gate·build 양쪽에 배선이
+    # 늘어나 어느 하나가 빠지는 순간 조용히 꺼진다(G16-SYNC는 이미 그 배선을 가진다).
+    out += layout_findings(style, tokens, theme_text, engine, sd)
 
     # ---- WARN: 팔레트↔theme.css 교집합 (부재는 결함, 잉여는 아님) ----
     if pal and engine == "html":

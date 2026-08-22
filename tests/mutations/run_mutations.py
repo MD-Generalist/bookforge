@@ -80,6 +80,16 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
                          ㉥**경계 걸침**: 중심점은 백색인데 bbox 오른쪽 절반이 어두운 면
                          위인 라벨 → HARD(K4-ⓒ — 중심점 1표본이 놓치던 형태).
                          M15와 반대로 이 축은 **HARD여야** 정상이다 — WARN으로 미끄러지면 회귀다.
+  M17 목차 레이아웃 계약 — 스타일 팩을 임시 사본에 복제해 toc_layout 축(G16-SYNC)의 세 축을
+                         갈라 주입한다. ㉠`toc_layout`을 **다른 팩이 구현한 레이아웃** 이름으로
+                         교체 → allowed_styles 축 FAIL, ㉡theme.css/theme.typ의 점선 리더를
+                         **선언과 반대 방향으로** 뒤집되(없음 선언엔 `dotted`/`repeat[.]` 주입,
+                         있음 선언(practical)에선 제거) 선언은 그대로 → 리더 축 FAIL,
+                         ㉢목차 급수 리터럴을 상한 +6pt로 올림 → 급수 축 FAIL(상한이 None인
+                         스타일은 성립하지 않아 skip), ㉣`toc_layout`을 **카탈로그에 없는
+                         이름**으로 교체 → 카탈로그 축 FAIL(㉠과 다른 축이다 — ㉠은 실존
+                         레이아웃의 남용, ㉣은 미등재 어휘). 넷을 한 사본에 몰지 않는 이유는
+                         "하나가 잡으면 나머지가 죽어 있어도 초록"을 회귀 자산이 은폐하기 때문.
   M0  무변조 대조군     — 원본은 G14 전 축 + G1-SCALE + G3-COLLIDE/FIT + G16(SYNC/CONTRAST/
                          BRAND 전 축, 원본 스타일 팩) PASS (오탐 없음 확인)
 
@@ -93,6 +103,7 @@ Usage: python3 tests/mutations/run_mutations.py <book_dir>
 import colorsys
 import importlib.util
 import json
+import re
 import shutil
 import sys
 import tempfile
@@ -233,6 +244,81 @@ def mutate_palette_roles(style_dir, tokens):
     (Path(style_dir) / "tokens.json").write_text(
         json.dumps(dict(tokens, diagram=new_dg), ensure_ascii=False, indent=2), encoding="utf-8")
     return roles[0], victim[0]
+
+
+def mutate_toc_layout_name(style_dir, tokens, style):
+    """tokens.json의 `toc_layout`을 **다른 팩이 구현한 레이아웃** 이름으로 바꿔 되쓴다.
+
+    G16-SYNC toc_layout 축 ②(allowed_styles). 레이아웃은 theme 실물에 사는 물건이라
+    이름만 빌려 오면 선언과 지면이 갈라지는데, 선언 자체가 없던 동안에는 그 괴리가
+    어느 게이트에도 보이지 않았다(S1 toc_overflow와 같은 무선언 구멍)."""
+    was = tokens.get("toc_layout")
+    other = next(n for n, sp in g16.TOC_LAYOUTS.items() if style not in sp["styles"])
+    (Path(style_dir) / "tokens.json").write_text(
+        json.dumps(dict(tokens, toc_layout=other), ensure_ascii=False, indent=2), encoding="utf-8")
+    return was, other
+
+
+def mutate_toc_leader(style_dir, style, tokens):
+    """theme 실물의 **점선 리더를 선언과 반대로 뒤집는다** → 축 ④ 불일치.
+
+    방향은 선언이 정한다 — 리더 없음으로 선언한 팩에는 심고, 리더 있음으로 선언한 팩
+    (practical)에서는 없앤다. 한 방향(주입)만 쓰면 리더를 **가진** 팩에서는 주입 후에도
+    실물이 여전히 "있음"이라 불일치가 만들어지지 않아, 그 팩에 대해서는 축이 죽어 있어도
+    회귀 자산이 초록으로 통과한다(실제로 practical에서 그렇게 나왔다).
+    리더 유무는 각 팩 STYLE.md가 명시로 금지/허용한 목차 문법의 식별 자질이므로,
+    실물만 바뀌면 그 규범이 선언 없이 뒤집힌다.
+    반환은 (파일명, 변조 설명) — 변조가 실제로 일어났는지 로그로 남긴다."""
+    sd = Path(style_dir)
+    declared = g16.TOC_LAYOUTS[tokens["toc_layout"]]["leader"]
+    if tokens.get("engine") == "html":
+        css = sd / "theme.css"
+        t = css.read_text(encoding="utf-8")
+        if not declared:
+            assert ".toc-leader {" in t, f"{style}: .toc-leader 규칙이 없어 M17-㉡ 주입 불가"
+            t = t.replace(".toc-leader {", ".toc-leader { border-bottom: 0.4pt dotted #999;", 1)
+            note = "+ border-bottom: 0.4pt dotted"
+        else:
+            n = t.count("dotted")
+            assert n, f"{style}: 제거할 dotted 리터럴이 없다"
+            t = t.replace("dotted", "solid")
+            note = f"dotted → solid ×{n}"
+        css.write_text(t, encoding="utf-8")
+        return "theme.css", note
+    typ = sd / "theme.typ"
+    t = typ.read_text(encoding="utf-8")
+    if not declared:
+        anchor = "if toc {"
+        assert anchor in t, f"{style}: `if toc {{` 블록이 없어 M17-㉡ 주입 불가"
+        t = t.replace(anchor, anchor + "\n    let bf-mut-leader = box(width: 1fr, repeat[.])", 1)
+        note = "+ repeat[.]"
+    else:
+        n = len(re.findall(r"(?<![\w-])repeat\s*[(\[]", t))
+        assert n, f"{style}: 제거할 repeat( 리터럴이 없다"
+        t = re.sub(r"(?<![\w-])repeat(\s*[(\[])", r"stack\1", t)
+        note = f"repeat( → stack( ×{n}"
+    typ.write_text(t, encoding="utf-8")
+    return "theme.typ", note
+
+
+def mutate_toc_size(style_dir, style, tokens):
+    """목차 급수 리터럴을 상한 위로 올린다 → 축 ⑤. 상한 None(변수 주입) 스타일은 skip."""
+    sd = Path(style_dir)
+    cap = g16.TOC_LAYOUTS[tokens["toc_layout"]]["size_cap_pt"]
+    if cap is None:
+        return None
+    over = cap + 6.0
+    if tokens.get("engine") == "html":
+        css = sd / "theme.css"
+        t = css.read_text(encoding="utf-8")
+        t = t.replace(".toc-title {", ".toc-title { font-size: %.1fpt;" % over, 1)
+        css.write_text(t, encoding="utf-8")
+        return over
+    typ = sd / "theme.typ"
+    t = typ.read_text(encoding="utf-8")
+    t = t.replace("if toc {", "if toc {\n    let bf-mut-size = text(size: %.1fpt, \"\")" % over, 1)
+    typ.write_text(t, encoding="utf-8")
+    return over
 
 
 def violating_brand(tokens, theme_text):
@@ -803,6 +889,60 @@ def main():
         f12 = g16.fails_of(g16.run(style, tok12b, css12b, style_dir=style12)["G16-SYNC"])
         results["M12-palette-roles"] = bool(f12)
         print(f"      (M12 palette_roles[0] {was!r} → {now!r} → G16-SYNC FAIL {len(f12)}건)")
+
+        # M17 — G16-SYNC toc_layout 축(목차 문법 계약). M10·M12와 같은 임시 사본 원칙.
+        #   ㉠ 허용 밖 스타일 배정(축 ②)  ㉡ 리더 점선 주입(축 ④)  ㉢ 급수 상한 초과(축 ⑤)
+        #   ㉣ 카탈로그 밖 이름 주입(축 ①)
+        # 넷을 갈라 주입하는 이유: 한 사본에 몰아 넣으면 어느 축이 잡았는지 구별되지 않아
+        # "하나가 잡으면 나머지가 죽어 있어도 초록"인 상태를 회귀 자산이 은폐한다.
+        ok17 = {}
+        s17a = Path(td) / "style17a"
+        shutil.copytree(SKILL / "styles" / style, s17a)
+        t17a, c17a = g16.style_inputs(style, style_dir=s17a)
+        was17, now17 = mutate_toc_layout_name(s17a, t17a, style)
+        t17ab, c17ab = g16.style_inputs(style, style_dir=s17a)
+        f17a = g16.fails_of(g16.run(style, t17ab, c17ab, style_dir=s17a)["G16-SYNC"])
+        ok17["a"] = any("toc_layout" in x["msg"] for x in f17a)
+        print(f"      (M17-㉠ toc_layout {was17!r} → {now17!r} → G16-SYNC FAIL {len(f17a)}건)")
+
+        s17b = Path(td) / "style17b"
+        shutil.copytree(SKILL / "styles" / style, s17b)
+        t17b, _ = g16.style_inputs(style, style_dir=s17b)
+        file17, inj17 = mutate_toc_leader(s17b, style, t17b)
+        t17bb, c17bb = g16.style_inputs(style, style_dir=s17b)
+        f17b = g16.fails_of(g16.run(style, t17bb, c17bb, style_dir=s17b)["G16-SYNC"])
+        ok17["b"] = any("점선 리더" in x["msg"] for x in f17b)
+        print(f"      (M17-㉡ {file17}에 `{inj17}` 주입 → G16-SYNC FAIL {len(f17b)}건)")
+
+        s17c = Path(td) / "style17c"
+        shutil.copytree(SKILL / "styles" / style, s17c)
+        t17c, _ = g16.style_inputs(style, style_dir=s17c)
+        over17 = mutate_toc_size(s17c, style, t17c)
+        if over17 is None:
+            ok17["c"] = True
+            print(f"      (M17-㉢ 건너뜀 — {style} 레이아웃의 size_cap_pt가 None(급수 변수 주입))")
+        else:
+            t17cb, c17cb = g16.style_inputs(style, style_dir=s17c)
+            f17c = g16.fails_of(g16.run(style, t17cb, c17cb, style_dir=s17c)["G16-SYNC"])
+            ok17["c"] = any("최대 급수" in x["msg"] for x in f17c)
+            print(f"      (M17-㉢ 목차 급수 {over17}pt 주입 → G16-SYNC FAIL {len(f17c)}건)")
+
+        # ㉣ 카탈로그 밖 이름(축 ①). ㉠과 다른 축이다 — ㉠은 **실존** 레이아웃을 구현 없는
+        # 팩이 빌려 쓰는 남용(축 ②)이고, ㉣은 카탈로그가 모르는 어휘라 축 ②~⑤가 아예
+        # 시작되지 못하는 경로다. 축 ①이 죽으면 오타 하나로 전 축이 조용히 꺼진다.
+        s17d = Path(td) / "style17d"
+        shutil.copytree(SKILL / "styles" / style, s17d)
+        t17d, _ = g16.style_inputs(style, style_dir=s17d)
+        bogus = "mut-nonexistent-layout"
+        assert bogus not in g16.TOC_LAYOUTS
+        (s17d / "tokens.json").write_text(
+            json.dumps(dict(t17d, toc_layout=bogus), ensure_ascii=False, indent=2),
+            encoding="utf-8")
+        t17db, c17db = g16.style_inputs(style, style_dir=s17d)
+        f17d = g16.fails_of(g16.run(style, t17db, c17db, style_dir=s17d)["G16-SYNC"])
+        ok17["d"] = any("카탈로그 밖" in x["msg"] for x in f17d)
+        print(f"      (M17-㉣ toc_layout {bogus!r} 주입 → G16-SYNC FAIL {len(f17d)}건)")
+        results["M17-toc-layout"] = all(ok17.values())
 
         # M13 — G16-BRAND. brand는 book.json 위치(=FAIL 강도)로 주입한다.
         bad_brand = violating_brand(tokens, g16.style_inputs(style)[1])
