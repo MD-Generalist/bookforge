@@ -247,3 +247,17 @@ b, strong { font-weight: 500; }
 .tablewrap .tbl-caption .no { color: var(--blue-600); }
 .tablewrap .tbl-source { text-align: left; font-size: 6.8pt; color: var(--ink-mute); margin-top: 2mm; }
 .tablewrap table { margin: 0; }
+
+/* ---- 그림·표 차례 (toc_lists 옵트인 별면 — 발행은 build_html.py) ----
+   규격: 표제는 Contents 워드마크와 동일(academic「목차 문법」의 "표제 동일 규격"을 이
+   팩의 표제 문법으로), 항목 9.5pt/행송 15pt/라벨 칼럼 16mm는 academic 선언 이식.
+   리더 점선 없음(금지 사항 4) · 쪽번호 칼럼은 목차와 같은 .tocpg 6.5mm 고정(2-pass
+   스탬핑이 제목 가용 폭을 바꾸지 않는다는 같은 계약). 면 자체는 BF:TOCPAGE 복제본
+   (.toc-page.toc-cont.lists-page)이라 사이드바·걸침 아이콘 규범을 그대로 상속한다.
+   값들은 build_html.py LIST_* 상수와 동행한다. 미선언 책은 이 규칙을 밟지 않는다. */
+.lists-word { font-family: var(--disp); font-weight: 800; font-size: 30pt;
+  color: var(--ink); margin-bottom: 14mm; }
+.toc li.lof { margin-top: 3mm; line-height: 15pt; }
+.lof-no { flex: 0 0 16mm; font-weight: 500; font-size: 9.5pt; color: var(--blue-600); }
+.lof-title { font-weight: 300; font-size: 9.5pt; color: var(--ink); }
+.toc li.lof .tocpg { font-size: 9.5pt; font-weight: 500; }

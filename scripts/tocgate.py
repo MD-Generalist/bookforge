@@ -16,6 +16,9 @@
         주변 배경색을 추정해 대비를 계산한다. 하한은 `g16_tokens.contrast_floor`가
         단일 진리원 — WCAG 1.4.3 대형(≥18pt 또는 ≥14pt 볼드) 3:1, 그 외 4.5:1.
         배경 추정이 불안정한 스팬(이미지·그라데이션 위)은 건너뛴다.
+  G14-E 그림·표 차례(toc_lists 옵트인 별면)의 인쇄 쪽번호 ↔ 실제 캡션 면 — A 동형.
+        앞부속에서 차례 행(라벨 `그림 n-m`/`표 n-m.` 시작)을 재추출해 본문 캡션 실면과
+        대조한다. toc_lists 미선언(현행 기본)이면 축 전체가 자명 통과·비용 0이다.
 
 반환: (problems: list[str], warns: list[str], info: dict)
 """
@@ -324,6 +327,11 @@ def g14d_section_numbers(doc, toc_pages, titles, ch_starts):
     groups = []                      # [(chapter_index, [절 행 …])]
     for r in rows:
         nt = _norm(r["text"])
+        if any(rx.match(nt) for rx in _LIST_ROW_RE.values()):
+            # 그림·표 차례 행 — 차례 별면이 find_toc_pages의 앞부속 확장에 함께 회수되면
+            # 마지막 장의 절 행으로 오인돼 "본문에서 못 찾음" WARN 소음이 된다.
+            # 쪽번호 대조는 G14-E 소관이므로 D는 손대지 않는다.
+            continue
         if ci + 1 < len(keys) and keys[ci + 1] and keys[ci + 1] in nt:
             ci += 1
             groups.append((ci, []))
@@ -359,6 +367,111 @@ def g14d_section_numbers(doc, toc_pages, titles, ch_starts):
                     f"목차 p{r['page'] + 1}: 절 '{r['text'][:16]}' 인쇄 {r['printed']} ≠ "
                     f"실제 시작면 {expected} (본문 abs p{hit[0]}, 오프셋 {offset})")
     return problems, warns, pairs
+
+
+# ---- G14-E 그림·표 차례(toc_lists) 쪽번호 ----
+# 차례 행 식별자 — 라벨 발행 문법(build_html: `그림 n-m` / `표 n-m.`)의 정규화형.
+# 본문 목차의 장·절 행은 이 어휘로 시작할 수 없다(제목이 정확히 `그림3-1…`로 시작하는
+# 극단 케이스는 본문 대조에서 캡션 행 불일치 FAIL로 드러난다 — 침묵 통과 아님).
+_LIST_ROW_RE = {"fg": re.compile(r"^그림\d+-\d+"), "tb": re.compile(r"^표\d+-\d+\.")}
+_LIST_KIND_LABEL = {"fg": "그림 차례", "tb": "표 차례"}
+_LIST_PLAN_KEY = {"fg": ("figures", "fig_markers"), "tb": ("tables", "tbl_markers")}
+
+
+def _caption_pages(doc, key, lo, hi, cache):
+    """[lo, hi) (1-base)에서 key가 **캡션 행 전체**로 실재하는 면 목록.
+
+    _heading_pages와 달리 접두 허용이 없다 — 차례 행 텍스트(라벨+캡션)와 지면 캡션
+    (figcaption/.tbl-caption 라인)은 같은 발행 경로의 같은 문자열이라 정규화 후 완전
+    일치해야 한다. 본문 문장 안의 '그림 1-1에서 보듯' 류 언급은 행 전체가 일치하지
+    않으므로 배제된다(접힌 캡션은 라인 4개까지 이어붙여 흡수)."""
+    hit = []
+    for p in range(max(1, lo), min(hi, doc.page_count + 1)):
+        ls = _page_lines(doc, p - 1, cache)
+        found = False
+        for i in range(len(ls)):
+            acc = ""
+            for j in range(i, min(i + 4, len(ls))):
+                acc += ls[j]
+                if acc == key:
+                    found = True
+                    break
+                if len(acc) >= len(key):
+                    break
+            if found:
+                break
+        if found:
+            hit.append(p)
+    return hit
+
+
+def g14e_list_numbers(doc, ch_starts, declared_lists, plan):
+    """G14-E 그림·표 차례 별면의 인쇄 쪽번호 ↔ 실제 캡션 면 (G14-A 동형).
+
+    빌더의 스탬핑을 믿지 않는다 — 앞부속 면에서 차례 행을 재추출해 인쇄 쪽번호를 읽고,
+    본문에서 같은 캡션 행이 처음 실재하는 면의 폴리오와 대조한다. 행 **수**는 tocplan의
+    발행 대장(fig_markers/tbl_markers)과 대조한다(G4 ㉠과 같은 성격의 수 축 — 차례 행이
+    조용히 누락된 면 손상을 잡는다. 값 축은 위의 PDF 전용 대조가 담당).
+
+    스위치는 선언(tokens 또는 book 덮어쓰기)과 tocplan 기록의 **일치를 먼저 검사**한 뒤
+    기록을 따른다 — 선언만 보면 스테일 산출물에서 축이 허수로 돌고, 기록만 보면 선언을
+    지우고 옛 PDF를 재게이트하는 경로가 침묵한다. 양쪽 다 빈 책(현행 전 스타일 기본)은
+    자명 통과·비용 0. 반환: (problems, warns, pairs, checked)"""
+    problems, warns, pairs = [], [], []
+    plan_lists = sorted((plan or {}).get("toc_lists") or [])
+    decl = sorted(declared_lists or [])
+    if decl != plan_lists:
+        problems.append(
+            f"toc_lists 선언 {decl} ≠ tocplan 기록 {plan_lists} — 빌더가 본 선언과 게이트가 "
+            "보는 선언이 다르다(스테일 산출물 또는 선언 변경 후 미재빌드)")
+        return problems, warns, pairs, 0
+    if not plan_lists or not ch_starts:
+        return problems, warns, pairs, 0
+    first_ch = ch_starts[0]
+    offset = first_ch - 1
+    rows = {"fg": [], "tb": []}
+    for p in range(1, first_ch - 1):          # 0-base 앞부속(표지 다음 ~ 첫 장 직전)
+        for r in _printed_toc_rows(doc, [p]):
+            t = _norm(r["text"])
+            for kind, rx in _LIST_ROW_RE.items():
+                if rx.match(t):
+                    rows[kind].append(r)
+                    break
+    cache = {}
+    for kind in ("fg", "tb"):
+        token, plan_key = _LIST_PLAN_KEY[kind]
+        if token not in plan_lists:
+            continue
+        got = rows[kind]
+        want = plan.get(plan_key)
+        if isinstance(want, int) and len(got) != want:
+            problems.append(
+                f"{_LIST_KIND_LABEL[kind]} 행 {len(got)}개 ≠ 발행 마커 {want}개 — "
+                "차례 면 누락·행 손상 의심")
+        seen = {}
+        for r in got:
+            seen[_norm(r["text"])] = seen.get(_norm(r["text"]), 0) + 1
+        for r in got:
+            key = _norm(r["text"])
+            if not key:
+                continue
+            if seen[key] > 1:
+                warns.append(f"G14-E: '{r['text'][:16]}'가 {_LIST_KIND_LABEL[kind]}에 "
+                             f"{seen[key]}회 — 첫 출현 앵커링 불성립, 판정 제외")
+                continue
+            hit = _caption_pages(doc, key, first_ch, doc.page_count + 1, cache)
+            if not hit:
+                problems.append(f"{_LIST_KIND_LABEL[kind]}의 '{r['text'][:20]}'를 본문에서 "
+                                f"캡션 행으로 찾지 못함(p{first_ch}~)")
+                continue
+            expected = hit[0] - offset
+            pairs.append({"entry": r["text"], "printed": r["printed"], "expected": expected})
+            if r["printed"] != expected:
+                problems.append(
+                    f"{_LIST_KIND_LABEL[kind]} p{r['page'] + 1}: '{r['text'][:16]}' 인쇄 "
+                    f"{r['printed']} ≠ 실제 캡션 면 {expected} "
+                    f"(본문 abs p{hit[0]}, 오프셋 {offset})")
+    return problems, warns, pairs, len(pairs)
 
 
 def _accent_colors_text(page):
@@ -480,7 +593,7 @@ def g14c_contrast(doc, zoom=2.0):
     return problems, {"skipped_unstable": skipped_unstable, "skipped_dedup": skipped_dedup}
 
 
-def run(doc, outline, ch_starts, book, tokens, toc_levels=None):
+def run(doc, outline, ch_starts, book, tokens, toc_levels=None, tocplan=None):
     titles = [ch["title"].strip() for ch in outline["chapters"]]
     # 목차 면은 한 번만 회수해 전 축이 같은 집합을 본다(축마다 재탐색하면 축별로 다른
     # 면을 보는 사고가 조용히 생긴다).
@@ -501,6 +614,13 @@ def run(doc, outline, ch_starts, book, tokens, toc_levels=None):
     if ch_starts and not toc_pages and not a_problems:
         a_problems = ["인쇄 목차 면을 찾지 못했는데 G14-A가 아무 문제도 내지 않았다"
                       " — B·D 축이 침묵으로 통과하는 상태(게이트 결함)"]
+    # E — 그림·표 차례. 선언(tokens 또는 book 덮어쓰기 — 빌더와 같은 해석 순서)이나
+    # tocplan 기록 어느 쪽이든 켜져 있으면 돈다(불일치는 축 안에서 FAIL).
+    declared_lists = book.get("toc_lists", tokens.get("toc_lists")) or []
+    e_problems, e_warns, e_pairs, e_checked = [], [], [], 0
+    if declared_lists or (tocplan or {}).get("toc_lists"):
+        e_problems, e_warns, e_pairs, e_checked = g14e_list_numbers(
+            doc, ch_starts, declared_lists, tocplan)
     return {
         "A": {"problems": a_problems, "pairs": pairs, "ok": not a_problems,
               "toc_pages": [p + 1 for p in toc_pages]},
@@ -509,4 +629,6 @@ def run(doc, outline, ch_starts, book, tokens, toc_levels=None):
               "dedup_skipped": c_info["skipped_dedup"], "ok": not c_problems},
         "D": {"problems": d_problems, "pairs": d_pairs, "warns": warns,
               "checked": len(d_pairs), "ok": not d_problems},
+        "E": {"problems": e_problems, "pairs": e_pairs, "warns": e_warns,
+              "checked": e_checked, "ok": not e_problems},
     }

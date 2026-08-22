@@ -8,9 +8,11 @@ Theme contract (styles/<style>/):
                 목차 섹션을 <!--BF:TOCPAGE-->로 감싸고 $toc/$toc_mod을 쓴다 —
                 빌더가 substitute 전에 N회 복제해 $toc_i/$toc_mod_i로 만든다.
 Page markers: each chapter opener embeds an invisible @@chNN@@ marker (sections
-@@chNNsMM@@; captioned figures/tables @@fgNNN@@/@@tbNNN@@ when tokens.toc_lists
-opts in); pass 1 extracts real page numbers with PyMuPDF into per-kind dicts,
-injects them into .tocpg spans, pass 2 prints the final PDF.
+@@chNNsMM@@; captioned figures/tables @@fgNNN@@/@@tbNNN@@ when toc_lists opts
+in); pass 1 extracts real page numbers with PyMuPDF into per-kind dicts,
+injects them into .tocpg spans, pass 2 prints the final PDF. toc_lists opt-in
+also publishes 그림 차례/표 차례 front-matter pages (extra BF:TOCPAGE copies,
+after the TOC — book-anatomy ⑨) whose page numbers ride the same 2-pass stamp.
 """
 import json, os, re, subprocess, sys
 from html import escape as _esc
@@ -46,7 +48,7 @@ MARKER_KINDS = ("ch", "fg", "tb")
 _MK_CORE = r"(?:ch\d+(?:s\d+)?|fg\d+|tb\d+)"
 MK_SCAN_RE = re.compile(rf"@@({_MK_CORE})@@")
 MK_STRIP_RE = re.compile(rf'<span class="pgmark">@@{_MK_CORE}@@</span>')
-# toc_lists 허용 어휘 → 마커 종. 차례 발행 자체(별면 조판)는 S5 소관 — 이 단계는 배관만.
+# toc_lists 허용 어휘 → 마커 종. 마커(위)와 차례 별면(아래 LIST_*)이 같은 선언을 본다.
 TOC_LIST_KINDS = {"figures": "fg", "tables": "tb"}
 
 
@@ -634,6 +636,102 @@ def check_single_page_toc(style, rows, cap_spec):
         f"이하로 줄인다(절을 장으로 승격하지 말 것) ②style을 insight로 바꾼다(다면 목차 "
         "지원). 폰트·행간 축소로 밀어 넣는 대응은 금지한다.")
 
+# ── 그림·표 차례 별면 (toc_lists 옵트인 — 다면 목차 스타일 전용) ────────────────
+# 규격 근거: 별면 위치(차례 뒤 = book-anatomy 앞부속 ⑨)·표제 동일 규격·항목 9.5pt/
+# 행송 15pt/라벨 칼럼 16mm는 academic/STYLE.md「목차 문법」의 그림·표 차례 선언을
+# insight 목차 문법(리더 점선 금지, 쪽번호 칼럼 6.5mm 고정)으로 옮긴 값이다. 기본 off —
+# book-anatomy가 소책자에서 그림·표 목록 생략을 권장하므로 선언 없이는 아무것도 변하지
+# 않는다(발행 0 = 기존 산출물 불변).
+# 면은 BF:TOCPAGE 복제본으로 발행한다 — 목차와 같은 지면 가구(사이드바·걸침 아이콘)를
+# theme.html에 남겨야 겹침·프레임 게이트가 이 면도 검사한다(장식을 빌더가 새로 만들면
+# 게이트가 사고 지점을 통째로 면제한다). 그래서 toc_lists는 다면 목차(BF:TOCPAGE 보유)
+# 스타일 전용이고 단면 스타일의 선언은 die다 — 조용한 발행 0은 "차례가 꺼진 것과 선언
+# 오타가 구별되지 않는" 바로 그 상태다.
+LIST_WORD = {"fg": "그림 차례", "tb": "표 차례"}
+LIST_LABEL_FONT = ("Pretendard-Medium", 9.5)   # .lof-no — theme.css 규칙과 동행
+LIST_TITLE_FONT = ("Pretendard-Light", 9.5)    # .lof-title — 접힘(행 수) 추정용
+LIST_LABEL_MM = 16.0                            # 라벨 칼럼(academic 선언 16mm 고정)
+LIST_AVAIL_MM = 105.0 - LIST_LABEL_MM - 6.5     # .toc-body 105 − 라벨 − 쪽번호 칼럼 6.5
+LIST_LINE_MM = 15 * (25.4 / 72)                 # 항목 행송 15pt
+LIST_GAP_MM = 3.0                               # li.lof margin-top (theme.css와 동행)
+# 면 배치 계획값 — toc 높이 모델(±0.14mm 실측 적합)과 달리 **보수 계획값**이다: 여기서는
+# 어느 면에 몇 항목을 싣나만 정하고, 실제 바닥은 pass1 실측이 물리 한계와 대조해 die로
+# 지킨다(모델은 계획자, pass1.pdf가 검증자 — 목차와 같은 원칙). 보수 방향 = top은 실제보다
+# 낮게(늦게) 잡아 용량을 과소평가한다. 미학 한계 233 대비 물리 252의 19mm 헤드룸이
+# 계획값 오차(±1mm대)를 흡수하고, 넘어서면 실측 die가 세운다.
+LIST_TOP_MM = 62.5        # 표제면 첫 행 글리프 top(표제 30pt + 붕괴마진 14mm — toc 1면 61.43과 동일 구조 + 15pt 행박스 하프리딩)
+LIST_TOP_CONT_MM = 46.0   # 연속면(표제 없음, margin-top 3mm) 보수값
+LIST_TAIL_MM = 2.0        # 마지막 행 디센더 여유(행박스 누적이 이미 디센더를 덮는 위의 순여유)
+
+
+def _list_row_lines(text_html, prof=None):
+    """차례 항목 한 건의 렌더 행 수 — keep-all 어절 그리디(_wrap_lines와 같은 원리),
+    서체·급수·가용 폭만 차례 규격(.lof-title Light 9.5pt / 82.5mm)."""
+    from html import unescape as _unesc
+    font = _font(LIST_TITLE_FONT[0])
+    size = LIST_TITLE_FONT[1]
+    limit = LIST_AVAIL_MM * _prof(prof)["fold_safety"]
+    words = _unesc(text_html).split()
+    if not words:
+        return 1
+    lines, cur = 1, ""
+    for w in words:
+        trial = (cur + " " + w) if cur else w
+        if _string_width_mm(font, trial, size) <= limit or not cur:
+            cur = trial
+        else:
+            lines += 1
+            cur = w
+    return lines
+
+
+def plan_list_kind_pages(entries, prof=None):
+    """한 종(그림/표)의 차례 항목을 면 단위로 나눈다 → [(rows, predicted_bottom_mm)].
+
+    순차 채움인 이유(목차 plan_toc_pages의 DP와 다른 선택): 차례 항목에는 고아 제약
+    (장-첫 절 결속 같은)이 없고 어느 STYLE.md도 차례 면 균형을 규범으로 선언하지 않는다 —
+    제약 없는 순차 채움은 면 수 최소를 자명하게 만족하고 결정론이라 재계획 축도 필요 없다."""
+    P = _prof(prof)
+    limit = P["limit_aesthetic_mm"]
+    pages, cur, bottom = [], [], 0.0
+    for e in entries:
+        h = _list_row_lines(e["text"], P) * LIST_LINE_MM
+        if not cur:
+            cur = [e]
+            bottom = (LIST_TOP_MM if not pages else LIST_TOP_CONT_MM) + h
+            continue
+        nb = bottom + LIST_GAP_MM + h
+        if nb + LIST_TAIL_MM > limit:
+            pages.append((cur, round(bottom + LIST_TAIL_MM, 2)))
+            cur = [e]
+            bottom = LIST_TOP_CONT_MM + h
+        else:
+            cur.append(e)
+            bottom = nb
+    if cur:
+        pages.append((cur, round(bottom + LIST_TAIL_MM, 2)))
+    return pages
+
+
+def list_page_sections(kind, entries, prof=None):
+    """한 종의 차례 면 콘텐츠 블록들 → ([html, …], [predicted_bottom_mm, …]).
+
+    표제(.lists-word)는 첫 면에만 — Contents 워드마크와 동일 규격이고, 연속면 생략은
+    다면 목차 2면 이후의 정체성 규범과 같은 원리다. 항목은 목차와 같은 .tocpg[data-mk]
+    자리표를 쓰므로 2-pass 쪽번호 스탬핑·칼럼 폭 고정 계약이 그대로 적용된다."""
+    out, bottoms = [], []
+    for pi, (rows, bottom) in enumerate(plan_list_kind_pages(entries, prof)):
+        head = f'<div class="lists-word">{LIST_WORD[kind]}</div>' if pi == 0 else ""
+        lis = "\n".join(
+            f'<li class="lof"><span class="lof-no">{e["label"]}</span>'
+            f'<span class="lof-title">{e["text"]}</span>'
+            f'<span class="toc-leader"></span>'
+            f'<span class="tocpg" data-mk="{e["mk"]}">00</span></li>' for e in rows)
+        out.append(head + '<ol class="toc lists">' + lis + "</ol>")
+        bottoms.append(bottom)
+    return out, bottoms
+
+
 H2_RE = re.compile(r"<h2>(?P<inner>.*?)</h2>", re.S)
 TAG_RE = re.compile(r"<[^>]+>")
 
@@ -648,7 +746,9 @@ def md_to_html(md: str, book_dir: Path | None = None, ch_idx: int | None = None,
     넣는다.
 
     fg_counter([n], 호출자 보유)를 주면 라벨(`그림 n-m`)이 붙는 그림에만 쪽번호 마커
-    `@@fgNNN@@`을 figure 첫 자식으로 주입하고 마커명을 순서대로 `fg_marks_out`에 넣는다.
+    `@@fgNNN@@`을 figure 첫 자식으로 주입하고 (마커명, 라벨, 캡션 텍스트)를 순서대로
+    `fg_marks_out`에 넣는다 — 라벨·캡션은 그림 차례 별면 발행의 재료이며, 지면 캡션과
+    같은 문자열이 한 경로에서 나와야 차례↔캡션 대조 축(G14-E)이 성립한다.
     카운터가 장 경계를 넘어 이어지는 **전역 카운터**인 이유: 마커명은 회수 딕트의 키라
     문서 전역에서 유일해야 한다 — 장별 리셋(fg{장}-{n})은 라벨 문법(`그림 n-m`)과 어휘가
     겹쳐 보이지만 회수·재스탬핑 어디에도 장 번호가 필요 없고 자릿수만 늘린다. 절 목록과 절 마커가 한 경로에서 나오게 하는 것이 요점이다 —
@@ -721,12 +821,12 @@ def md_to_html(md: str, book_dir: Path | None = None, ch_idx: int | None = None,
         fmark = ""
         if cap and ch_idx is not None:
             fig_no[0] += 1
-            cap = f'<span class="fig-label">그림 {ch_idx}-{fig_no[0]}</span> {cap}'
+            lab = f"그림 {ch_idx}-{fig_no[0]}"
             if fg_counter is not None:
                 fg_counter[0] += 1
                 fmk = f"fg{fg_counter[0]:03d}"
                 if fg_marks_out is not None:
-                    fg_marks_out.append(fmk)
+                    fg_marks_out.append((fmk, lab, cap))
                 # 앵커는 figure 자신 — 마커를 품는 figure에만 mk-anchor 클래스를 발행하고
                 # theme.css `.mk-anchor{position:relative}`가 회수 면 = 그림 실면을 만든다.
                 # 앵커가 없으면 .pgmark{position:absolute}가 문서 원점(1면)에 붙는데,
@@ -734,6 +834,7 @@ def md_to_html(md: str, book_dir: Path | None = None, ch_idx: int | None = None,
                 # (figure 전역 position:relative는 금지 — 페인트 순서가 밀려 마커 없는
                 # 기존 책의 PDF 텍스트 스트림까지 바뀐다. theme.css 주석 참조)
                 fmark = f'<span class="pgmark">@@{fmk}@@</span>'
+            cap = f'<span class="fig-label">{lab}</span> {cap}'
         c = f"<figcaption>{cap}</figcaption>" if cap else ""
         # SVG 도해는 <img src> 대신 원문 인라인 — SVG-as-image 모드는 외부 @font-face를
         # 차단해 도해 <text>가 폴백 폰트로 렌더되므로.
@@ -813,12 +914,16 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     # (@@chNNsMM@@)도 발행하지 않는다 — 마커가 pages 딕트에 섞이면 decorate.py의
     # openers가 절 시작면을 장 오프너로 오인한다(magazine 폴리오 7면 누락의 원인).
     toc_levels = tokens.get("toc_levels", 2)
-    # toc_lists: 그림·표 차례 옵트인(별면 조판은 S5 소관 — 여기서는 fg/tb 마커 배관만).
-    # 선언이 없으면 발행 0 — 기존 스타일 산출물은 바이트 수준 불변이어야 한다.
-    toc_lists = tokens.get("toc_lists") or []
+    # toc_lists: 그림·표 차례 옵트인(fg/tb 마커 발행 + 별면 조판). 선언이 없으면 발행 0 —
+    # 기존 스타일 산출물은 바이트 수준 불변이어야 한다. 켜는 곳은 스타일 팩(tokens.json)
+    # 또는 책 단위 book.json 덮어쓰기 — brand/toc_layout이 쓰는 것과 같은 자리다. 별면은
+    # 앞부속 선택 요소(book-anatomy ⑨, 소책자 생략 권장)라 책이 스타일 기본을 덮을 수
+    # 있어야 하고, 프로브·검증도 저장소 팩 변조 없이 이 경로로 옵트인한다.
+    toc_lists = book.get("toc_lists", tokens.get("toc_lists")) or []
     if not isinstance(toc_lists, list) or any(v not in TOC_LIST_KINDS for v in toc_lists):
-        die(f"styles/{style_dir.name}/tokens.json toc_lists가 올바르지 않다(현재: "
-            f"{toc_lists!r}) — {sorted(TOC_LIST_KINDS)}의 부분집합 리스트여야 한다. "
+        die(f"toc_lists가 올바르지 않다(현재: {toc_lists!r}) — {sorted(TOC_LIST_KINDS)}의 "
+            f"부분집합 리스트여야 한다(선언 위치: styles/{style_dir.name}/tokens.json 또는 "
+            "book.json의 책 단위 덮어쓰기). "
             "오값을 조용히 무시하면 차례가 꺼진 것과 선언 오타가 구별되지 않는다")
     emit_fg = "figures" in toc_lists
     emit_tb = "tables" in toc_lists
@@ -852,9 +957,12 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     toc_rows, sections, tocmap_items, first_pull = [], [], [], None
     sec_by_ch = {}
     # fg/tb 전역 카운터 + 발행 대장 [(마커명, 소속 장 idx)] — 발행 순서 = 지면 순서라
-    # 이 대장이 그대로 포함 단조 사후조건의 기대 집합·순서가 된다.
+    # 이 대장이 그대로 포함 단조 사후조건의 기대 집합·순서가 된다. entries는 차례 별면의
+    # 재료(라벨·캡션 텍스트) — 지면 캡션과 같은 경로에서 나온 같은 문자열이어야
+    # 차례↔캡션 대조 축(G14-E)이 성립한다.
     fg_counter, tb_counter = [0], [0]
     fg_marks, tb_marks = [], []
+    fg_entries, tb_entries = [], []
     for idx, ch in enumerate(outline["chapters"], 1):
         mk = f"ch{idx:02d}"
         src = book_dir / "chapters" / ch["file"]
@@ -883,23 +991,26 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
                                sec_titles_out=sec_titles,
                                fg_counter=(fg_counter if emit_fg else None),
                                fg_marks_out=ch_fg)
-        fg_marks.extend((fmk, idx) for fmk in ch_fg)
+        fg_marks.extend((fmk, idx) for fmk, _lab, _txt in ch_fg)
+        fg_entries.extend({"mk": fmk, "label": lab, "text": txt} for fmk, lab, txt in ch_fg)
         sec_by_ch[idx] = sec_titles
         # 표 캡션 계약: 콘텐츠가 "[표] 제목 | 자료: 출처" 문단을 준 표만 라벨을 단다.
         # 자동 필러 라벨 금지 — 캡션 없는 표는 라벨 없이 그대로 렌더된다.
         tno = [0]
         def wrap_tbl(m):
             tno[0] += 1
+            title = m.group(1).strip()
+            source = (m.group(2) or "").strip()
             tmark, tcls = "", "tablewrap"
             if emit_tb:
                 # 앵커는 .tablewrap 자신 — fg 마커와 동일 계약(mk-anchor 조건 발행)
                 tb_counter[0] += 1
                 tmk = f"tb{tb_counter[0]:03d}"
                 tb_marks.append((tmk, idx))
+                # 차례 항목 = 지면 캡션(.tbl-caption)과 같은 라벨·제목 문자열(G14-E 대조 재료)
+                tb_entries.append({"mk": tmk, "label": f"표 {idx}-{tno[0]}.", "text": title})
                 tmark = f'<span class="pgmark">@@{tmk}@@</span>'
                 tcls = "tablewrap mk-anchor"
-            title = m.group(1).strip()
-            source = (m.group(2) or "").strip()
             src_html = f'<div class="tbl-source">자료: {source}</div>' if source else ""
             return (f'<div class="{tcls}">{tmark}<div class="tbl-caption">'
                     f'<span class="no">표 {idx}-{tno[0]}.</span> {title}</div>'
@@ -996,9 +1107,34 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     tocplan = {"style": style_name, "toc_levels": toc_levels,
                "rows": len(toc_rows),
                "section_markers": sum(len(v) for v in sec_by_ch.values())}
+    # 그림·표 차례 별면 계획 — 옵트인 + 다면 목차 스타일 전용(LIST_* 주석의 근거).
+    # 항목이 0인 종은 면을 만들지 않는다(빈 차례 면은 anatomy 위반이고 정보가 0이다).
+    n_list_pages, list_specs, list_bottoms = 0, [], []
     if toc_lists:      # 옵트인 스타일만 — 미선언 스타일의 tocplan은 종전과 동일하게 유지
+        if not multipage:
+            die(f"styles/{style_name}: toc_lists는 다면 목차(toc_overflow=paginate) 스타일 "
+                "전용이다 — 차례 별면은 BF:TOCPAGE 복제 배관으로만 발행되므로 단면 목차 "
+                "스타일의 선언은 조용한 발행 0이 된다. 선언을 지우거나 다면 목차 스타일을 "
+                "쓸 것")
+        lf = _font(LIST_LABEL_FONT[0])
+        for kind, ents in (("fg", fg_entries), ("tb", tb_entries)):
+            for e in ents:
+                # 라벨 칼럼은 16mm 고정 flex-basis — 넘치면 라벨이 제목 위로 흐른다.
+                # 렌더 전에 세운다(현실 한계: 장 99·항목 99까지 여유).
+                w = _string_width_mm(lf, e["label"], LIST_LABEL_FONT[1])
+                if w > LIST_LABEL_MM - 0.5:
+                    die(f"차례 라벨 '{e['label']}' 폭 {w:.1f}mm가 라벨 칼럼 "
+                        f"{LIST_LABEL_MM}mm를 넘는다 — 장·항목 번호 자릿수를 확인할 것")
+            if not ents:
+                continue
+            secs, bots = list_page_sections(kind, ents, prof)
+            list_specs.extend(secs)
+            list_bottoms.extend(bots)
+        n_list_pages = len(list_specs)
         tocplan.update({"toc_lists": toc_lists,
-                        "fig_markers": len(fg_marks), "tbl_markers": len(tb_marks)})
+                        "fig_markers": len(fg_marks), "tbl_markers": len(tb_marks),
+                        "list_pages": n_list_pages,
+                        "list_predicted_bottom_mm": list_bottoms})
     body_pt = tokens.get("body_pt")
     if not body_pt:
         warn(f"styles/{style_name}/tokens.json에 body_pt가 없다 — 렌더 후 실측 검증이 "
@@ -1045,7 +1181,7 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
             if over:
                 die(f"목차 면 예측 바닥 {over}mm > 물리 한계 {prof['limit_physical_mm']}mm — "
                     "분할 로직 결함(높이 모델과 제약을 재확인할 것)")
-            tpl_text = expand_toc_pages(tpl_src, len(spans))
+            tpl_text = expand_toc_pages(tpl_src, len(spans) + n_list_pages)
             toc_pages_html = {}
             for pi, (i, j) in enumerate(spans, 1):
                 toc_pages_html[f"toc_{pi}"] = ('<ol class="toc">'
@@ -1053,6 +1189,12 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
                                                            for r in toc_rows[i:j])
                                                + "</ol>")
                 toc_pages_html[f"toc_mod_{pi}"] = "" if pi == 1 else "toc-cont"
+            # 그림·표 차례 별면 — 목차 뒤 연속 복제본. toc-cont로 Contents 워드마크·커넥터를
+            # 감추고 사이드바·걸침 아이콘(면의 정체성)은 유지한다. 표제는 블록 안
+            # .lists-word가 진다(list_page_sections).
+            for li, sec_html in enumerate(list_specs, len(spans) + 1):
+                toc_pages_html[f"toc_{li}"] = sec_html
+                toc_pages_html[f"toc_mod_{li}"] = "toc-cont lists-page"
             n_toc_pages = len(spans)
             tocplan.update({"toc_pages": n_toc_pages,
                             "page_rows": [j - i for (i, j) in spans],
@@ -1102,13 +1244,17 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
         # pages = ch 종만 — folio_offset·목차 스탬핑·북마크·decorate ctx가 전부 이걸 본다
         pages = pages_by_kind["ch"]
         toc_pnos = list(range(1, 1 + n_toc_pages))          # 0-base: 표지(0) 다음 연속
+        # 차례 별면은 목차 바로 뒤 연속 — 앞부속 = 표지 1 + 목차 n_toc + 차례 n_list
+        n_front = n_toc_pages + n_list_pages
         first_ch_abs = min(pages.values()) if pages else None
-        if first_ch_abs is not None and first_ch_abs != n_toc_pages + 2:
-            die(f"앞부속 구조 가정 위반 — 목차 {n_toc_pages}면이면 첫 장은 abs "
-                f"{n_toc_pages + 2}면이어야 하는데 {first_ch_abs}면이다. 목차 면 실측 "
-                "검증이 어느 면을 재야 하는지 알 수 없다(theme.html의 섹션 순서 확인)")
-        scale = _measure_doc_scale(doc, (first_ch_abs or n_toc_pages + 2) - 1, body_pt)
+        if first_ch_abs is not None and first_ch_abs != n_front + 2:
+            die(f"앞부속 구조 가정 위반 — 목차 {n_toc_pages}면+차례 {n_list_pages}면이면 "
+                f"첫 장은 abs {n_front + 2}면이어야 하는데 {first_ch_abs}면이다. 목차·차례 "
+                "면 실측 검증이 어느 면을 재야 하는지 알 수 없다(theme.html의 섹션 순서 확인)")
+        scale = _measure_doc_scale(doc, (first_ch_abs or n_front + 2) - 1, body_pt)
         meas_bottoms = [round(_measure_page_text_bottom_mm(doc[p]) / scale, 2) for p in toc_pnos]
+        list_pnos = list(range(1 + n_toc_pages, 1 + n_front))   # 0-base 차례 별면
+        list_meas = [round(_measure_page_text_bottom_mm(doc[p]) / scale, 2) for p in list_pnos]
         if multipage:
             lines_now = {}
             for pi, p in enumerate(toc_pnos):
@@ -1151,6 +1297,16 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
             if abs(pm - bm) > TOC_MODEL_TOL_MM:
                 warn(f"목차 {k + 1}면 높이 모델 이탈 — 예측 {pm}mm vs 실측 {bm}mm "
                      f"(허용 {TOC_MODEL_TOL_MM}mm). 상수가 낡았거나 폭 추정이 어긋났다")
+        # 차례 별면 실측 — 계획값(LIST_*)은 보수 배치용이고 여기가 검증자다. 넘침의 결말은
+        # 목차와 같은 전역 축소이므로 물리 한계는 die, 재계획 경로는 없다(항목은 정적이라
+        # 재어도 결과가 같다 — 대응은 캡션 축약뿐이고 그건 원고의 일이다).
+        if n_list_pages:
+            tocplan["list_measured_bottom_mm"] = list_meas
+            over_l = [b for b in list_meas if b > limit_phys]
+            if over_l:
+                die(f"그림·표 차례 실측 바닥 {list_meas}mm > 물리 한계 {limit_phys}mm"
+                    f"(계획 {list_bottoms}mm) — 면이 넘치면 Chromium이 문서 전체를 "
+                    "축소한다. 캡션을 줄이거나 LIST_* 계획값을 재실측할 것")
         if worst > limit_aes:
             warn(f"목차 실측 바닥 {worst}mm > 미학 한계 {limit_aes}mm — "
                  f"여백 리듬 규범 위반이 {worst - limit_aes:.1f}mm 남는다"
@@ -1242,15 +1398,20 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     # 오프셋 = 첫 장 시작 절대페이지 - 1. 지면 폴리오는 decorate.py가 같은 오프셋으로 찍는다.
     folio_offset = min(pages.values()) - 1 if pages else 0
     # .tocpg 폭은 3자리 기준으로 고정돼 있다(theme.css) — 4자리가 나오면 칼럼을 넘겨
-    # 제목 폭을 줄이고 접힘을 유발한다. 조용히 어긋나게 두지 않는다.
-    max_folio = max((p - folio_offset for p in pages.values()), default=0)
+    # 제목 폭을 줄이고 접힘을 유발한다. 조용히 어긋나게 두지 않는다. 차례(fg/tb) 항목도
+    # 같은 칼럼 계약이므로 전 종을 함께 본다.
+    max_folio = max((p - folio_offset for kd in pages_by_kind.values() for p in kd.values()),
+                    default=0)
     if max_folio >= 1000:
         die(f"목차 쪽번호 최대 {max_folio}(4자리) — .tocpg 칼럼 폭은 3자리(6.5mm) 계약이다. "
             "theme.css의 .tocpg flex-basis와 이 검사를 함께 올릴 것")
     html2 = html
-    for mk, abs_page in pages.items():
-        html2 = html2.replace(f'<span class="tocpg" data-mk="{mk}">00</span>',
-                              f'<span class="tocpg" data-mk="{mk}">{abs_page - folio_offset}</span>')
+    # 차례(fg/tb) 항목도 같은 .tocpg[data-mk] 자리표라 한 루프가 전 종을 스탬핑한다 —
+    # 종별 딕트는 합치지 않고 순회만 합친다(pages 딕트의 ch 전용 계약 유지).
+    for kd in pages_by_kind.values():
+        for mk, abs_page in kd.items():
+            html2 = html2.replace(f'<span class="tocpg" data-mk="{mk}">00</span>',
+                                  f'<span class="tocpg" data-mk="{mk}">{abs_page - folio_offset}</span>')
     # pass 2에는 마커 불필요 — 잉크·텍스트 레이어 오염 방지를 위해 전 종 제거
     # (.pgmark은 absolute 포지션이라 제거해도 리플로우 없음; 북마크는 pass 1 페이지맵
     # 사용. 제거 어휘는 회수와 같은 MK_* 단일 진리원 — 갈라지면 잔존 마커가 최종 PDF로 샌다)

@@ -98,6 +98,15 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
                          가 문서 원점(1면)에 붙어 **전수 회수 사후조건(종별 집합 일치)은
                          충족되는** 상태를 포함 단조 사후조건이 die로 잡는지 어서션한다.
                          (스타일 팩·스크립트 변조는 임시 사본에만 — M10·M12·M15와 같은 원칙)
+                         단면 목차 스타일(BF:TOCPAGE 부재 — magazine)에서는 S5부터
+                         toc_lists 옵트인 자체가 die 계약이라 본편이 성립하지 않는다 —
+                         대신 그 가드 die를 M-LISTPG-single-toc-guard로 고정한다.
+  M-LISTPG 차례 쪽번호 오염 — 다면 목차 html 스타일 전용. M-ORIGIN 대조군 PDF에서
+                         ㉢G14-E(차례 쪽번호 ↔ 실제 캡션 면) 0건·4쌍 대조를 확인하고,
+                         ㉣차례 항목 하나의 인쇄 쪽번호만 +3으로 오염(회수 딕트 셔플의
+                         지면 등가물)해 G14-E가 발화하는지 어서션한다. 빌더 사후조건은
+                         pass1 회수만 보므로 스탬핑 이후의 오염은 지면 재추출 대조만이
+                         잡는다 — 그 유일 방어선의 감도를 회귀 자산으로 고정한다.
   M0  무변조 대조군     — 원본은 G14 전 축 + G1-SCALE + G3-COLLIDE/FIT + G16(SYNC/CONTRAST/
                          BRAND 전 축, 원본 스타일 팩) PASS (오탐 없음 확인)
 
@@ -126,7 +135,8 @@ except ImportError:
     import fitz
 
 from tocgate import (find_toc_pages, g14a_toc_numbers, g14b_key_color, g14c_contrast,
-                     g14d_section_numbers, _printed_toc_rows)
+                     g14d_section_numbers, g14e_list_numbers, _printed_toc_rows,
+                     _LIST_ROW_RE, _norm as _toc_norm)
 from qc_gate import (g1_scale_check, line_records, g3_collide_page, _column_bands,
                      front_frame_for, collide_exempt_pages, LINT_HARD_CODES,
                      COLLIDE_OX_PT, OVERLAP_APPROVE_MAX_OX_PT, MM2PT, TOL)
@@ -771,6 +781,31 @@ def mutate_section_number(doc, titles, ch_starts):
     return False
 
 
+def mutate_list_number(doc, first_ch):
+    """그림·표 차례 별면의 첫 항목 쪽번호를 지우고 +3 값으로 재스탬핑.
+
+    회수 딕트가 오염된 채(예: 셔플) 스탬핑된 상태의 지면 등가물이다 — 빌더 사후조건
+    (전수 회수·포함 단조)은 pass1 회수를 보므로 이 오염을 원리적으로 못 보고,
+    G14-E(PDF 재추출 대조)만이 잡아야 한다."""
+    for p in range(1, first_ch - 1):
+        for r in _printed_toc_rows(doc, [p]):
+            if not any(rx.match(_toc_norm(r["text"])) for rx in _LIST_ROW_RE.values()):
+                continue
+            page = doc[r["page"]]
+            for b in page.get_text("dict")["blocks"]:
+                for l in b.get("lines", []):
+                    for s in l["spans"]:
+                        if s["text"].strip() == str(r["printed"]):
+                            rect = fitz.Rect(s["bbox"])
+                            page.add_redact_annot(rect, fill=(1, 1, 1))
+                            page.apply_redactions()
+                            page.insert_text(fitz.Point(rect.x0, rect.y1 - 1),
+                                             str(r["printed"] + 3),
+                                             fontsize=s["size"], color=(0, 0, 0))
+                            return r["text"][:16], r["printed"]
+    return None
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
@@ -1001,41 +1036,78 @@ def main():
             (so / "tokens.json").write_text(
                 json.dumps(dict(tko, toc_lists=["figures", "tables"]),
                            ensure_ascii=False, indent=2), encoding="utf-8")
-            # ㉠ 대조군: 앵커 온전 → 빌드 성공 + 발행 2·2 + 최종 PDF에 마커 잔존 0
-            bd_ok = Path(td) / "origin-ok"
-            book_o, outline_o = origin_probe_book(bd_ok)
-            err_ok = run_origin_build(bd_ok, book_o, outline_o, so)
-            plan_o, leak = {}, None
-            if err_ok is None:
-                plan_o = json.loads((bd_ok / "typeset" / "tocplan.json")
-                                    .read_text(encoding="utf-8"))
-                dko = fitz.open(bd_ok / "draft" / "book.pdf")
-                leak = [p + 1 for p in range(dko.page_count) if "@@" in dko[p].get_text()]
-                dko.close()
-            # ㉡ 같은 옵트인 사본에서 mk-anchor 앵커 규칙만 비운다 — .pgmark가 문서
-            # 원점(1면)으로 떨어져 종별 집합 일치(전수 회수)는 그대로 충족되는 상태
-            sm = Path(td) / "style-origin-mut"
-            shutil.copytree(so, sm)
-            css_o = (sm / "theme.css").read_text(encoding="utf-8")
-            anchor_rule = ".mk-anchor { position: relative; }"
-            n_anchor = css_o.count(anchor_rule)
-            assert n_anchor == 1, \
-                f"{style} theme.css에서 mk-anchor 앵커 규칙 미발견({n_anchor}) — M-ORIGIN 주입 불가"
-            css_o = css_o.replace(anchor_rule, ".mk-anchor { }")
-            (sm / "theme.css").write_text(css_o, encoding="utf-8")
-            bd_mut = Path(td) / "origin-mut"
-            book_m, outline_m = origin_probe_book(bd_mut)
-            err_mut = run_origin_build(bd_mut, book_m, outline_m, sm)
-            ok_ctl = (err_ok is None and plan_o.get("fig_markers") == 2
-                      and plan_o.get("tbl_markers") == 2 and leak == [])
-            ok_mut = bool(err_mut) and "앵커 소실" in (err_mut or "")
-            results["M-ORIGIN-marker-anchor"] = ok_ctl and ok_mut
-            print(f"      (M-ORIGIN 대조군: 빌드 {'OK' if err_ok is None else 'FAIL'} · "
-                  f"발행 fg {plan_o.get('fig_markers')}/tb {plan_o.get('tbl_markers')} · "
-                  f"최종 PDF 마커 잔존 {leak} → {ok_ctl} / 앵커 제거본: "
-                  f"die {'발화' if ok_mut else '불발'} — {(err_mut or '(없음)')[:96]})")
+            if "<!--BF:TOCPAGE" not in (so / "theme.html").read_text(encoding="utf-8"):
+                # 단면 목차 스타일 — S5부터 toc_lists 옵트인은 die가 계약이다(차례 별면은
+                # BF:TOCPAGE 복제 배관에만 실리므로 조용한 발행 0은 선언 오타와 구별
+                # 불가). 앵커 감도(M-ORIGIN 본편)는 빌드가 그 앞에서 서므로 이 스타일에선
+                # 성립하지 않는다 — 대신 가드 die 자체를 회귀 자산으로 고정한다.
+                bd_g = Path(td) / "origin-guard"
+                book_g, outline_g = origin_probe_book(bd_g)
+                err_g = run_origin_build(bd_g, book_g, outline_g, so)
+                ok_g = bool(err_g) and "다면 목차" in (err_g or "")
+                results["M-LISTPG-single-toc-guard"] = ok_g
+                print(f"      (M-ORIGIN 본편 건너뜀 — {style}은 단면 목차(BF:TOCPAGE 부재). "
+                      f"M-LISTPG 가드: toc_lists 옵트인 die "
+                      f"{'발화' if ok_g else '불발'} — {(err_g or '(없음)')[:80]})")
+            else:
+                # ㉠ 대조군: 앵커 온전 → 빌드 성공 + 발행 2·2 + 최종 PDF에 마커 잔존 0
+                bd_ok = Path(td) / "origin-ok"
+                book_o, outline_o = origin_probe_book(bd_ok)
+                err_ok = run_origin_build(bd_ok, book_o, outline_o, so)
+                plan_o, leak = {}, None
+                if err_ok is None:
+                    plan_o = json.loads((bd_ok / "typeset" / "tocplan.json")
+                                        .read_text(encoding="utf-8"))
+                    dko = fitz.open(bd_ok / "draft" / "book.pdf")
+                    leak = [p + 1 for p in range(dko.page_count) if "@@" in dko[p].get_text()]
+                    dko.close()
+                # ㉡ 같은 옵트인 사본에서 mk-anchor 앵커 규칙만 비운다 — .pgmark가 문서
+                # 원점(1면)으로 떨어져 종별 집합 일치(전수 회수)는 그대로 충족되는 상태
+                sm = Path(td) / "style-origin-mut"
+                shutil.copytree(so, sm)
+                css_o = (sm / "theme.css").read_text(encoding="utf-8")
+                anchor_rule = ".mk-anchor { position: relative; }"
+                n_anchor = css_o.count(anchor_rule)
+                assert n_anchor == 1, \
+                    f"{style} theme.css에서 mk-anchor 앵커 규칙 미발견({n_anchor}) — M-ORIGIN 주입 불가"
+                css_o = css_o.replace(anchor_rule, ".mk-anchor { }")
+                (sm / "theme.css").write_text(css_o, encoding="utf-8")
+                bd_mut = Path(td) / "origin-mut"
+                book_m, outline_m = origin_probe_book(bd_mut)
+                err_mut = run_origin_build(bd_mut, book_m, outline_m, sm)
+                ok_ctl = (err_ok is None and plan_o.get("fig_markers") == 2
+                          and plan_o.get("tbl_markers") == 2 and leak == [])
+                ok_mut = bool(err_mut) and "앵커 소실" in (err_mut or "")
+                results["M-ORIGIN-marker-anchor"] = ok_ctl and ok_mut
+                print(f"      (M-ORIGIN 대조군: 빌드 {'OK' if err_ok is None else 'FAIL'} · "
+                      f"발행 fg {plan_o.get('fig_markers')}/tb {plan_o.get('tbl_markers')} · "
+                      f"최종 PDF 마커 잔존 {leak} → {ok_ctl} / 앵커 제거본: "
+                      f"die {'발화' if ok_mut else '불발'} — {(err_mut or '(없음)')[:96]})")
+
+                # M-LISTPG — 차례 쪽번호 오염. 대조군 PDF에서 ㉢G14-E 0건(오탐 없음)을
+                # 확인하고, 차례 항목 하나의 인쇄 쪽번호만 +3으로 오염 → ㉣G14-E 발화.
+                # 빌더 사후조건은 pass1 회수를 보므로 이 오염을 원리적으로 못 본다 —
+                # 지면 재추출 대조(G14-E)가 유일한 방어선임을 회귀 자산으로 고정한다.
+                ok_e = False
+                if ok_ctl:
+                    dke = fitz.open(bd_ok / "draft" / "book.pdf")
+                    ch_o = sorted({pg for lv, _t, pg in dke.get_toc() if lv == 1})
+                    e0p, _w0, _pr0, e0n = g14e_list_numbers(
+                        dke, ch_o, ["figures", "tables"], plan_o)
+                    inj = mutate_list_number(dke, ch_o[0]) if ch_o else None
+                    e1p, _w1, _pr1, _n1 = g14e_list_numbers(
+                        dke, ch_o, ["figures", "tables"], plan_o)
+                    dke.close()
+                    ok_e = (not e0p) and e0n == 4 and bool(inj) and bool(e1p)
+                    print(f"      (M-LISTPG 대조군 G14-E {len(e0p)}건/{e0n}쌍 → "
+                          f"'{inj[0] if inj else '?'}' {inj[1] if inj else '?'}→"
+                          f"{inj[1] + 3 if inj else '?'} 주입 → G14-E {len(e1p)}건 발화: "
+                          f"{(e1p[0][:76] if e1p else '(없음)')})")
+                else:
+                    print("      (M-LISTPG 건너뜀 — M-ORIGIN 대조군 실패)")
+                results["M-LISTPG-list-numbers"] = ok_e
         else:
-            print("      (M-ORIGIN 건너뜀 — typst 엔진(pgmark 마커 계약 없음))")
+            print("      (M-ORIGIN·M-LISTPG 건너뜀 — typst 엔진(pgmark 마커 계약 없음))")
 
         # M13 — G16-BRAND. brand는 book.json 위치(=FAIL 강도)로 주입한다.
         bad_brand = violating_brand(tokens, g16.style_inputs(style)[1])

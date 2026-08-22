@@ -704,6 +704,7 @@ def main():
     #  ㉡ **대상 면 대조**: 각 절 북마크가 가리키는 면에 그 절 제목이 실재하는가. 레벨 1엔
     #     이미 있던 대조가 레벨 2엔 없어서, 마커 오배정(D3/V1)이 개수만 맞으면 통과했다.
     plan_p = book_dir / "typeset" / "tocplan.json"
+    plan = None       # G14-E(차례 쪽번호 축)도 소비 — 아래 g14_run에 tocplan으로 전달
     if plan_p.exists():
         plan = json.loads(plan_p.read_text(encoding="utf-8"))
         g4["sections_declared"] = plan.get("section_markers")
@@ -783,16 +784,17 @@ def main():
     # ---- G14 목차·디자인 정합 (tocgate.py) ----
     from tocgate import run as g14_run
     g14_doc = fitz.open(pdf)  # 본 doc은 page_texts 추출 후 닫혔음
-    g14 = g14_run(g14_doc, outline, ch_starts, book, tokens)
+    g14 = g14_run(g14_doc, outline, ch_starts, book, tokens, tocplan=plan)
     g14_doc.close()
     report["gates"]["G14-A"] = g14["A"]
     report["gates"]["G14-B"] = g14["B"]
     report["gates"]["G14-C"] = g14["C"]
     report["gates"]["G14-D"] = g14["D"]
-    for axis in ("A", "B", "C", "D"):
+    report["gates"]["G14-E"] = g14["E"]
+    for axis in ("A", "B", "C", "D", "E"):
         for p in g14[axis]["problems"]:
             fails.append(f"G14-{axis}: {p}")
-    report["warns"] += g14["D"].get("warns", [])
+    report["warns"] += g14["D"].get("warns", []) + g14["E"].get("warns", [])
     colophon_pages = {i + 1 for i, t in enumerate(page_texts)
                       if "bookforge" in t and "조판" in t and i + 1 >= (ch_starts[-1] if ch_starts else 1)}
     fullbleed = {p["page"] for p in pages
