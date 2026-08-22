@@ -937,6 +937,11 @@ TOC_LAYOUTS = {
 TOC_CAPACITY_KEYS = ("top_mm", "pitch_mm", "tail_mm", "bottom_mm",
                      "title_avail_mm", "font", "size_pt")
 
+# html 빌더의 toc_levels 폴백(미선언 = 2레벨). 정본을 여기 두고 build_html이 가져간다 —
+# 축 ③이 "부재 시 빌더가 실제로 쓸 값"을 대조하려면 게이트와 빌더가 같은 수를 봐야
+# 하는데, 빌더에 리터럴 2가 따로 살면 폴백만 바꿔도 축 ③이 낡은 수로 판정한다.
+TOC_LEVELS_DEFAULT = 2
+
 
 def toc_size_cap(spec, style):
     """레이아웃 급수 상한의 단일 해석기 — 스칼라(전 스타일 공통) 또는 스타일별 dict.
@@ -950,36 +955,85 @@ def toc_size_cap(spec, style):
 # `.toc`로 시작하는 클래스만 겨냥한다(.toc / .toc-title / .tocpg / .toc-page …).
 # `.subtoc` 같은 뒤섞임을 막으려 앞에 단어문자·하이픈이 오면 제외한다.
 _TOC_SEL_RE = re.compile(r"(?<![\w-])\.toc[\w-]*")
-_TOC_FONT_SIZE_RE = re.compile(r"(?<![\w-])font-size\s*:\s*([\d.]+)\s*(pt|px|mm)")
-# CSS 점선 리더의 실현 수단 전량. 어느 하나라도 `.toc*` 규칙 안에 있으면 "점선 리더 있음".
-# (border 계열 dotted · 점 배경 그라데이션 · 생성 콘텐츠 점열 · leader() 함수)
+# font-size 선언은 **값 전체**를 잡는다 — pt/px/mm 리터럴만 잡으면 var()·em 경유가
+# 무음 통과한다(적대검증 v-s2 C1: `font-size: var(--x)`에 :root 60pt를 실어도 전 축
+# 초록이었다). 리터럴 해석은 아래 _size_value_pt가, 못 푸는 값은 unresolved로 올린다.
+_TOC_FONT_SIZE_DECL_RE = re.compile(r"(?<![\w-])font-size\s*:\s*([^;}]+)")
+_SIZE_LITERAL_RE = re.compile(r"^\s*([\d.]+)\s*(pt|px|mm)\s*(?:!important\s*)?$")
+_CSS_VAR_USE_RE = re.compile(r"^\s*var\(\s*(--[\w-]+)\s*(?:,\s*([^()]*))?\)\s*(?:!important\s*)?$")
+# 커스텀 프로퍼티 정의(`--x: 60pt`). 1단 해석의 재료 — var(var(…)) 다단은 풀지 않고
+# unresolved로 올린다(정적 해석의 선, 아래 _layout_axes 주석).
+_CSS_VAR_DEF_RE = re.compile(r"(--[\w-]+)\s*:\s*([^;{}]+)")
+# CSS 점선 리더의 실현 수단 목록 — 이 목록 자체가 계약이다(정규식이 아는 관용구만 잡는다).
+# border 계열 dotted/**dashed**(dashed 짧은 대시도 지면에선 리더선이다 — v-s2 B1) ·
+# 점 배경 그라데이션 · 생성 콘텐츠 점열(ASCII `.` 나열 + **미들닷·리더 도트류 유니코드**
+# — v-s2 B2의 `content:"······"`) · leader() 함수.
 _CSS_LEADER_RE = re.compile(
-    r"(?<![\w-])dotted(?![\w-])|repeating-linear-gradient|radial-gradient"
-    r"|(?<![\w-])leader\s*\(|content\s*:\s*[^;}]*\.\s*\.\s*\.")
-# typst의 리더 관용구는 `repeat(...)`/`repeat[...]` 하나다(practical toc-leader).
+    r"(?<![\w-])dotted(?![\w-])|(?<![\w-])dashed(?![\w-])"
+    r"|repeating-linear-gradient|radial-gradient"
+    r"|(?<![\w-])leader\s*\(|content\s*:\s*[^;}]*\.\s*\.\s*\."
+    r"|content\s*:\s*[^;}]*[·•․‥‧∙・]\s*[·•․‥‧∙・]"
+    r"|content\s*:\s*[^;}]*[…⋯]")
+# typst의 직접 리더 관용구는 `repeat(...)`/`repeat[...]`다(practical toc-leader).
+# 간접(정의는 밖, 호출만 목차 영역)은 toc_typ_leader가 #let 이름 추적으로 1단 잡는다.
 _TYP_LEADER_RE = re.compile(r"(?<![\w-])repeat\s*[(\[]")
 _TYP_SIZE_PT_RE = re.compile(r"(?<![\w-])size\s*:\s*([\d.]+)\s*pt(?![\w-])")
+# typst 상대 급수(`size: 3em`) — 상속 컨텍스트가 렌더에서 정해지므로 정적 확정은 불가,
+# 보수 환산으로 침묵만 막는다(해석은 _layout_axes ⑤).
+_TYP_SIZE_EM_RE = re.compile(r"(?<![\w-])size\s*:\s*([\d.]+)\s*em(?![\w-])")
 _PT_PER = {"pt": 1.0, "px": 0.75, "mm": 72.0 / 25.4}
 
 
-def toc_css_facts(css_text):
-    """theme.css의 `.toc*` 겨냥 규칙만 골라 (최대 급수pt, 점선 리더 유무).
+def _size_value_pt(value, css_vars):
+    """font-size 값 하나를 pt로. (pt, None) | 해석 불가면 (None, 사유)."""
+    v = value.strip()
+    m = _SIZE_LITERAL_RE.match(v)
+    if m:
+        return float(m.group(1)) * _PT_PER[m.group(2)], None
+    m = _CSS_VAR_USE_RE.match(v)
+    if m:
+        name, fallback = m.group(1), m.group(2)
+        if name in css_vars:
+            lit = _SIZE_LITERAL_RE.match(css_vars[name].strip())
+            if lit:
+                return float(lit.group(1)) * _PT_PER[lit.group(2)], None
+            return None, f"var({name})가 비리터럴 {css_vars[name].strip()!r}로 정의(다단 간접)"
+        if fallback is not None:
+            lit = _SIZE_LITERAL_RE.match(fallback.strip())
+            if lit:
+                return float(lit.group(1)) * _PT_PER[lit.group(2)], None
+        return None, f"var({name}) 정의 미발견"
+    return None, f"비리터럴 값 {v!r}"
+
+
+def toc_css_facts(css_text, var_src=None):
+    """CSS의 `.toc*` 겨냥 규칙만 골라 (최대 급수pt, 점선 리더 유무, 미해석 급수 목록).
 
     급수가 하나도 없으면 (None, …) — "관측 대상 없음"과 "0pt"를 구별한다.
+    var() 간접은 커스텀 프로퍼티 정의에서 **1단만** 해석한다(css_text + var_src 합산 —
+    오버레이는 theme.css 뒤에 이어붙는 캐스케이드라 :root 정의를 theme.css에서 상속받는다).
+    다단 간접·em·calc 등 못 푸는 선언은 unresolved로 올린다 — 축 ⑤가 WARN으로 발화해
+    "리터럴만 훑고 초록"이 되지 않게 한다(적대검증 v-s2 C1).
     """
-    mx, leader = None, False
-    for sel, body in _CSS_RULE.findall(_css_code(css_text)):
+    code = _css_code(css_text)
+    css_vars = dict(_CSS_VAR_DEF_RE.findall(_css_code(var_src) if var_src else ""))
+    css_vars.update(_CSS_VAR_DEF_RE.findall(code))
+    mx, leader, unresolved = None, False, []
+    for sel, body in _CSS_RULE.findall(code):
         s = sel.strip()
         if not s or s.startswith("@"):
             continue
         if not any(_TOC_SEL_RE.search(p) for p in s.split(",")):
             continue
-        for v, unit in _TOC_FONT_SIZE_RE.findall(body):
-            pt = float(v) * _PT_PER[unit]
-            mx = pt if mx is None else max(mx, pt)
+        for value in _TOC_FONT_SIZE_DECL_RE.findall(body):
+            pt, why = _size_value_pt(value, css_vars)
+            if pt is not None:
+                mx = pt if mx is None else max(mx, pt)
+            else:
+                unresolved.append(f"`{' '.join(s.split())}` font-size:{value.strip()} — {why}")
         if _CSS_LEADER_RE.search(body):
             leader = True
-    return mx, leader
+    return mx, leader, unresolved
 
 
 def toc_typ_lines(typ_text):
@@ -1003,6 +1057,40 @@ def toc_typ_lines(typ_text):
     return out
 
 
+_TYP_LET_NAME_RE = re.compile(r"#let\s+([A-Za-z_][\w-]*)")
+
+
+def toc_typ_leader(typ_text, toc_lines):
+    """typst 목차 영역의 점선 리더 유무 — 직접 관용구 + **헬퍼 간접 1단**.
+
+    직접: 영역 줄의 `repeat(`/`repeat[`. 간접: 파일 어디서든 `#let 이름 = … repeat …`으로
+    정의된 헬퍼를 목차 영역이 이름으로 호출하는 형태 — 정의 줄엔 toc가 없고 호출 줄엔
+    repeat가 없어 영역 줄 스캔만으로는 무음 통과했다(적대검증 v-s2 D1). 전체 소스에서
+    repeat를 품은 #let 이름을 모아 영역 줄의 호출과 대조한다.
+
+    **정적 한계(계약)**: 추적은 1단이다 — 헬퍼가 리더 헬퍼를 다시 감싸는 2단 체인은
+    잡지 못한다. 렌더 후 게이트에 리더를 보는 축이 없으므로(G14는 쪽번호·색·대비,
+    G1은 축소, G3은 겹침·프레임 — 리더 점열은 정상 텍스트로 렌더된다. w6 재작업2
+    실측: academic 사본에 2단 체인 주입 → 컴파일 성공·점열 실렌더·qc_gate FAIL 축이
+    무주입 베이스라인과 완전 동일 = 신규 검출 0) 이 목록·추적이 **유일 방어선**이고,
+    새 리더 관용구·다단 체인은 이 함수에 등재해야 잡힌다.
+    """
+    if any(_TYP_LEADER_RE.search(ln) for ln in toc_lines):
+        return True
+    code = typ_code(typ_text)
+    helpers = [name for line in code.split("\n")
+               for name in _TYP_LET_NAME_RE.findall(line)
+               if _TYP_LEADER_RE.search(line)]
+    for name in helpers:
+        call = re.compile(r"(?<![\w-])%s\s*[(\[]" % re.escape(name))
+        for ln in toc_lines:
+            # 정의 줄 자신은 호출이 아니다(practical toc-leader처럼 정의가 영역 안에
+            # 있으면 직접 관용구가 이미 잡았다).
+            if call.search(ln) and not _TYP_LET_NAME_RE.match(ln.strip()):
+                return True
+    return False
+
+
 def layout_findings(style, tokens, theme_text, engine, style_dir=None):
     """G16-SYNC toc_layout 축 전체 = 기본 레이아웃 5축 + 오버레이 축.
 
@@ -1021,9 +1109,29 @@ def _layout_axes(style, tokens, theme_text, engine, sd):
     판정 5축(전부 텍스트 레벨 — 렌더 0회):
       ① toc_layout 값이 카탈로그에 있는가
       ② 이 스타일이 그 레이아웃의 allowed_styles(=구현 보유 팩)에 있는가
-      ③ tokens.toc_levels ≤ 레이아웃 max_levels
-      ④ theme.css/theme.typ의 점선 리더 리터럴 유무 ↔ 선언 leader 일치
-      ⑤ `.toc*`(html) / 목차 코드(typst) 급수 리터럴 최대 ≤ size_cap_pt
+      ③ tokens.toc_levels ≤ 레이아웃 max_levels — 비int(float/str/bool)는 malformed
+         FAIL(labelBand·enforce와 같은 "JSON 타입이 계약" 교리), html은 **부재도 빌더
+         폴백값(TOC_LEVELS_DEFAULT)으로 대조**한다(키 삭제가 검사 밖이면 magazine처럼
+         max_levels=1인 팩에서 폴백 2가 무검사로 절 마커·레벨2 북마크를 발행한다 —
+         적대검증 v-s2 A1~A4)
+      ④ theme 실물의 점선 리더 유무 ↔ 선언 leader 일치 — html은 theme.css + theme.html
+         <style> 블록 + 오버레이가 아닌 인라인, typst는 목차 영역 직접 관용구 + 헬퍼
+         간접 1단(toc_typ_leader)
+      ⑤ `.toc*`(html) / 목차 코드(typst) 급수 ≤ size_cap_pt — var() 1단 해석 포함,
+         못 푸는 선언은 WARN으로 발화(침묵 금지). theme.html의 **인라인 font-size는
+         값 무관 FAIL**이다: 축 ⑤의 잠금은 CSS 스캔으로만 성립하므로 인라인 급수는
+         어느 값이든 잠금 밖 선언이다(v-s2 C2 — 종전엔 theme.html을 아예 읽지 않았다).
+         typst `size: Nem`은 상속 컨텍스트가 렌더에서 정해져 정적 확정이 불가하다 —
+         영역 내 최대 pt 리터럴(없으면 typst 기본 11pt)을 보수 기저로 환산해 상한
+         초과면 FAIL, 아니면 "확정 불가" WARN(어느 쪽이든 침묵하지 않는다. v-s2 D2).
+
+    **정적 판정의 한계(계약)**: 리더 관용구 목록 밖의 실현 수단·typst 2단 헬퍼 체인·
+    치환 변수(`$…`)에 실려 오는 인라인 값은 렌더 전 스캔이 원리적으로 못 잡는다.
+    렌더 후 게이트는 이 축들의 2차 방어가 **아니다** — 리더 점열은 정상 텍스트로
+    렌더되고(w6 재작업2 실측: 체인 리더 주입 → 점열 실렌더·qc_gate 신규 검출 0,
+    toc_typ_leader 주석), 급수 초과는 넘침이 문서 전역 축소로 이어지는 경우에만
+    G1-SCALE이 늦게 잡는다(insight-ondevice-ai 실사고 — M7이 회귀 고정). 그래서
+    이 목록·해석기가 유일 방어선이고, 새 관용구는 여기 등재가 곧 방어다.
 
     **폭발 금지**: theme 실물이 하나도 없는 디렉토리(styles/blueprint-web처럼 tokens.json
     만 있는 작업 중 산출물)는 목차 구현 자체가 없으므로 WARN 1행으로 skip한다 —
@@ -1057,20 +1165,54 @@ def _layout_axes(style, tokens, theme_text, engine, sd):
                       f"TOC_LAYOUTS['{name}']['styles']에 추가할 것"))
 
     # ---- ③ toc_levels ≤ max_levels ----
+    # 비int는 malformed다 — 빌더는 값을 산술·비교에 그대로 소비하므로 float는 절삭 없는
+    # 우연 통과, str는 비교 오동작, bool True는 `>= 2` 비교에서 1레벨로 **조용히 뒤집힌다**
+    # (v-s2 A4 실측). labelBand "부재도 malformed"·enforce "JSON bool만" 과 같은 교리.
+    lv_declared = "toc_levels" in tokens
     lv = tokens.get("toc_levels")
-    if isinstance(lv, int) and not isinstance(lv, bool) and lv > spec["max_levels"]:
+    if lv_declared and (not isinstance(lv, int) or isinstance(lv, bool)):
         out.append(_f("SYNC", "FAIL",
-                      f"toc_levels={lv} > toc_layout={name!r}의 max_levels {spec['max_levels']} — "
-                      f"레이아웃이 싣지 못하는 레벨을 목차 계약이 요구한다"))
+                      f"toc_levels={lv!r}({type(lv).__name__}) — JSON 정수만 허용한다. "
+                      f"빌더가 이 값을 폴백 없이 그대로 소비하므로 bool은 1레벨로 뒤집히고 "
+                      f"float/str는 비교가 우연에 좌우된다(labelBand.enforce와 같은 계약)"))
+    else:
+        if lv_declared:
+            lv_eff, how = lv, f"toc_levels={lv}"
+        elif engine == "html":
+            # html 빌더는 부재를 TOC_LEVELS_DEFAULT로 폴백한다 — 검사가 선언값만 보면
+            # 키 한 줄 삭제가 max_levels=1 팩에서 폴백 2를 무검사로 통과시킨다(v-s2 A1).
+            lv_eff = TOC_LEVELS_DEFAULT
+            how = f"toc_levels 부재(빌더 폴백 {TOC_LEVELS_DEFAULT})"
+        else:
+            lv_eff = None   # typst 빌더는 toc_levels를 소비하지 않는다 — 부재가 정상.
+        if lv_eff is not None and lv_eff > spec["max_levels"]:
+            out.append(_f("SYNC", "FAIL",
+                          f"{how} > toc_layout={name!r}의 max_levels {spec['max_levels']} — "
+                          f"레이아웃이 싣지 못하는 레벨을 목차 계약이 요구한다"
+                          + ("" if lv_declared else
+                             ". max_levels=1 팩은 toc_levels: 1을 명시로 선언할 것")))
 
     # ---- ④⑤ theme 실물 스캔 ----
+    inline_notes = []
     if engine == "html":
         if theme_text is None:
             out.append(_f("SYNC", "WARN",
                           f"styles/{style}: engine=html인데 theme.css를 읽지 못했다 — "
                           f"toc_layout ④리더·⑤급수 축 skip"))
             return out
-        size_pt, leader = toc_css_facts(theme_text)
+        # theme.html도 실물이다 — <style> 블록은 CSS 스캔에 합류시키고(`.toc*` 규칙만
+        # 관측), 인라인 style 속성은 아래에서 별도 판정한다. 종전엔 theme.html을 한 번도
+        # 읽지 않아 인라인 60pt·<style> 블록 리더가 전부 검사 밖이었다(v-s2 C2).
+        html_text = html_p.read_text(encoding="utf-8") if html_p.exists() else ""
+        style_blocks = "\n".join(re.findall(r"<style[^>]*>(.*?)</style>", html_text,
+                                            re.S | re.I))
+        size_pt, leader, unresolved = toc_css_facts(theme_text + "\n" + style_blocks)
+        for m in re.finditer(r"""style\s*=\s*(['"])(.*?)\1""", html_text, re.S):
+            decl = m.group(2)
+            if re.search(r"(?<![\w-])font-size\s*:", decl):
+                inline_notes.append(("size", decl.strip()[:60]))
+            if _CSS_LEADER_RE.search(decl):
+                inline_notes.append(("leader", decl.strip()[:60]))
         where, unit_note = "theme.css `.toc*` 규칙", "font-size"
     else:
         if not typ_p.exists():
@@ -1078,10 +1220,22 @@ def _layout_axes(style, tokens, theme_text, engine, sd):
                           f"styles/{style}: engine={engine}인데 theme.typ 부재 — "
                           f"toc_layout ④리더·⑤급수 축 skip"))
             return out
-        lines = toc_typ_lines(typ_p.read_text(encoding="utf-8"))
-        leader = any(_TYP_LEADER_RE.search(ln) for ln in lines)
+        typ_text = typ_p.read_text(encoding="utf-8")
+        lines = toc_typ_lines(typ_text)
+        leader = toc_typ_leader(typ_text, lines)
         sizes = [float(m.group(1)) for ln in lines for m in _TYP_SIZE_PT_RE.finditer(ln)]
         size_pt = max(sizes) if sizes else None
+        # em은 상속 기저를 렌더가 정한다 — 영역 내 최대 pt 리터럴(그 영역에서 성립 가능한
+        # 최대 컨텍스트)을 보수 기저로, 리터럴이 없으면 typst 기본 본문 11pt로 환산한다.
+        # 과대 추정 = 이르게 FAIL = 안전 방향이고, 상한 안이어도 WARN으로 남긴다(v-s2 D2).
+        em_base = size_pt if size_pt is not None else 11.0
+        unresolved = [f"목차 코드 `size: {m.group(1)}em` — 보수 환산 "
+                      f"{float(m.group(1)) * em_base:g}pt(기저 {em_base:g}pt), 정적 확정 불가"
+                      for ln in lines for m in _TYP_SIZE_EM_RE.finditer(ln)]
+        em_sizes = [float(m.group(1)) * em_base
+                    for ln in lines for m in _TYP_SIZE_EM_RE.finditer(ln)]
+        if em_sizes:
+            size_pt = max(em_sizes + ([size_pt] if size_pt is not None else []))
         where, unit_note = "theme.typ 목차 코드", "size:"
 
     # ---- ④ 점선 리더 ----
@@ -1092,21 +1246,44 @@ def _layout_axes(style, tokens, theme_text, engine, sd):
                       f"점선 리더 실물 {got} ≠ toc_layout={name!r} 선언 {decl} ({where}). "
                       f"리더는 목차 문법의 식별 자질이고 각 팩 STYLE.md가 명시로 금지/허용한다 — "
                       f"실물만 바꾸면 그 규범이 선언 없이 뒤집힌다"))
+    for kind, decl in inline_notes:
+        if kind != "leader":
+            continue
+        out.append(_f("SYNC", "FAIL",
+                      f"theme.html 인라인 style에 점선 리더 관용구: `{decl}` — 리더 선언 대조는 "
+                      f"CSS 규칙 스캔으로 성립하므로 인라인 실현은 선언 밖 리더다. "
+                      f"theme.css `.toc*` 규칙으로 옮길 것"))
 
     # ---- ⑤ 급수 상한 ----
     cap = toc_size_cap(spec, style)
     if cap is None:
         pass   # 급수가 변수 주입이라 정적 상한이 성립하지 않는다(카탈로그 _why에 근거). 침묵.
-    elif size_pt is None:
-        out.append(_f("SYNC", "WARN",
-                      f"{where}에 {unit_note} 리터럴 0건 — toc_layout={name!r}의 급수 상한 "
-                      f"{cap}pt가 관측 대상을 잃었다(축이 조용히 꺼진 상태). 급수를 변수로 "
-                      f"옮겼다면 TOC_LAYOUTS['{name}']['size_cap_pt']를 None으로 명시할 것"))
-    elif size_pt > cap + 1e-6:
-        out.append(_f("SYNC", "FAIL",
-                      f"{where}의 최대 급수 {size_pt:g}pt > toc_layout={name!r} 상한 {cap}pt — "
-                      f"목차 급수는 높이 모델·용량 계약의 입력이라 재캘리브레이션 없이 올리면 "
-                      f"목차가 넘치고 Chromium 전역 축소로 조용히 출하된다"))
+    else:
+        if size_pt is None and not unresolved:
+            out.append(_f("SYNC", "WARN",
+                          f"{where}에 {unit_note} 리터럴 0건 — toc_layout={name!r}의 급수 상한 "
+                          f"{cap}pt가 관측 대상을 잃었다(축이 조용히 꺼진 상태). 급수를 변수로 "
+                          f"옮겼다면 TOC_LAYOUTS['{name}']['size_cap_pt']를 None으로 명시할 것"))
+        elif size_pt is not None and size_pt > cap + 1e-6:
+            out.append(_f("SYNC", "FAIL",
+                          f"{where}의 최대 급수 {size_pt:g}pt > toc_layout={name!r} 상한 {cap}pt — "
+                          f"목차 급수는 높이 모델·용량 계약의 입력이라 재캘리브레이션 없이 올리면 "
+                          f"목차가 넘치고 Chromium 전역 축소로 조용히 출하된다"))
+        # 미해석 선언은 잡혔든 안 잡혔든 침묵하지 않는다 — 종전엔 "리터럴 0건"일 때만
+        # WARN이라, 리터럴이 하나라도 남아 있으면 var() 간접 60pt가 무음이었다(v-s2 C1).
+        for note in unresolved:
+            out.append(_f("SYNC", "WARN",
+                          f"{where}의 미해석 급수 선언 — {note}. 정적 상한 {cap}pt 판정이 "
+                          f"이 선언을 확정하지 못한다(다단 var·상대 단위는 해석 밖 — 계약상 "
+                          f"목차 급수는 pt/px/mm 리터럴 또는 :root 1단 var로 선언할 것)"))
+        for kind, decl in inline_notes:
+            if kind != "size":
+                continue
+            out.append(_f("SYNC", "FAIL",
+                          f"theme.html 인라인 style에 font-size: `{decl}` — 축 ⑤의 급수 잠금은 "
+                          f"CSS 규칙 스캔으로 성립하므로 인라인 급수는 값과 무관하게 잠금 밖 "
+                          f"선언이다(종전엔 theme.html 자체를 읽지 않았다). "
+                          f"theme.css `.toc*` 규칙으로 옮길 것"))
     return out
 
 
@@ -1168,7 +1345,12 @@ def overlay_findings(style, tokens, sd):
                           f"오버레이 — 기본 레이아웃 구현은 theme.css가 정본이라 같은 문법의 "
                           f"실물이 두 곳이 되면 축 ④⑤가 어느 쪽을 보는지 갈라진다"))
         text = ov.read_text(encoding="utf-8")
-        osize, oleader = toc_css_facts(text)
+        # 오버레이는 theme.css 뒤에 이어붙는 캐스케이드다 — :root 커스텀 프로퍼티를
+        # theme.css에서 상속받으므로 var() 1단 해석의 정의 소스로 theme.css를 합산한다.
+        theme_css_p = sd / "theme.css"
+        osize, oleader, ounres = toc_css_facts(
+            text, var_src=theme_css_p.read_text(encoding="utf-8")
+            if theme_css_p.exists() else None)
         # ---- ⑨ 점선 리더 ----
         if oleader != ospec["leader"]:
             got = "있음" if oleader else "없음"
@@ -1185,16 +1367,22 @@ def overlay_findings(style, tokens, sd):
                           f"미선언(None)이다 — 오버레이는 리터럴 CSS 구현이라 상한 없는 잠금이 "
                           f"성립하지 않는다. TOC_LAYOUTS['{oname}']['size_cap_pt']에 "
                           f"{style} 상한을 실측으로 선언할 것"))
-        elif osize is None:
+        elif osize is None and not ounres:
             out.append(_f("SYNC", "WARN",
                           f"styles/{style}/{ov.name}: `.toc*` 규칙에 font-size 리터럴 0건 — "
                           f"상한 {cap}pt가 관측 대상을 잃었다(축이 조용히 꺼진 상태)"))
-        elif osize > cap + 1e-6:
+        elif osize is not None and osize > cap + 1e-6:
             out.append(_f("SYNC", "FAIL",
                           f"styles/{style}/{ov.name}: 오버레이 최대 급수 {osize:g}pt > "
                           f"toc_layout={oname!r} 상한 {cap}pt — 목차 급수는 toc_capacity_alt "
                           f"용량 계약의 입력이라 재캘리브레이션 없이 올리면 목차가 넘치고 "
                           f"Chromium 전역 축소로 조용히 출하된다"))
+        if cap is not None:
+            # 기본 레이아웃 축 ⑤와 같은 계약 — 미해석 급수 선언은 침묵하지 않는다.
+            for note in ounres:
+                out.append(_f("SYNC", "WARN",
+                              f"styles/{style}/{ov.name}: 미해석 급수 선언 — {note}. "
+                              f"정적 상한 {cap}pt 판정이 이 선언을 확정하지 못한다"))
         # ---- ⑪ 용량 계약 (단면 스타일만 — 다면은 toc_profile 소관) ----
         if tokens.get("toc_overflow") == "single":
             alt = alt_caps.get(oname)
@@ -1244,6 +1432,19 @@ def g16_sync(style, tokens, theme_text, brand=None, style_dir=None):
         out.append(_f("SYNC", "FAIL",
                       f"styles/{style}/theme.html이 실존하는데 engine={engine!r} — "
                       f"engine 키 누락/오기(기본값 typst)로 html 전용 검사가 강등된다"))
+
+    # ---- HARD ⓪' typst 팩의 죽은 toc_overflow ----
+    # toc_overflow는 html 빌더만 소비한다(build_typst 경로는 이 키를 한 번도 읽지 않는다 —
+    # 적대검증 v-s1 ②: essay에 "paginate"를 주입해도 경고 0으로 빌드됐다). 죽은 선언은
+    # "이 팩이 다면 목차를 지원한다"는 거짓 계약이 tokens.json에 사는 상태다 — extending.md
+    # "typst 4종은 이 키가 없다"를 문서가 아니라 게이트가 강제한다(오버레이 축 ⑧과 같은
+    # "소비자 없는 실물/선언 = FAIL" 교리).
+    if engine != "html" and "toc_overflow" in tokens:
+        out.append(_f("SYNC", "FAIL",
+                      f"styles/{style}/tokens.json에 toc_overflow="
+                      f"{tokens.get('toc_overflow')!r} — engine={engine!r}는 이 키의 소비자가 "
+                      f"없다(html 전용). 죽은 설정은 조용히 무시되는 거짓 계약이다 — 키를 "
+                      f"지우거나 engine을 html로 바꿀 것"))
 
     # ---- HARD ① diagram.palette 존재 + palette_roles 무결성 (필수 계약) ----
     # 옵셔널이면 새 스타일이 빼먹고 G16-BRAND가 조용히 무력화된다.

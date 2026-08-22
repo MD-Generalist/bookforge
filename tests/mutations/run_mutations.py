@@ -90,6 +90,12 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
                          이름**으로 교체 → 카탈로그 축 FAIL(㉠과 다른 축이다 — ㉠은 실존
                          레이아웃의 남용, ㉣은 미등재 어휘). 넷을 한 사본에 몰지 않는 이유는
                          "하나가 잡으면 나머지가 죽어 있어도 초록"을 회귀 자산이 은폐하기 때문.
+                         ㉩~㉬은 적대검증 v-s2의 리터럴 매칭 우회 8건(A~D)의 축별 대표 회귀:
+                         ㉩`toc_levels: "2"`(str) → malformed FAIL(A — bool·float·부재 계열),
+                         ㉪theme.css에 dashed 리더 → 리더 축 FAIL(B — dotted 밖 관용구),
+                         ㉫`font-size: var(--x)` + :root 60pt → 급수 축 FAIL(C — var 1단 해석),
+                         ㉬typst 헬퍼 간접 리더(정의 상단·목차 영역엔 호출만) → 리더 축 FAIL
+                         (D — leader=False 선언 typst 팩만 성립, html 팩에선 ㉪㉫만 돈다).
   M-ORIGIN 마커 앵커 소실 — html 엔진 전용. `toc_lists`를 켠 **임시 스타일 사본**으로
                          캡션 그림 2·캡션 표 2짜리 최소 책을 실빌드해 ㉠앵커 온전(대조군)
                          → 빌드 성공 + fg/tb 마커 발행 각 2 + 최종 PDF 텍스트 레이어에
@@ -1030,6 +1036,68 @@ def main():
         f17d = g16.fails_of(g16.run(style, t17db, c17db, style_dir=s17d)["G16-SYNC"])
         ok17["d"] = any("카탈로그 밖" in x["msg"] for x in f17d)
         print(f"      (M17-㉣ toc_layout {bogus!r} 주입 → G16-SYNC FAIL {len(f17d)}건)")
+
+        # ㉩~㉬ — 적대검증 v-s2가 실측한 리터럴 매칭 우회 8건(A~D)의 축별 회귀 고정.
+        # 축마다 대표 1건: ㉩=A(toc_levels 타입) ㉪=B(리더 관용구 dashed) ㉫=C(급수 var
+        # 간접) ㉬=D(typst 헬퍼 간접 리더). ㉠~㉣과 같은 원칙 — 축마다 다른 임시 사본.
+        s17i = Path(td) / "style17i"
+        shutil.copytree(SKILL / "styles" / style, s17i,
+                        ignore=shutil.ignore_patterns("__pycache__"))
+        t17i, _ = g16.style_inputs(style, style_dir=s17i)
+        (s17i / "tokens.json").write_text(
+            json.dumps(dict(t17i, toc_levels="2"), ensure_ascii=False, indent=2),
+            encoding="utf-8")
+        t17ib, c17ib = g16.style_inputs(style, style_dir=s17i)
+        f17i = g16.fails_of(g16.run(style, t17ib, c17ib, style_dir=s17i)["G16-SYNC"])
+        ok17["i"] = any("toc_levels" in x["msg"] and "정수" in x["msg"] for x in f17i)
+        print(f"      (M17-㉩ toc_levels '2'(str) 주입 → G16-SYNC FAIL {len(f17i)}건)")
+
+        if tokens.get("engine") == "html":
+            s17j = Path(td) / "style17j"
+            shutil.copytree(SKILL / "styles" / style, s17j,
+                            ignore=shutil.ignore_patterns("__pycache__"))
+            p = s17j / "theme.css"
+            p.write_text(p.read_text(encoding="utf-8")
+                         + "\n.toc-mut-row { border-bottom: 0.4pt dashed #999; }\n",
+                         encoding="utf-8")
+            t17jb, c17jb = g16.style_inputs(style, style_dir=s17j)
+            f17j = g16.fails_of(g16.run(style, t17jb, c17jb, style_dir=s17j)["G16-SYNC"])
+            ok17["j"] = any("점선 리더" in x["msg"] for x in f17j)
+            print(f"      (M17-㉪ theme.css에 dashed 리더 주입 → G16-SYNC FAIL {len(f17j)}건)")
+
+            s17k = Path(td) / "style17k"
+            shutil.copytree(SKILL / "styles" / style, s17k,
+                            ignore=shutil.ignore_patterns("__pycache__"))
+            p = s17k / "theme.css"
+            p.write_text(p.read_text(encoding="utf-8")
+                         + "\n:root { --bf-mut-size: 60pt; }\n"
+                           ".toc-mut { font-size: var(--bf-mut-size); }\n",
+                         encoding="utf-8")
+            t17kb, c17kb = g16.style_inputs(style, style_dir=s17k)
+            f17k = g16.fails_of(g16.run(style, t17kb, c17kb, style_dir=s17k)["G16-SYNC"])
+            ok17["k"] = any("최대 급수" in x["msg"] for x in f17k)
+            print(f"      (M17-㉫ var() 간접 60pt 주입 → G16-SYNC FAIL {len(f17k)}건)")
+        else:
+            # typst 팩 전용 — 헬퍼 간접 리더(정의는 파일 상단, 목차 영역엔 이름 호출만).
+            # 상한이 None인 business도 리더 축은 성립하지만 leader=True 선언 팩(practical)
+            # 은 주입이 선언과 일치해 버리므로 leader=False 선언 팩에서만 성립한다.
+            spec17 = g16.TOC_LAYOUTS.get(tokens.get("toc_layout")) or {}
+            if spec17.get("leader") is False:
+                s17l = Path(td) / "style17l"
+                shutil.copytree(SKILL / "styles" / style, s17l,
+                                ignore=shutil.ignore_patterns("__pycache__"))
+                p = s17l / "theme.typ"
+                t_ = "#let bf-mut-dots(pad) = box(width: 1fr, repeat[.])\n\n" \
+                     + p.read_text(encoding="utf-8")
+                t_ = t_.replace("  if toc {\n", "  if toc {\n    bf-mut-dots(0pt)\n", 1)
+                assert "bf-mut-dots(0pt)" in t_, f"{style}: `if toc {{` 앵커 없음 — ㉬ 주입 불가"
+                p.write_text(t_, encoding="utf-8")
+                t17lb, c17lb = g16.style_inputs(style, style_dir=s17l)
+                f17l = g16.fails_of(g16.run(style, t17lb, c17lb, style_dir=s17l)["G16-SYNC"])
+                ok17["l"] = any("점선 리더" in x["msg"] for x in f17l)
+                print(f"      (M17-㉬ typst 헬퍼 간접 리더 주입 → G16-SYNC FAIL {len(f17l)}건)")
+            else:
+                print(f"      (M17-㉬ 건너뜀 — {style}은 leader=True 선언(주입이 선언과 일치))")
         results["M17-toc-layout"] = all(ok17.values())
 
         # M17 오버레이 축(W6 S6) — 대안 레이아웃 실물(toc-<이름>.css)과 용량 계약
