@@ -9,6 +9,12 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
                          → G14-A는 캡션을 무시하고 진짜 쪽번호와 페어링해 **문제 0건**
                          이어야 한다(w7-b3 실측 사고의 역방향 고정: 수리 전 pair_score는
                          수직 정합인 캡션을 골라 오판 FAIL — 값이 우연히 맞으면 침묵 통과)
+  M20 좌측 서수 칩      — 첫 장 행의 **제목 왼쪽**에 2자리 칩 숫자(기대값과 다른 값)를
+                         주입 → 우측에 진짜 쪽번호가 있으므로 좌측 칩은 버려져 **문제
+                         0건**이어야 한다(w7-b5 실측 사고의 고정: 0-접두 필터가 '10'~
+                         '15' 칩을 통과시켜 pair_score에서 칩이 진짜 쪽번호를 이겼다.
+                         우측 후보 부재 시 좌측을 폴리오로 읽는 magazine 스프레드 경로의
+                         감도는 좌측 폴리오 재스탬핑 일회 검증으로 확인 — w7-gatefix.md)
   M2  목차 이색(異色)   — 목차 면에 도비라 색 계열과 무관한 마젠타 라벨 주입 → G14-B FAIL
   M3  저대비 텍스트     — 본문 면에 흰 바탕 연회색(#c8c8c8) 캡션 주입 → G14-C FAIL
   M8  절 쪽번호 변조   — 인쇄 목차의 **절 행** 쪽번호를 +5 틀리게 재스탬핑 → G14-D FAIL
@@ -835,6 +841,35 @@ def mutate_tocmap_caption(doc, titles, ch_starts):
     return None
 
 
+def mutate_ordinal_chip(doc, titles, ch_starts):
+    """목차 첫 장 행의 제목 **왼쪽**에 2자리 칩 숫자(기대값+66)를 주입 — practical
+    2단 목차의 장 서수 칩(w7-b5) 지면 등가물. 0-접두가 아니므로 서수 장식 필터를
+    통과하고, 제목에 인접해 pair_score에서 우단의 진짜 쪽번호를 이기는 위치다.
+    수리 후 코드는 우측 후보 존재 시 좌측을 버리므로 정페어링이어야 한다.
+    반환: (title, expected) 또는 None(제목 왼쪽 공간 부족)."""
+    toc_pages = find_toc_pages(doc, titles, first_ch=ch_starts[0])
+    if not toc_pages:
+        return None
+    offset = ch_starts[0] - 1
+    for i, title in enumerate(titles):
+        if i >= len(ch_starts):
+            break
+        expected = ch_starts[i] - offset
+        key = "".join(title.split())[:10]
+        for p in toc_pages:
+            page = doc[p]
+            for b in page.get_text("dict")["blocks"]:
+                for l in b.get("lines", []):
+                    for s in l["spans"]:
+                        if key and key in "".join(s["text"].split()) and s["bbox"][0] >= 30:
+                            cy = (s["bbox"][1] + s["bbox"][3]) / 2
+                            page.insert_text(fitz.Point(s["bbox"][0] - 22, cy + 3),
+                                             str(expected + 66), fontsize=7,
+                                             color=(0.3, 0.3, 0.3))
+                            return title, expected
+    return None
+
+
 def mutate_alien_color(doc, titles):
     """목차 면에 마젠타(어느 스타일과도 다른 hue) 텍스트 주입."""
     toc_pages = find_toc_pages(doc, titles)
@@ -964,6 +999,23 @@ def main():
                   f"페어링 printed={pr18['printed'] if pr18 else '?'} == {exp18})")
         else:
             print("      (M18 건너뜀 — 목차 행 리더 공백 부족)")
+        doc.close()
+
+        # M20 — 좌측 서수 칩: M18과 같은 방향(주입이 검출되면 안 된다).
+        work = Path(td) / "m19.pdf"
+        shutil.copy(book_dir / "draft" / "book.pdf", work)
+        doc = fitz.open(work)
+        hit19 = mutate_ordinal_chip(doc, titles, ch_starts)
+        if hit19:
+            t19, exp19 = hit19
+            a19, pairs19 = g14a_toc_numbers(doc, titles, ch_starts)
+            pr19 = next((p for p in pairs19 if p["title"] == t19), None)
+            results["M20-ordinal-chip"] = (not a19 and pr19 is not None
+                                           and pr19["printed"] == exp19)
+            print(f"      (M20 '{t19[:12]}' 제목 왼쪽에 칩 {exp19 + 66} 주입 → 문제 {len(a19)}건 · "
+                  f"페어링 printed={pr19['printed'] if pr19 else '?'} == {exp19})")
+        else:
+            print("      (M20 건너뜀 — 제목 왼쪽 공간 부족)")
         doc.close()
 
         # M2

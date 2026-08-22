@@ -245,6 +245,17 @@ def g14a_toc_numbers(doc, titles, ch_starts, toc_pages=None):
                  and not _is_ordinal_decoration(s["text"])
                  and not (s["bbox"][3] < y0 - 4 or s["bbox"][1] > y1 + 4)
                  and not in_image_col(s)]
+        # 폴리오 위치 관습은 스타일에 따라 갈린다 — 제목 뒤(우측: practical 2단·
+        # display-numeral 등) 또는 제목 앞(좌측: magazine 스프레드 17pt 폴리오).
+        # 행에 우측 후보가 있으면 **제목 시작보다 완전히 왼쪽인 후보를 버린다** —
+        # 그 자리는 장 서수 칩·대형 장번호 장식이 사는 자리다. 0-접두 필터는
+        # '01'~'09'만 거르고 2자리 칩 '10'~'15'는 통과시켜, practical 2단 목차에서
+        # 칩("10", hd 13.5)이 우단의 진짜 쪽번호("32", hd 47.8)를 pair_score로 이기는
+        # 오탐 6건이 실재했다(w7-b5·cover-apply 실측). 우측 후보가 전무할 때만
+        # 좌측을 쪽번호로 읽는다 — magazine 스프레드가 정확히 이 경로다.
+        rights = [s for s in cands if s["bbox"][2] > t_span["bbox"][0]]
+        if rights:
+            cands = rights
         if not cands:
             problems.append(f"목차 p{t_page + 1}: '{title[:16]}' 행에 쪽번호 없음")
             continue
