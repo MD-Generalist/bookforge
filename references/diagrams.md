@@ -177,6 +177,30 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
 
 판형이 좁은 스타일(essay 88mm)은 가로형 템플릿(`list-row-*`, 가로 타임라인)을 피한다.
 
+### 배치 높이 저술 규범 (W7) — 도해는 캡션까지 **한 면**에 들어가야 한다
+
+- **산식**: 배치 높이 = `widths[bf.width]` × (viewBox 높이 ÷ viewBox 폭). 이 값이
+  스타일의 `diagram.maxHeightMm`(스타일별 tokens, 판면 − figure 마진 − 캡션 실측 파생)를
+  넘으면 figure가 한 면에 못 들어간다 — HTML 트랙은 면 경계에서 도해가 **쪼개지고**
+  (실증: insight 세로 셰브런 254.8mm → p5/p6 분단 출하), typst 트랙은 판면 아래로 넘친다.
+- **허용 종횡비(vbH/vbW) 상한** = `maxHeightMm ÷ widths[bf.width]`. 전폭 기준:
+  insight 1.28 · magazine 1.20 · academic 1.36 · business 1.52 · essay 1.34 · practical 1.38.
+  `bf.width: twothirds`는 폭이 좁아지는 만큼 허용 종횡비가 커진다(insight 1.58) — 세로형
+  구제책이지만 라벨 실효 pt도 함께 줄어드는 것을 하한 HARD가 잰다.
+- **초과 시 렌더러가 자동 처리한다**: 폭 비례 축소(`metrics.fit.verdict: "shrunk"`)로 한 면에
+  넣되, **축소 한계는 라벨 하한 역산**(k_min = `minFontPt` ÷ 최소 라벨 pt)이다. 필요 축소가
+  그보다 크면 **반려(HARD)** — 저술자가 도해를 재작성해야 하고, 진단이 수용 가능한 최대
+  배치 높이를 말해 준다. 6단계 급수 강제 직후의 전형적 라벨(하한×1.05~1.15)에서는 축소
+  여유가 5~13%뿐이므로, **자동 축소를 설계 여유로 믿지 말고 종횡비를 상한 안에서 저술**하라.
+- **세로 스텝형 항목 수 상한**: `list-column-simple-vertical-arrow` 실측(항목당 ≈131u +
+  헤더)은 insight 전폭에서 **항목 2개까지만** 허용 종횡비 안이고 3개부터 판면을 넘는다
+  (3개 ≈ 198mm > 167mm). 순서·단계가 **3개 이상이면 세로 스텝형을 쓰지 말고 가로·격자·
+  순환형으로 전환**하라: `list-row-simple-horizontal-arrow` · `sequence-timeline-simple` ·
+  `list-grid-simple` · `sequence-circle-arrows-indexed-card`(팔레트 틴트 정합 실측).
+  `sequence-roadmap-vertical-*` 등 세로 로드맵 계열도 같은 산식으로 항목 수를 먼저 셈하라.
+- 최종 PDF에서는 **G17-FIGFIT**이 분단·판면 초과를 잡는다 — 게이트에 걸렸다면 처방은
+  언제나 도해 쪽(항목 수 축소·가로 전환)이지 판면 쪽이 아니다.
+
 **템플릿 적합성의 정본은 `references/diagram-ledger.json`이다**(v3, W5 재작업 재도출). 여기에
 수치를 옮겨 적지 않는다 — 두 곳이 갈리면 원장이 무의미해진다. 원장이 판정하는 축 넷:
 `min_pt`(8pt 하한) · `max_ratio`(밴드 상한) · `frame_slack`(도형이 명목 폭을 채우는가) ·
