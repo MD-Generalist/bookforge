@@ -919,11 +919,19 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     # 또는 책 단위 book.json 덮어쓰기 — brand/toc_layout이 쓰는 것과 같은 자리다. 별면은
     # 앞부속 선택 요소(book-anatomy ⑨, 소책자 생략 권장)라 책이 스타일 기본을 덮을 수
     # 있어야 하고, 프로브·검증도 저장소 팩 변조 없이 이 경로로 옵트인한다.
-    toc_lists = book.get("toc_lists", tokens.get("toc_lists")) or []
-    if not isinstance(toc_lists, list) or any(v not in TOC_LIST_KINDS for v in toc_lists):
+    # off는 **부재(None)와 빈 리스트만**이다 — `or []`로 받으면 0/false/"" 같은 falsy
+    # 오값이 조용히 off로 삼켜져 "오값은 die" 계약이 깨진다(적대검증 s4-verdict ④).
+    # 원소도 str 여부를 먼저 본다 — unhashable 원소(리스트·딕트)가 `in` 검사에서
+    # TypeError 트레이스백으로 죽으면 die 메시지 계약이 깨진다(같은 판정 ④).
+    toc_lists = book.get("toc_lists", tokens.get("toc_lists"))
+    if toc_lists is None:
+        toc_lists = []
+    if (not isinstance(toc_lists, list)
+            or any(not isinstance(v, str) or v not in TOC_LIST_KINDS for v in toc_lists)):
         die(f"toc_lists가 올바르지 않다(현재: {toc_lists!r}) — {sorted(TOC_LIST_KINDS)}의 "
             f"부분집합 리스트여야 한다(선언 위치: styles/{style_dir.name}/tokens.json 또는 "
-            "book.json의 책 단위 덮어쓰기). "
+            "book.json의 책 단위 덮어쓰기. off는 미선언 또는 빈 리스트만 — 0/false 같은 "
+            "falsy 오값도 die다). "
             "오값을 조용히 무시하면 차례가 꺼진 것과 선언 오타가 구별되지 않는다")
     emit_fg = "figures" in toc_lists
     emit_tb = "tables" in toc_lists

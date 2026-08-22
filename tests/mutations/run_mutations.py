@@ -107,6 +107,11 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
                          지면 등가물)해 G14-E가 발화하는지 어서션한다. 빌더 사후조건은
                          pass1 회수만 보므로 스탬핑 이후의 오염은 지면 재추출 대조만이
                          잡는다 — 그 유일 방어선의 감도를 회귀 자산으로 고정한다.
+                         드리프트 변형(-uniform-drift): `.mk-anchor .pgmark{top:-257mm}`
+                         주입 빌드(적대검증 s4-verdict ① P-HOLE — 균일 드리프트는 포함
+                         단조를 통과한 채 전 회수 면을 1면씩 어긋낸다) → 빌더 die(경계
+                         초과) 또는 G14-E 전 쌍 FAIL(장내) 중 하나가 반드시 발화 —
+                         "rc 0 + G14-E 침묵"의 조용한 오면 인쇄 경로를 봉쇄한다.
   M0  무변조 대조군     — 원본은 G14 전 축 + G1-SCALE + G3-COLLIDE/FIT + G16(SYNC/CONTRAST/
                          BRAND 전 축, 원본 스타일 팩) PASS (오탐 없음 확인)
 
@@ -1106,6 +1111,41 @@ def main():
                 else:
                     print("      (M-LISTPG 건너뜀 — M-ORIGIN 대조군 실패)")
                 results["M-LISTPG-list-numbers"] = ok_e
+
+                # M-LISTPG-드리프트 — 균일 앵커 드리프트 주입(적대검증 s4-verdict ①
+                # P-HOLE 경로 그대로). `.mk-anchor .pgmark{top:-257mm}`(판면 1면 높이)는
+                # 전 fg/tb 마커를 정확히 1면씩 위로 밀어, 장내에 머무는 한 포함 단조
+                # 사후조건(장 구간·단조 비감소)을 **통과한 채** 회수 면을 어긋낸다 —
+                # 사후조건만으로는 쪽번호 정확성이 보증되지 않음이 실증된 구멍이다.
+                # 고정하는 성질: 이 상태가 조용히 인쇄에 도달하지 않는다 — 드리프트가
+                # 장 경계를 넘으면 빌더 포함 단조가 die하고, 장내에 머물면 G14-E(인쇄
+                # 쪽번호 vs 캡션 실면, 양쪽 최종 PDF 독립 추출)가 대조한 전 쌍을
+                # FAIL로 낸다. "rc 0 + G14-E 침묵"만이 이 뮤테이션의 실패다.
+                sdr = Path(td) / "style-origin-drift"
+                shutil.copytree(so, sdr)
+                with open(sdr / "theme.css", "a", encoding="utf-8") as fh:
+                    fh.write("\n.mk-anchor .pgmark { top: -257mm; }\n")
+                bd_dr = Path(td) / "origin-drift"
+                book_d, outline_d = origin_probe_book(bd_dr)
+                err_dr = run_origin_build(bd_dr, book_d, outline_d, sdr)
+                if err_dr is not None:
+                    ok_dr = ("구간" in err_dr) or ("단조" in err_dr)
+                    print(f"      (M-LISTPG-드리프트: 빌더 die 발화(경계 초과 경로) — "
+                          f"{err_dr[:88]})")
+                else:
+                    ddr = fitz.open(bd_dr / "draft" / "book.pdf")
+                    ch_d = sorted({pg for lv, _t, pg in ddr.get_toc() if lv == 1})
+                    plan_d = json.loads((bd_dr / "typeset" / "tocplan.json")
+                                        .read_text(encoding="utf-8"))
+                    edp, _wd, prd, ndr = g14e_list_numbers(
+                        ddr, ch_d, ["figures", "tables"], plan_d)
+                    ddr.close()
+                    mism = [p for p in prd if p["printed"] != p["expected"]]
+                    ok_dr = bool(edp) and ndr >= 1 and len(mism) == ndr
+                    print(f"      (M-LISTPG-드리프트: rc 0(장내 드리프트) → G14-E "
+                          f"{len(edp)}건 발화, 대조 {ndr}쌍 전부 불일치 {len(mism) == ndr} — "
+                          f"{(edp[0][:70] if edp else '(없음)')})")
+                results["M-LISTPG-uniform-drift"] = ok_dr
         else:
             print("      (M-ORIGIN·M-LISTPG 건너뜀 — typst 엔진(pgmark 마커 계약 없음))")
 

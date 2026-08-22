@@ -616,7 +616,11 @@ def run(doc, outline, ch_starts, book, tokens, toc_levels=None, tocplan=None):
                       " — B·D 축이 침묵으로 통과하는 상태(게이트 결함)"]
     # E — 그림·표 차례. 선언(tokens 또는 book 덮어쓰기 — 빌더와 같은 해석 순서)이나
     # tocplan 기록 어느 쪽이든 켜져 있으면 돈다(불일치는 축 안에서 FAIL).
-    declared_lists = book.get("toc_lists", tokens.get("toc_lists")) or []
+    # 선언 오형(비리스트·비문자 원소)의 die는 빌더 소관 — 게이트는 형만 방어해
+    # 쓰레기 선언이 정렬·비교에서 TypeError로 게이트를 죽이지 않게 한다.
+    declared_raw = book.get("toc_lists", tokens.get("toc_lists"))
+    declared_lists = ([v for v in declared_raw if isinstance(v, str)]
+                      if isinstance(declared_raw, list) else [])
     e_problems, e_warns, e_pairs, e_checked = [], [], [], 0
     if declared_lists or (tocplan or {}).get("toc_lists"):
         e_problems, e_warns, e_pairs, e_checked = g14e_list_numbers(
