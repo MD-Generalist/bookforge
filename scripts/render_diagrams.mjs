@@ -230,6 +230,22 @@ if (typeof dg.labelBand.enforce !== "boolean") {
     }
   }
 }
+// 배치 높이 상한 계약(W7 신설) — labelBand와 같은 취급(**부재도 malformed**). 부재 시
+// 높이 검사와 축소·반려가 통째로 꺼져, 세로 긴 도해가 면을 넘어 쪼개진 채 출하된다
+// (실증: insight b2-20 fig-01 세로 셰브런 130mm 폭 × 종횡비 1.96 = 254.8mm → p5/p6 분단).
+{
+  const mh = dg.maxHeightMm;
+  if (typeof mh !== "number" || !isFinite(mh) || mh <= 0) {
+    fail(`styles/${style} tokens.diagram.maxHeightMm=${JSON.stringify(mh)} — 양수 mm 수치 필수(도해 배치 높이 상한, `
+      + `스타일별 판면·캡션 실측 파생 — _maxHeightMm_evidence 참조). 부재 시 도해 면 분단 방어가 통째로 꺼진다`);
+  }
+  const trimH = Array.isArray(tokens.trim_mm) && typeof tokens.trim_mm[1] === "number" && isFinite(tokens.trim_mm[1])
+    ? tokens.trim_mm[1] : null;
+  if (trimH !== null && mh >= trimH) {
+    fail(`styles/${style} tokens.diagram.maxHeightMm ${mh}mm ≥ trim_mm[1] ${trimH}mm(재단 높이) — `
+      + `판면을 넘는 상한은 높이 검사를 무력화한다(widths ≤ trim_mm[0] 불변식과 같은 계열)`);
+  }
+}
 // maxRatio가 타당성 대역 안에서 검증됐다는 사실 — 주입 스킵 조건이 이 값에만 기댄다.
 const MAXRATIO_VALIDATED = typeof dg.labelBand.maxRatio === "number"
   && dg.labelBand.maxRatio >= LABEL_BAND_MIN_RATIO && dg.labelBand.maxRatio <= LABEL_BAND_MAX_RATIO;
@@ -1018,6 +1034,9 @@ function gateParams(widthKey) {
     // 재검사가 필요하다) — 대비 하한은 wcag.mjs(=g16_tokens.contrast_floor) 소관이라
     // 여기엔 버전만 싣는다.
     paletteRoles: dg.palette_roles ?? null,
+    // W7: 배치 높이 상한 — figFitReport의 판정 입력. 값이 바뀌면 축소 폭(metrics.fit)이
+    // 바뀌므로 그 스타일 도해가 전건 재판정되어야 한다(widths와 같은 계열).
+    maxHeightMm: dg.maxHeightMm ?? null,
     // paintPolicy: 판정식(배경 산출 규칙)의 지문. 2 = W5 재작업 — 그라데이션 stop 해석 ·
     // stroke 면 후보 편입 · bbox 다점 표본 최악값(K4).
     paintPolicy: 3,
@@ -1041,6 +1060,7 @@ function scanLabelPt(svg, widthKey) {
   const widthMm = (dg.widths || {})[widthKey] ?? null;
   const vb = svg.match(/viewBox="[-\d. ]*?([\d.]+) ([\d.]+)"\s*/);
   const vbW = vb ? parseFloat(vb[1]) : null;
+  const vbH = vb ? parseFloat(vb[2]) : null; // 배치 높이 산출(figFitReport)용 — pt 환산은 폭만 쓴다
   const scalePt = widthMm && vbW ? (widthMm * MM2PT) / vbW : null; // user unit -> 실제 pt
   const sizes = [];
   const unitErrors = [];
@@ -1056,7 +1076,7 @@ function scanLabelPt(svg, widthKey) {
   // <text>뿐 아니라 <tspan>의 font-size 속성·style 내 font-size도 검사 (하한 우회 차단)
   for (const m of svg.matchAll(/<(text|tspan)\b[^>]*?font-size="([\d.]+)([a-z%]*)"/gi)) take(m[1], m[2], m[3]);
   for (const m of svg.matchAll(/<(text|tspan)\b[^>]*?style="[^"]*?font-size\s*:\s*([\d.]+)([a-z%]*)/gi)) take(m[1], m[2], m[3]);
-  return { widthMm, vbW, scalePt, sizes, unitErrors };
+  return { widthMm, vbW, vbH, scalePt, sizes, unitErrors };
 }
 
 // 밴드 하한 — 기존 계약 그대로 **HARD**. (minFontPt 미선언·widths 미선언 시 검사가 꺼지는
@@ -1073,6 +1093,68 @@ function fontFloorViolations(scan) {
 }
 
 const r3 = (v) => (typeof v === "number" && isFinite(v) ? Math.round(v * 1000) / 1000 : null);
+
+// ---- 도해 배치 높이 상한 (W7 신설 — 세로 셰브런 면 분단 사고의 근본 수리) ----
+//
+// 도해는 지면에서 bf.width의 물리 폭으로 발행되므로 배치 높이 = widthMm × (vbH/vbW)다.
+// 이 높이가 tokens.diagram.maxHeightMm(스타일별 판면·캡션 실측 파생 — 단일 진리원)를
+// 넘으면 figure(도해+캡션)가 한 면에 못 들어가고, HTML 트랙(Chromium print)은
+// break-inside:avoid를 지킬 수 없어 면 경계에서 **도해를 쪼갠다**(실증: insight b2-20
+// fig-01 130mm × 종횡비 1.96 = 254.8mm → p5 단계 01~03 / p6 단계 04+캡션). typst 트랙은
+// 쪼개는 대신 판면 아래로 넘친다 — 어느 쪽도 출하 가능한 지면이 아니다.
+//
+// 수리는 **폭 비례 축소**다(높이 상한을 폭으로 역산: fitW = widthMm × maxH/배치높이).
+// 단 라벨 실효 pt가 실렌더 폭에 비례하므로(scalePt = widthMm×MM2PT/vbW) 축소 허용
+// 한계는 라벨 하한에서 역산된다:
+//   필요 축소 k = maxHeightMm / 배치높이,  허용 하한 k_min = minFontPt / (최소 라벨 pt).
+// k < k_min이면 자동 축소가 하한 HARD를 깨므로 그 도해는 **반려**다 — 처방은 재작성
+// (세로 항목 수 축소 또는 가로 배치 템플릿)이고, 수용 가능한 최대 배치 높이
+// maxH/k_min을 진단에 싣는다. 축소 결정은 여기 **단일 지점**에서 내려 metrics.fit에
+// 싣고, 배치자(build_html.py figure 인라인 width · md2typ.py #bf-fig width:)는 그 값을
+// 전사만 한다 — CSS max-height는 인라인 SVG를 뷰포트 안에서 letterbox(가운데 정렬)해
+// 판면 좌측 정렬축을 깨고 typst에는 등가물이 없으므로 쓰지 않는다.
+// 밴드 상한과의 상호작용: 축소는 모든 라벨 pt를 함께 줄이므로 상한(cap) 방향으로는
+// 언제나 안전하고, 하한만 위 k_min이 지킨다. 대비 하한 급수 분기(14pt)는 밴드 상한
+// (body_pt×1.2 ≤ 12.6pt)이 이미 14pt 아래라 축소로 갈리지 않는다.
+const FIT_TOL_MM = 0.5; // G1 판형 대조와 같은 자릿수의 실측 여유
+function figFitReport(scan, { name }) {
+  const maxH = dg.maxHeightMm; // 계약 검증(양수·<trim 높이)은 시동 시 완료
+  const { widthMm, vbW, vbH } = scan;
+  if (!widthMm || !vbW || !vbH) {
+    const reason = !widthMm ? "widths 부재(pt 환산 축과 같은 꺼짐)" : "viewBox 폭/높이를 읽지 못함";
+    return { metrics: { verdict: "skip", reason, maxHeightMm: maxH },
+      lines: [`WARN DIAGRAM-FIT ${name}: 배치 높이 검사 꺼짐 — ${reason}`] };
+  }
+  const placedH = widthMm * (vbH / vbW);
+  const base = { maxHeightMm: maxH, nominalWidthMm: widthMm, placedHMm: r3(placedH) };
+  if (placedH <= maxH + FIT_TOL_MM) {
+    return { metrics: { verdict: "ok", ...base, widthMm }, lines: [] };
+  }
+  const k = maxH / placedH;
+  const pts = scan.sizes.map((s) => s.pt).filter((p) => typeof p === "number" && isFinite(p));
+  const minPt = pts.length ? Math.min(...pts) : null;
+  const maxPt = pts.length ? Math.max(...pts) : null;
+  const floorPt = typeof dg.minFontPt === "number" ? dg.minFontPt : null;
+  if (floorPt !== null && minPt !== null && minPt * k < floorPt - BAND_TOL_PT) {
+    const kMin = floorPt / minPt;
+    fail(`${name}: 도해 배치 높이 ${r3(placedH)}mm > 상한 ${maxH}mm(styles/${style} diagram.maxHeightMm) — `
+      + `한 면에 넣으려면 ×${k.toFixed(3)} 축소가 필요한데 라벨 하한 ${floorPt}pt가 `
+      + `×${kMin.toFixed(3)}(= ${floorPt}pt ÷ 최소 라벨 ${r3(minPt)}pt)까지만 허용한다`
+      + `(축소 시 최소 라벨 ${(minPt * k).toFixed(2)}pt). 자동 축소 대상이 아니다 — `
+      + `세로 항목 수를 줄이거나 가로 배치로 재작성하라(원장 verdict=ok 가로형: `
+      + `list-row-simple-horizontal-arrow · sequence-timeline-simple · list-grid-simple). `
+      + `이 라벨 구성이 수용 가능한 최대 배치 높이 = ${r3(maxH / kMin)}mm`);
+  }
+  const fitW = r3(widthMm * k);
+  return {
+    metrics: { verdict: "shrunk", ...base, widthMm: fitW, k: r3(k),
+      effMinPt: minPt === null ? null : r3(minPt * k), effMaxPt: maxPt === null ? null : r3(maxPt * k) },
+    lines: [`DIAGRAM-FIT ${name}: 배치 높이 ${r3(placedH)}mm > 상한 ${maxH}mm — 폭 `
+      + `${widthMm} → ${fitW}mm(×${k.toFixed(3)}) 축소로 한 면 수용`
+      + (minPt === null ? "" : ` · 실효 라벨 ${r3(minPt * k)}~${r3(maxPt * k)}pt`
+        + (floorPt === null ? "" : `(하한 ${floorPt}pt 위)`))],
+  };
+}
 
 // 밴드 상한 — 라벨 최대 pt ≤ body_pt × labelBand.maxRatio.
 //
@@ -1200,7 +1282,10 @@ function bandSummary(m) {
   // 꺼진 검사와 구별되지 않는다(8단계 원장의 입력이기도 하다).
   const p = m.labelPaint
     ? `, 대비 최악 ${m.labelPaint.minRatio ?? "—"}(knockout ${m.labelPaint.knockout}/${m.labelPaint.checked})` : "";
-  return `라벨 ${m.minPt}~${m.maxPt}pt${r}${s}${p}`;
+  // W7: 캐시 히트 때도 축소 사실이 보이게 — 조용해지는 축소는 없는 축소와 같다
+  const f = m.fit && m.fit.verdict === "shrunk"
+    ? `, 배치 ${m.fit.placedHMm}mm>상한 → 폭 ${m.fit.widthMm}mm(×${m.fit.k}) 축소` : "";
+  return `라벨 ${m.minPt}~${m.maxPt}pt${r}${s}${p}${f}`;
 }
 // 캐시 히트 선행조건 — metrics가 **이 해시로 렌더된 것**인가. 파일 존재만 보면
 // 실패 회차가 남긴 metrics를 성공 SVG 옆에서 그대로 재생하게 된다(위 cacheKey 주석).
@@ -1319,6 +1404,9 @@ for (const file of sidecars) {
     const scanA = scanLabelPt(normalized, widthKey);
     const floorsA = fontFloorViolations(scanA);
     if (floorsA.length) fail(`${name}: 글자 크기 하한 위반 — ${floorsA.join("; ")} (bf.width=${widthKey})`);
+    // W7 배치 높이 상한 — 초과 시 폭 비례 축소를 결정(metrics.fit), 하한 충돌이면 여기서 반려
+    const fitA = figFitReport(scanA, { name });
+    for (const l of fitA.lines) console.log(l);
     // 7단계 HARD — 역할·대비. 트림 후 최종 좌표계에서 재고, 위반이면 이 도해를 반려한다.
     const paintA = labelPaintReport(await measureLabelPaint(page, normalized), scanA,
       { name, kind, widthKey });
@@ -1328,6 +1416,7 @@ for (const file of sidecars) {
     }
     const reportA = labelBandReport(scanA, { name, kind, widthKey, cacheKey: hashA });
     reportA.metrics.labelPaint = paintA.metrics;
+    reportA.metrics.fit = fitA.metrics;
     const bandA = emitBand(reportA, outMetricsA);
     // 8단계 승격: enforce:true인 스타일에서 상한 위반(과 검사 꺼짐)은 그 도해의 반려다.
     // metrics는 emitBand가 이미 썼고 SVG는 아직 안 썼다 — 반려된 도해가 캐시에 남지 않는다.
@@ -1468,6 +1557,10 @@ for (const file of sidecars) {
   // 하한 = HARD(빌드 중단), 상한 = WARN(5단계 출생 강도).
   const floors = fontFloorViolations(scan);
   if (floors.length) fail(`${name}: 도해 내 글자 크기 하한 위반 — ${floors.join("; ")} (bf.width=${widthKey} 기준)`);
+  // W7 배치 높이 상한 — 최종(트림 후) 좌표계에서 판정. 6단계 주입이 폭 프레임을 고정하므로
+  // 세로 리스트 템플릿의 종횡비는 주입 후에도 남는다 — 넘치면 폭 축소, 하한 충돌이면 반려.
+  const fitD = figFitReport(scan, { name });
+  for (const l of fitD.lines) console.log(l);
   // 팔레트 미도달 증거색(HARD) — 벤더 폴백 `#ff356a`가 산출에 남으면 그 요소에는
   // 스타일 팔레트가 닿지 않은 것이다. 템플릿 자체의 결함이므로 처방은 템플릿 교체다.
   const vendorAliens = vendorFallbackColors(converted, palette);
@@ -1485,6 +1578,7 @@ for (const file of sidecars) {
   }
   const reportD = labelBandReport(scan, { name, kind, widthKey, scaled: !!inject, template: tplName, cacheKey: hash });
   reportD.metrics.labelPaint = paintD.metrics;
+  reportD.metrics.fit = fitD.metrics;
   reportD.metrics.labelScale = plan ? {
     version: LABEL_SCALE.version, applied: !!inject, passes,
     targetPt: { title: r3(plan.titlePt), text: r3(plan.textPt), desc: r3(plan.descPt) },

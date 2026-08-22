@@ -873,7 +873,25 @@ def md_to_html(md: str, book_dir: Path | None = None, ch_idx: int | None = None,
                         fig_cls = "svgfig twothirds"
                 if fmark:
                     fig_cls += " mk-anchor"
-                return f'<figure class="{fig_cls}">{fmark}{svg}{c}</figure>'
+                # W7 배치 높이 상한 — render_diagrams가 metrics.fit에 내린 축소 폭을 전사한다.
+                # 인라인 mm는 제2진리원이 아니다: 값의 출처는 tokens.diagram.maxHeightMm
+                # 하나이고(render_diagrams figFitReport가 폭으로 역산), 여기는 그 결정의
+                # 배치 전사일 뿐이다 — theme.css에 mm 리터럴을 적는 것과 달리 도해별로
+                # 종횡비가 달라 CSS 상수로는 표현할 수 없다.
+                fit_style = ""
+                metrics_p = book_dir / "assets" / (Path(src).stem + ".metrics.json")
+                if metrics_p.exists():
+                    try:
+                        fit = (json.loads(metrics_p.read_text(encoding="utf-8"))
+                               .get("fit") or {})
+                    except ValueError:
+                        fit = {}
+                    fw = fit.get("widthMm")
+                    if (fit.get("verdict") == "shrunk"
+                            and isinstance(fw, (int, float)) and not isinstance(fw, bool)
+                            and fw > 0):
+                        fit_style = f' style="width:{fw:g}mm"'
+                return f'<figure class="{fig_cls}"{fit_style}>{fmark}{svg}{c}</figure>'
         if fmark:
             return f'<figure class="mk-anchor">{fmark}<img src="{src}" alt="{alt}">{c}</figure>'
         return f'<figure><img src="{src}" alt="{alt}">{c}</figure>'

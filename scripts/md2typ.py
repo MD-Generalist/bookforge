@@ -104,6 +104,19 @@ def fig_width_mm(src: str, ctx) -> float | None:
     v = widths.get(bf.get("width") or "full")
     if isinstance(v, bool) or not isinstance(v, (int, float)) or v <= 0:
         return None                       # 값 부재/비수치는 G16-SYNC widths ①이 렌더 전에 막는다
+    # W7 배치 높이 상한 — render_diagrams(figFitReport)가 metrics.fit에 내린 축소 폭이
+    # 있으면 그 값을 전사한다(HTML 트랙 build_html.fig의 인라인 width와 같은 소비 계약).
+    # 진리원은 tokens.diagram.maxHeightMm 하나이고 여기는 결정의 배치 전사일 뿐이다.
+    metrics_p = Path(dg).parent / "assets" / (Path(src).stem + ".metrics.json")
+    if metrics_p.exists():
+        try:
+            fit = json.loads(metrics_p.read_text(encoding="utf-8")).get("fit") or {}
+        except (ValueError, OSError):
+            fit = {}
+        fw = fit.get("widthMm")
+        if (fit.get("verdict") == "shrunk"
+                and isinstance(fw, (int, float)) and not isinstance(fw, bool) and fw > 0):
+            return float(fw)
     return float(v)
 
 def render_tokens(tokens, ctx) -> str:

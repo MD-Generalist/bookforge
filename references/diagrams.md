@@ -87,6 +87,26 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
   - `labelBand.maxRatio`·`body_pt` 중 하나라도 없으면 상한 검사가 꺼지고, **꺼졌다는 사실이
     출력된다** — 미선언이 위반보다 조용해서는 안 된다. `enforce: true`인 스타일에서는
     **꺼짐 자체가 반려**다(승격 선언이 아무것도 뜻하지 않게 되므로).
+- **배치 높이 상한**: `diagram.maxHeightMm`(스타일별 판면·캡션 실측 파생 — 근거는 각
+  `tokens.json`의 `_maxHeightMm_evidence`). 도해의 배치 높이 `widthMm × (viewBox H/W)`가
+  이 상한을 넘으면 figure(도해+캡션)가 한 면에 못 들어간다 — HTML 트랙은
+  `break-inside: avoid`를 지킬 수 없어 면 경계에서 도해를 **쪼개고**(실증: insight 세로
+  셰브런 254.8mm가 p5/p6로 분단 출하), typst 트랙은 판면 아래로 넘친다. 렌더러가 트림 후
+  최종 좌표계에서 배치 높이를 사전 산출해:
+  - 상한 이내면 그대로(`metrics.fit.verdict: "ok"`).
+  - 초과면 **폭을 비례 축소**해 한 면에 넣는다(`"shrunk"` — 축소 폭 `fit.widthMm`를
+    build_html(figure 인라인 width)·md2typ(`#bf-fig width:`)가 전사한다. 라벨 실효 pt는
+    폭에 비례해 함께 줄지만 상한(cap) 방향으로는 언제나 안전하다).
+  - **축소 허용 한계는 라벨 하한에서 역산**된다: 필요 축소 `k = maxHeightMm ÷ 배치높이`가
+    허용 하한 `k_min = minFontPt ÷ 최소 라벨 pt`보다 작으면 자동 축소가 하한 HARD를
+    깨므로 그 도해는 **반려(HARD)**다 — 처방은 세로 항목 수 축소 또는 가로 배치 템플릿
+    재작성이고, 진단이 수용 가능한 최대 배치 높이(`maxHeightMm ÷ k_min`)를 말해 준다.
+  - `maxHeightMm`는 필수 계약이다(`labelBand`와 같은 취급 — 부재·비수치·재단 높이 이상은
+    렌더 시동 실패). 값이 바뀌면 그 스타일 도해가 전건 재판정된다(캐시 해시 파라미터).
+  - 최종 PDF에서는 **G17-FIGFIT**이 이중 방어한다(qc_gate) — ① 도해 라벨 전부를 품는
+    본문 단일 면 부재(면 분단) ② 도해 라벨 라인이 판면 세로 범위 밖 ③ 배치 높이 정적
+    재산출 초과. 뮤테이션 M19가 렌더 층(반려/축소/대조군)과 게이트 층(분단/초과/대조군)의
+    감도를 회귀 자산으로 고정한다.
 - **라벨 색의 역할과 대비**: 렌더 후 SVG를 실좌표에서 다시 재 **HARD**로 판정한다(7단계).
   - ① 역할 — 글자의 fill은 `diagram.palette_roles`가 `label`이라 선언한 슬롯이거나
     백색 knockout(`#ffffff`)이어야 한다(브랜드 치환을 반영한 해석 팔레트 기준). 채움용
@@ -197,7 +217,7 @@ chapters/ch-NN.md 안: ![캡션](../assets/fig-01.svg "출처: …")   ← 단�
 직전 성공 SVG 옆에 실패 회차의 metrics가 남고, 소스를 되돌리면 SVG 해시는 맞아
 캐시가 히트하면서 **옛 위반 판정이 재생**된다(W5 8단계에서 실측으로 잡은 오탐).
 DSL·팔레트·변환기 버전, 그리고 **판정 파라미터**(해당 폭의 실검사 `widthMm` ·
-`minFontPt` · `labelBand` · `body_pt` · `palette_roles` · 도장 판정 정책 ·
+`minFontPt` · `labelBand` · `maxHeightMm` · `body_pt` · `palette_roles` · 도장 판정 정책 ·
 **`wcag.mjs`·`fo2text.mjs`의 내용 해시**)가 바뀌면 자동 재렌더 — 검사 기준이 바뀐 도해가 옛 캐시로
 조용히 통과하는 일이 없다. DSL 트랙 해시에는 **라벨 급수 주입 정책**(역할별 배수·목표 pt)도
 실린다. 이 정책은 authored 트랙 해시에 없으므로, 정책을 바꾸면 DSL 도해만 재렌더된다.
