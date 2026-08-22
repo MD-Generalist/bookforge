@@ -24,6 +24,10 @@ Gates (pagination.md §7):
   G16-LINT    : (tests/lint_contrast.py) contrast_contract ↔ theme.css·book-final.html
                 실물 대조. 축② pt 정합·축③ 값 커버리지·유령 엔트리는 fails, 축① 완전성은
                 WARN. html 엔진 한정(book-final.html 부재 = 명시 skip)
+  G17-FIGFIT  : (렌더 후) 도해 figure가 한 면 안 — ① 라벨 전부를 품는 본문 단일 면
+                부재(면 분단) ② 도해 라벨 라인이 판면 세로 범위 밖(높이 초과) ③ 배치
+                높이 정적 재산출 ≤ diagram.maxHeightMm. 근본 수리는 render_diagrams
+                figFitReport(사전 축소/반려) — 이 축은 그 우회의 지면 이중 방어
 Writes <book_dir>/gate-report.json. On PASS copies draft/book.pdf -> final/<slug>.pdf.
 Exit 0 = PASS, 1 = FAIL. (G6 visual judgement is the agent's job on the contact sheet.)
 """
@@ -330,6 +334,106 @@ def g13_figtext_check(book_dir, outline, page_texts):
         for label in json.loads(labels_path.read_text(encoding="utf-8")):
             if len(norm(label)) >= 2 and norm(label) not in all_norm:
                 problems.append(f"{stem}: 라벨 '{label[:30]}'이 PDF 텍스트에 없음")
+    return problems
+
+
+def g17_figfit_check(book_dir, outline, page_texts, line_recs, page_size, tokens, first_ch):
+    """G17-FIGFIT (W7 신설): 도해 figure(도해+캡션)가 한 면 안에 들어갔는가 — 최종 PDF 기준.
+
+    실증 사고: insight 세로 셰브런 도해(폭 130mm × 종횡비 1.96 = 배치 높이 254.8mm)가
+    판면 높이(190mm)를 넘어 Chromium print가 break-inside:avoid를 지키지 못하고
+    p5(단계 01~03)/p6(단계 04+캡션)으로 **면을 넘겨 쪼갰다** — 기존 전 축이 통과했다
+    (G13은 라벨 실재만, G3-OVERFLOW는 페이지 밖 bbox만 본다). 근본 수리는
+    render_diagrams.figFitReport(배치 높이 사전 산출 → 폭 비례 축소/반려)이고, 이 축은
+    그 수리를 우회한 산출물(산출 SVG 수동 변조·빌더의 fit 폭 전사 누락 회귀)을 최종
+    지면에서 잡는 이중 방어다.
+
+    세 술어(labels.json이 있는 사이드카 도해만 — 수동 SVG는 G0 계약 그대로 비대상):
+      ① 분단: 그 도해의 유효 라벨(정규화 2자 이상) 전부를 품는 **본문 단일 면이 없다**
+         → HTML 트랙의 면 분단. 본문 산문에 라벨과 같은 구절이 우연히 더 있어도
+         "전부를 품는 면의 존재"는 흔들리지 않는다(도해 면 자체가 그 면이다).
+      ② 판면 초과: 라벨 전부를 품는 면에서 라벨과 정규화 일치하는 텍스트 라인의 세로
+         범위가 body_frame_mm 밖 → typst 트랙의 지면 증거(이미지를 쪼개는 대신 판면
+         아래로 넘친다). 숫자-only 라벨(배지 01/02)과 회전 라인(세로 러닝헤드)은 대조에서
+         제외하고, 대상 면을 본문(first_ch 이후)으로 한정해 목차·앞부속 오탐을 차단한다.
+      ③ 정적 재산출: 산출 SVG viewBox 종횡비 × 배치 폭(metrics.fit.widthMm 우선, 없으면
+         tokens.diagram.widths[bf.width]) ≤ diagram.maxHeightMm + 0.5 — 렌더 판정과 지면
+         배치가 같은 값을 말하는지의 대조."""
+    problems = []
+    dg = tokens.get("diagram") or {}
+    widths = dg.get("widths") if isinstance(dg.get("widths"), dict) else {}
+    max_h = dg.get("maxHeightMm")
+    frame = tokens.get("body_frame_mm")
+    pages_norm = [norm(t) for t in page_texts]
+    referenced = set()
+    for ch in outline["chapters"]:
+        p = book_dir / "chapters" / ch["file"]
+        if p.exists():
+            referenced.update(IMG_REF_RE.findall(p.read_text(encoding="utf-8")))
+    for ref in sorted(referenced):
+        stem = ref[len("../assets/"):-len(".svg")]
+        labels_path = book_dir / "assets" / f"{stem}.labels.json"
+        svg_path = book_dir / "assets" / f"{stem}.svg"
+        # ---- ③ 정적 재산출 (라벨 유무와 무관) ----
+        if svg_path.exists() and isinstance(max_h, (int, float)) and not isinstance(max_h, bool):
+            svg_text = svg_path.read_text(encoding="utf-8")
+            vb = re.search(r'viewBox="[-\d. ]*?([\d.]+) ([\d.]+)"', svg_text)
+            placed_w = None
+            sidecar = book_dir / "diagrams" / f"{stem}.json"
+            if sidecar.exists():
+                try:
+                    bf = json.loads(sidecar.read_text(encoding="utf-8")).get("bf") or {}
+                    placed_w = widths.get(bf.get("width") or "full")
+                except ValueError:
+                    placed_w = None
+            metrics_path = book_dir / "assets" / f"{stem}.metrics.json"
+            if metrics_path.exists():
+                try:
+                    fit = json.loads(metrics_path.read_text(encoding="utf-8")).get("fit") or {}
+                    if fit.get("verdict") == "shrunk" and isinstance(fit.get("widthMm"), (int, float)):
+                        placed_w = fit["widthMm"]
+                except ValueError:
+                    pass
+            if vb and isinstance(placed_w, (int, float)) and not isinstance(placed_w, bool) and placed_w > 0:
+                vb_w, vb_h = float(vb.group(1)), float(vb.group(2))
+                if vb_w > 0:
+                    placed_h = placed_w * vb_h / vb_w
+                    if placed_h > max_h + 0.5:
+                        problems.append(
+                            f"{stem}: 배치 높이 {placed_h:.1f}mm > 상한 {max_h}mm "
+                            f"(폭 {placed_w:g}mm × viewBox {vb_w:g}:{vb_h:g}) — "
+                            f"figure가 한 면에 들어갈 수 없다(렌더 fit 판정 우회 의심)")
+        # ---- ①·② 지면 술어 ----
+        if not labels_path.exists():
+            continue  # 수동 SVG — G13과 같은 비대상 계약
+        labels = [l for l in json.loads(labels_path.read_text(encoding="utf-8"))
+                  if len(norm(l)) >= 2]
+        if not labels:
+            continue
+        host = [i + 1 for i, pn in enumerate(pages_norm)
+                if i + 1 >= first_ch and all(norm(l) in pn for l in labels)]
+        if not host:
+            problems.append(f"{stem}: 도해 면 분단 — 라벨 {len(labels)}건 전부를 품는 "
+                            f"본문 단일 면 없음(figure가 면 경계에서 쪼개짐)")
+            continue
+        if not frame:
+            continue
+        top, _right, bottom, _left = frame
+        lab_norms = {norm(l) for l in labels if not norm(l).isdigit()}
+        for pg in host:
+            _w_pt, h_pt = page_size.get(pg, (None, None))
+            if h_pt is None:
+                continue
+            y0f, y1f = top * MM2PT - TOL, h_pt - bottom * MM2PT + TOL
+            for rec in line_recs.get(pg, []):
+                if rec["rot"] or norm(rec["text"]) not in lab_norms:
+                    continue
+                ry0, ry1 = rec["raw"][1], rec["raw"][3]
+                if ry0 < y0f or ry1 > y1f:
+                    problems.append(
+                        f"{stem}: p{pg} 도해 라벨 '{rec['text'][:16]}' 판면 세로 범위 밖 "
+                        f"(y {ry0 / MM2PT:.1f}~{ry1 / MM2PT:.1f}mm vs 판면 {top}~"
+                        f"{(h_pt - bottom * MM2PT) / MM2PT:.1f}mm) — 배치 높이 판면 초과")
     return problems
 
 
@@ -784,6 +888,14 @@ def main():
             "앞부속 보호 정지: 북마크(장 마커) 0건 → first_ch=1 폴백 → "
             "G3-COLLIDE 앞부속 면제 차감과 G3-FIT 검사 대상이 둘 다 빈 집합. "
             "(같은 원인으로 G4가 별도 FAIL한다)")
+
+    # ---- G17-FIGFIT (도해 면 분단·판면 초과 — W7 신설, 렌더 fit 판정의 지면 이중 방어) ----
+    g17 = g17_figfit_check(book_dir, outline, page_texts, line_recs, page_size,
+                           tokens, first_ch)
+    report["gates"]["G17-FIGFIT"] = {"problems": g17, "ok": not g17}
+    if g17:
+        fails.append("G17-FIGFIT: " + "; ".join(g17[:3])
+                     + (f" 외 {len(g17) - 3}건" if len(g17) > 3 else ""))
 
     # ---- G14 목차·디자인 정합 (tocgate.py) ----
     from tocgate import run as g14_run
