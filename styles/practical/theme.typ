@@ -38,7 +38,7 @@
 // ---- cover: STYLE 「표지 문법」 자산 0컷 대안(견본1형) --------------------------
 // 파스텔 단색 배경 + 리본 배너 부제(높이 8mm, 좌우 화살 꼬리) + 중앙 정렬 주제목
 // (주제목 중 한 단어만 brand 색 1.6배) + 하단 중앙 발행처 락업.
-#let make-cover(meta) = {
+#let cover-ribbon(meta) = {
   let t = TT
   let title-size = 78pt                  // STYLE: 표지 주제목 Black 78pt / 자간 −4%
   let words = meta.title.split(" ")
@@ -88,6 +88,194 @@
       })
     })
   })
+}
+
+// ---- cover 확장 variant (표지 한정 — book.json `cover_variant`, 기본 "ribbon") --
+// 공통 재료: 표제 꼬리가 숫자면 숫자를 디바이스(대형 숫자·모듈 그리드)로 분리한다.
+// 색은 STYLE 「표지 문법」 상한(3종) 준수 — brand 계열 + ink + paper, highlight 미사용.
+// 서체는 Pretendard 1종. 어느 variant도 라틴을 주인공으로 세우지 않는다(라벨만 허용).
+#let cover-parts(meta) = {
+  let words = meta.title.split(" ")
+  let tail = words.last()
+  let num = if tail.match(regex("^[0-9]+$")) != none { tail } else { none }
+  let head = if num != none { words.slice(0, words.len() - 1).join(" ") } else { meta.title }
+  (words: words, num: num, head: head)
+}
+
+// 발행처 락업(좌하단 공통) — 브랜드 사각 + 자간 넓힌 발행처명
+#let cover-pub-lockup(meta, fg) = {
+  box(baseline: 0.12em, rect(width: 2.6mm, height: 2.6mm, fill: fg))
+  h(2.2mm)
+  text(size: 8.5pt, weight: "semibold", tracking: 0.18em, fill: fg,
+    upper(meta.at("publisher", default: meta.at("author", default: "bookforge"))))
+}
+
+#let cover-author(meta, fg, size: 10pt) = if "author" in meta {
+  text(size: size, fill: fg, {
+    text(weight: "bold", meta.author)
+    text(weight: "regular", " 지음")
+  })
+}
+
+// variant "block" — 색면 분할 포스터. 상단 70% 브랜드 색면(백색 표제 + 대형 숫자),
+// 하단 30% 백지(부제·저자·발행처). 국내 실용서 색면 문법 + 볼드 컬러블로킹.
+#let cover-block(meta) = {
+  let t = TT
+  let p = cover-parts(meta)
+  let face-h = 158mm
+  page(margin: 0mm, header: none, footer: none, fill: t.paper, {
+    set par(justify: false, first-line-indent: 0em)
+    set text(font: t.display-font)
+    place(top + left, rect(width: t.trim.w, height: face-h, fill: c-brand))
+    // 시리즈 라벨(소형 라틴 — 락업 계열)
+    place(top + left, dx: 17mm, dy: 18mm, {
+      // 백색 88% — 22%였을 때 brand 위 실측 4.51:1로 하한 4.5에 밀착(여유 0.01), 5.4:1로 확보
+      text(size: 8pt, weight: "semibold", tracking: 0.22em, fill: white.transparentize(12%),
+        upper(meta.at("publisher", default: "bookforge")) + " PRACTICAL")
+    })
+    place(top + left, dx: 17mm, dy: 24.5mm, rect(width: 14mm, height: 1.1pt, fill: white))
+    // 주제목 — 백색 좌정렬
+    place(top + left, dx: 17mm, dy: 33mm,
+      box(width: 121mm, text(size: 44pt, weight: "black", tracking: -0.04em,
+        fill: white, top-edge: "cap-height", keep-words(p.head))))
+    // 대형 숫자 디바이스
+    if p.num != none {
+      place(top + left, dx: 15mm, dy: 79mm,
+        text(size: 200pt, weight: "black", tracking: -0.05em, fill: white,
+          top-edge: "cap-height", number-width: "tabular", p.num))
+    }
+    // 하단 백지 밴드 — 부제(잉크) + 저자 + 발행처
+    place(top + left, dx: 17mm, dy: face-h + 12mm,
+      box(width: 121mm, text(size: 14pt, weight: "bold", fill: t.ink, tracking: -0.01em,
+        meta.at("subtitle", default: ""))))
+    place(top + left, dx: 17mm, dy: face-h + 24mm, cover-author(meta, t.ink))
+    place(bottom + left, dx: 17mm, dy: -14mm, cover-pub-lockup(meta, c-deep))
+  })
+}
+
+// variant "grid" — 회차 모듈 그리드. 백지 + 잉크 표제, 표제 꼬리 숫자만큼의 번호
+// 모듈(NN 칩 번호 체계와 동일)을 지면 하부에 격자로 깐다 — "목차에서 본 번호를
+// 표지에서 먼저 만난다"는 practical 정체성의 표지 번역. 기하 구조 문법.
+#let cover-grid(meta) = {
+  let t = TT
+  let p = cover-parts(meta)
+  let n = if p.num != none { calc.min(int(p.num), 40) } else { 12 }
+  let cols = 8
+  let cell = 12mm
+  let gut = 2.2mm
+  let filled = (0, 5, 10, 17, n - 1).map(i => calc.rem(i, n))
+  page(margin: 0mm, header: none, footer: none, fill: t.paper, {
+    set par(justify: false, first-line-indent: 0em)
+    set text(font: t.display-font)
+    // 키커 = 부제(brand-deep) + 선행 브랜드 사각
+    place(top + left, dx: 17mm, dy: 20mm, {
+      box(baseline: 0.1em, rect(width: 2.8mm, height: 2.8mm, fill: c-brand))
+      h(2.4mm)
+      text(size: 11pt, weight: "bold", fill: c-deep, meta.at("subtitle", default: ""))
+    })
+    // 주제목 — 잉크, 꼬리 숫자는 brand 동급수 인라인
+    place(top + left, dx: 17mm, dy: 33mm,
+      box(width: 121mm, {
+        set text(size: 50pt, weight: "black", tracking: -0.04em, top-edge: "cap-height")
+        text(fill: t.ink, keep-words(p.head))
+        if p.num != none {
+          text(fill: c-brand, number-width: "tabular", " " + p.num)
+        }
+      }))
+    place(top + left, dx: 17mm, dy: 102mm, cover-author(meta, t.muted))
+    // 회차 모듈 그리드 — n칸, 지면 하부
+    place(top + left, dx: 17mm, dy: 136mm,
+      grid(columns: (cell,) * cols, gutter: gut,
+        ..range(n).map(i => {
+          let hit = i in filled
+          box(width: cell, height: cell,
+            fill: if hit { c-brand } else { none },
+            stroke: if hit { none } else { 0.6pt + c-brand.transparentize(65%) },
+            align(center + horizon,
+              text(size: 8pt, weight: "bold", number-width: "tabular",
+                fill: if hit { white } else { t.muted }, numpad(i + 1))))
+        })))
+    place(bottom + left, dx: 17mm, dy: -14mm, cover-pub-lockup(meta, c-deep))
+  })
+}
+
+// variant "obi" — 띠지 아키텍처. 백지 상부(잉크 표제 + 아웃라인 대형 숫자) +
+// 하단 27% 브랜드 띠지 밴드(백색 부제·저자). 일본 기술서 오비 문법의 구조 번역 —
+// 소형 리본 장식이 아니라 판면 전폭의 건축 밴드다.
+#let cover-obi(meta) = {
+  let t = TT
+  let p = cover-parts(meta)
+  let band-y = 163mm
+  page(margin: 0mm, header: none, footer: none, fill: t.paper, {
+    set par(justify: false, first-line-indent: 0em)
+    set text(font: t.display-font)
+    place(top + left, dx: 17mm, dy: 16mm, cover-pub-lockup(meta, c-deep))
+    // 아웃라인 대형 디바이스 — 숫자(또는 핵심어)를 stroke 전용으로
+    if p.num != none {
+      place(top + left, dx: 58mm, dy: 30mm,
+        text(size: 200pt, weight: "black", tracking: -0.02em, top-edge: "cap-height",
+          fill: t.paper, stroke: 1.1pt + c-brand, number-width: "tabular", p.num))
+    }
+    // 주제목 — 잉크 좌정렬, 아웃라인 숫자 아래 지대
+    place(top + left, dx: 17mm, dy: 112mm,
+      box(width: 121mm, text(size: 46pt, weight: "black", tracking: -0.04em,
+        fill: t.ink, top-edge: "cap-height", keep-words(p.head))))
+    // 이중 괘선 + 띠지 밴드
+    place(top + left, dy: band-y - 2.2mm, rect(width: t.trim.w, height: 0.5pt, fill: c-deep))
+    place(top + left, dy: band-y, rect(width: t.trim.w, height: t.trim.h - band-y, fill: c-brand))
+    place(top + left, dx: 17mm, dy: band-y + 12mm,
+      box(width: 121mm, text(size: 15pt, weight: "bold", fill: white,
+        meta.at("subtitle", default: ""))))
+    place(top + left, dx: 17mm, dy: band-y + 26mm, cover-author(meta, white))
+  })
+}
+
+// variant "numeral" — 오버사이즈 고스트 숫자. 백지 + brand-pale 대형 숫자를
+// 우하단 재단 밖으로 크롭, 그 위에 잉크/브랜드 2톤 표제. 오버사이즈 타이포 에디토리얼.
+#let cover-numeral(meta) = {
+  let t = TT
+  let p = cover-parts(meta)
+  let ghost = if p.num != none { p.num } else { p.words.last() }
+  page(margin: 0mm, header: none, footer: none, fill: t.paper, {
+    set par(justify: false, first-line-indent: 0em)
+    set text(font: t.display-font)
+    // 고스트 디바이스 — 재단 밖 크롭(place가 클립)
+    place(bottom + right, dx: 24mm, dy: 30mm,
+      text(size: 340pt, weight: "black", tracking: -0.05em, fill: c-pale,
+        number-width: "tabular", ghost))
+    // 키커 = 부제
+    place(top + left, dx: 17mm, dy: 20mm,
+      text(size: 11pt, weight: "bold", fill: c-deep, meta.at("subtitle", default: "")))
+    place(top + left, dx: 17mm, dy: 26.5mm, rect(width: 14mm, height: 1.1pt, fill: c-brand))
+    // 주제목 — 잉크, 마지막 어절만 brand 2톤
+    place(top + left, dx: 17mm, dy: 36mm,
+      box(width: 121mm, {
+        set text(size: 54pt, weight: "black", tracking: -0.04em, top-edge: "cap-height")
+        let hw = p.head.split(" ")
+        text(fill: t.ink, keep-words(hw.slice(0, calc.max(hw.len() - 1, 1)).join(" ")))
+        if hw.len() > 1 {
+          linebreak()
+          text(fill: c-brand, hw.last())
+        }
+        if p.num != none {
+          text(fill: c-brand, number-width: "tabular", " " + p.num)
+        }
+      }))
+    place(top + left, dx: 17mm, dy: 118mm, cover-author(meta, t.ink))
+    place(bottom + left, dx: 17mm, dy: -14mm, cover-pub-lockup(meta, c-deep))
+  })
+}
+
+// 디스패처 — 미선언이면 기존 리본형 그대로(기존 산출 불변 요건).
+// 오탈자 variant는 조용한 폴백 대신 즉시 실패(잘림·침묵 실패 금지 원칙과 동일).
+#let make-cover(meta) = {
+  let v = meta.at("cover_variant", default: "ribbon")
+  if v == "ribbon" { cover-ribbon(meta) }
+  else if v == "block" { cover-block(meta) }
+  else if v == "grid" { cover-grid(meta) }
+  else if v == "obi" { cover-obi(meta) }
+  else if v == "numeral" { cover-numeral(meta) }
+  else { panic("cover_variant 미지원: " + v + " — ribbon|block|grid|obi|numeral 중 하나") }
 }
 
 // ---- chapter opener: full-bleed brand page, giant number --------------------
