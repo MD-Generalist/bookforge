@@ -20,6 +20,8 @@
 
 base의 `book()`을 그대로 쓰거나(practical처럼 토큰만 교체), 완전히 대체할 수 있다(essay·business·academic처럼). base가 제공하는 부품: `default-tokens`, `keep-words`(제목 어절 단위 줄바꿈 우회 — Typst는 keep-all 미지원), `full-bleed`, `chapter-state`, `numpad`.
 
+**표지 variant 계약(practical)**: `make-cover(meta)`는 `meta.cover_variant`(← `book.json` — `brand` 덮어쓰기와 같은 자리, `meta.json` 경유)로 표지를 디스패치한다. 허용값 `numeral`(**기본** — 미선언 시)·`ribbon`(구 기본, 옵트인 강등 보존)·`block`·`grid`·`obi`, 카탈로그 밖 값은 침묵 폴백 없이 panic. 미선언 산출은 `numeral` 명시 선언과 단어좌표 수준 동일이어야 한다. 표지의 모든 텍스트 블록은 재단 안(±1.5 pt)이어야 한다 — G3-OVERFLOW는 표지 면도 스캔하고, 재단 밖 크롭 연출은 클립을 걸어도 추출 bbox가 줄지 않아 성립하지 않는다(pymupdf 실측). 각 variant의 지면 사양은 `styles/practical/STYLE.md` 「표지 문법」이 정본.
+
 주의: 문단 간격을 0으로 쓰는 스타일은 `list/enum spacing`과 블록 above/below를 반드시 명시하라 — 기본값 상속 시 줄겹침이 난다.
 
 **도해 폭 계약(신설 HARD)**: `bf-fig`는 `width:` 인자를 반드시 받아 `image(..., width: width)`로
