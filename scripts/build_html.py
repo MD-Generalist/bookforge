@@ -590,6 +590,16 @@ TOC_CAPACITY_KEYS = g16_tokens.TOC_CAPACITY_KEYS
 TOC_OVERFLOW_MULTIPAGE = {"paginate": True, "single": False}
 
 
+# 단면 목차 제목 폭의 렌더 마진 — Chromium 실렌더 advance가 fontTools 모델보다 약
+# +1.0~1.4% 넓다(적대검증 v-s6 ③ 이분탐색 실측: 모델 48.6mm 제목이 렌더 48.31~49+mm로
+# 접힘, 공백 0.96→1.11mm 등). 마진 없이는 선언 가용 폭의 마지막 ~2% 대역 제목이 검사를
+# 통과한 뒤 실렌더에서 접혀(쪽번호 고아화) qc_gate PASS로 출하됐다 — 기본 스프레드
+# (75mm/22pt)·display-numeral(49mm/15pt) 공통, S3 시대부터의 상속 결함. 다면 목차의
+# 접힘 추정이 이미 같은 계수(fold_safety 0.98)를 쓰므로 단면도 같은 보수 방향으로 맞춘다
+# — 실효 가용 폭 75→73.5 / 49→48.02mm는 실측 접힘 경계(≈73.5 / ≈48.0) 바로 안쪽이다.
+TOC_TITLE_RENDER_SAFETY = 0.98
+
+
 def check_single_page_toc(style, rows, cap_spec):
     """스프레드 1면 목차의 용량·접힘 검사. 다면화는 STYLE.md 선언과 충돌하므로 초과 시
     조용히 자르지 않고 빌드를 세운다.
@@ -612,7 +622,8 @@ def check_single_page_toc(style, rows, cap_spec):
         die(f"styles/{style}/tokens.json `toc_capacity`에 키 누락: {missing}")
     font = _font(cap_spec["font"])
     size = float(cap_spec["size_pt"])
-    avail = float(cap_spec["title_avail_mm"])
+    decl_avail = float(cap_spec["title_avail_mm"])
+    avail = decl_avail * TOC_TITLE_RENDER_SAFETY
     folded = [(r["title"], _string_width_mm(font, r["title"], size)) for r in rows
               if _string_width_mm(font, r["title"], size) > avail]
     if folded:
@@ -620,7 +631,8 @@ def check_single_page_toc(style, rows, cap_spec):
         per_char = _adv_mm(font, "가", size)
         rec = int(avail // per_char)
         lst = "; ".join(f"'{t[:24]}' {w:.1f}mm" for t, w in folded[:4])
-        die(f"{style} 목차 제목 {len(folded)}건이 1행에 들어가지 않는다(가용 폭 {avail:.0f}mm): "
+        die(f"{style} 목차 제목 {len(folded)}건이 1행에 들어가지 않는다(실효 가용 폭 "
+            f"{avail:.1f}mm = 선언 {decl_avail:.0f}mm × 렌더 마진 {TOC_TITLE_RENDER_SAFETY}): "
             f"{lst}. flex-wrap 접힘은 높이만 늘리는 것이 아니라 제목 좌단이 쪽번호 칼럼보다 "
             f"왼쪽으로 17mm 이탈하고 쪽번호가 제목 위 독립 행으로 고아가 된다 — 정렬 파손이라 "
             f"허용하지 않는다. 제목을 {size:.0f}pt 기준 {rec}자 이내로 줄일 것.")
@@ -914,7 +926,9 @@ def build(book_dir: Path, book: dict, outline: dict, style_dir: Path, skill: Pat
     # toc_levels: 인쇄 목차에 노출하는 계층 수. 1이면 절 엔트리도, <h2>의 절 마커
     # (@@chNNsMM@@)도 발행하지 않는다 — 마커가 pages 딕트에 섞이면 decorate.py의
     # openers가 절 시작면을 장 오프너로 오인한다(magazine 폴리오 7면 누락의 원인).
-    toc_levels = tokens.get("toc_levels", 2)
+    # 폴백값의 정본은 g16_tokens.TOC_LEVELS_DEFAULT — G16-SYNC 축 ③이 "부재 시 빌더가
+    # 실제로 쓸 값"을 max_levels와 대조하므로 리터럴이 여기 따로 살면 판정이 갈라진다.
+    toc_levels = tokens.get("toc_levels", g16_tokens.TOC_LEVELS_DEFAULT)
     # toc_lists: 그림·표 차례 옵트인(fg/tb 마커 발행 + 별면 조판). 선언이 없으면 발행 0 —
     # 기존 스타일 산출물은 바이트 수준 불변이어야 한다. 켜는 곳은 스타일 팩(tokens.json)
     # 또는 책 단위 book.json 덮어쓰기 — brand/toc_layout이 쓰는 것과 같은 자리다. 별면은
