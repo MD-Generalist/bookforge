@@ -12,9 +12,14 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
   M20 좌측 서수 칩      — 첫 장 행의 **제목 왼쪽**에 2자리 칩 숫자(기대값과 다른 값)를
                          주입 → 우측에 진짜 쪽번호가 있으므로 좌측 칩은 버려져 **문제
                          0건**이어야 한다(w7-b5 실측 사고의 고정: 0-접두 필터가 '10'~
-                         '15' 칩을 통과시켜 pair_score에서 칩이 진짜 쪽번호를 이겼다.
-                         우측 후보 부재 시 좌측을 폴리오로 읽는 magazine 스프레드 경로의
-                         감도는 좌측 폴리오 재스탬핑 일회 검증으로 확인 — w7-gatefix.md)
+                         '15' 칩을 통과시켜 pair_score에서 칩이 진짜 쪽번호를 이겼다).
+                         **좌측 폴리오 레이아웃(toc_layout=spread-single-level, 현행
+                         magazine 유일)은 skip** — "우측에 진짜 쪽번호"라는 주입 전제
+                         자체가 성립하지 않아 진짜 좌측 폴리오와 주입 칩이 같은 군에서
+                         경쟁하고, 108c85b 우측 우선 2군 규칙의 설계 범위 밖이다(실측:
+                         칩이 이겨 G14-A가 **시끄러운 오탐 FAIL** — 침묵 통과 방향 아님,
+                         groom2.md §2). 그 레이아웃의 페어링 감도는 좌측 폴리오 재스탬핑
+                         일회 검증이 담당한다 — w7-gatefix.md
   M2  목차 이색(異色)   — 목차 면에 도비라 색 계열과 무관한 마젠타 라벨 주입 → G14-B FAIL
   M3  저대비 텍스트     — 본문 면에 흰 바탕 연회색(#c8c8c8) 캡션 주입 → G14-C FAIL
   M8  절 쪽번호 변조   — 인쇄 목차의 **절 행** 쪽번호를 +5 틀리게 재스탬핑 → G14-D FAIL
@@ -1103,11 +1108,19 @@ def main():
         doc.close()
 
         # M20 — 좌측 서수 칩: M18과 같은 방향(주입이 검출되면 안 된다).
+        # 좌측 폴리오 레이아웃은 skip — 주입 전제("우측에 진짜 쪽번호")가 성립하지
+        # 않아 진짜 좌측 폴리오와 칩이 같은 군에서 경쟁, 우측 우선 2군 규칙(108c85b)의
+        # 설계 범위 밖이다. 실측(groom2.md §2): 칩이 이겨 G14-A 시끄러운 오탐 FAIL.
+        # 그 레이아웃의 감도는 좌측 폴리오 재스탬핑 일회 검증(w7-gatefix.md) 담당.
         work = Path(td) / "m19.pdf"
         shutil.copy(book_dir / "draft" / "book.pdf", work)
         doc = fitz.open(work)
-        hit19 = mutate_ordinal_chip(doc, titles, ch_starts)
-        if hit19:
+        hit19 = (None if tokens.get("toc_layout") == "spread-single-level"
+                 else mutate_ordinal_chip(doc, titles, ch_starts))
+        if tokens.get("toc_layout") == "spread-single-level":
+            print("      (M20 건너뜀 — 좌측 폴리오 레이아웃(spread-single-level): "
+                  "우측 우선 규칙의 주입 전제 불성립, 도큐스트링 M20 항 참조)")
+        elif hit19:
             t19, exp19 = hit19
             a19, pairs19 = g14a_toc_numbers(doc, titles, ch_starts)
             pr19 = next((p for p in pairs19 if p["title"] == t19), None)
