@@ -6,148 +6,168 @@
 
 bookforge produces PDFs with real book anatomy — cover, leader-dot TOC, chapter openers, running heads, colophon. Content is written in plain Markdown; typesetting is owned by six style packs and deterministic scripts; quality is physically enforced by QC gates — a PDF that fails the gates cannot exist in `final/`. Page breaking, filling, and intentional whitespace follow a pagination rulebook ([references/pagination.md](references/pagination.md)) distilled from measurements of commercial books; density gates catch both unjustified emptiness and forced filler.
 
-**v2.0.0**: a new diagram track lets the agent author vector infographics and technical diagrams (sequence, state machine, ER, swimlane, and more) directly into the body copy; a new gate checks the TOC's self-consistency against the printed folios, chapter-opener color, and text contrast; and every bundled font is now TrueType, so Chromium's print-to-PDF path produces zero Type3 fallback glyphs. Details below.
+The gates do not stop at the output. The style pack's color and numeric contracts are validated before rendering (G16), the class of accidents where an entire document silently shrinks is blocked by checking absolute type size against its declaration (G1-SCALE), and diagram placement that splits a page or exceeds the text frame is re-verified on the final pages (G17). Gate sensitivity itself is pinned by a mutation suite (`tests/mutations/`) — it injects defects into a passing book and verifies the gates catch them, and verifies a clean book is not falsely flagged, across 25 verdict axes (including the unmutated control M0).
 
-*A demo video will be published as a v2.0.0 GitHub Release asset — the embed goes here once the release is live.*
+The demo video and three example PDFs are attached to the [v2.0.0 release](https://github.com/gongnyang/bookforge/releases/tag/v2.0.0).
 
 ## Nine examples — every one produced by this skill
 
-Three of the six styles — `practical`, `insight`, `business` — now ship a second book where the diagram track is the whole point, for nine total. Click a cover to open the full PDF.
+All six styles ship a real example, and `practical`, `insight`, and `business` each add a second book where the diagram track is the whole point, for nine total (built as of the v2.0.0 release). Click a cover to open the full PDF.
 
 | | | |
 |:---:|:---:|:---:|
 | [![practical](examples/showcase/practical-prompt-patterns-cover.png)](examples/practical-prompt-patterns.pdf) | [![insight](examples/showcase/insight-ondevice-ai-cover.png)](examples/insight-ondevice-ai.pdf) | [![academic](examples/showcase/academic-game-theory-cover.png)](examples/academic-game-theory.pdf) |
 | **practical** how-to book<br>*24 Prompt Patterns*, 45p | **insight** tech report<br>*On-Device AI 2026*, 28p | **academic** scholarly<br>*Foundations of Game Theory*, 36p |
 | [![essay](examples/showcase/essay-evening-sentences-cover.png)](examples/essay-evening-sentences.pdf) | [![business](examples/showcase/business-sme-ai-cover.png)](examples/business-sme-ai.pdf) | [![magazine](examples/showcase/magazine-trend-brief-cover.png)](examples/magazine-trend-brief.pdf) |
-| **essay** minimal prose<br>*Sentences on the Way Home*, 32p | **business** consulting paper<br>*SME AI Adoption Strategy*, 28p | **magazine** trend issue<br>*TREND BRIEF*, 25p |
+| **essay** minimal essays<br>*Sentences on the Way Home*, 32p | **business** consulting white paper<br>*SME AI Adoption Strategy*, 28p | **magazine** trend magazine<br>*TREND BRIEF*, 25p |
 | [![insight](examples/showcase/insight-agent-protocols-cover.png)](examples/insight-agent-protocols.pdf) | [![practical](examples/showcase/practical-home-server-cover.png)](examples/practical-home-server.pdf) | [![business](examples/showcase/business-automation-redesign-cover.png)](examples/business-automation-redesign.pdf) |
-| **insight** diagram-led<br>*AI Agent Protocols 2026*, 32p | **practical** diagram-led<br>*My Own Home Server*, 39p | **business** diagram-led<br>*Business Automation, Redesigned*, 31p |
+| **insight** diagram-led<br>*AI Agent Protocols 2026*, 32p | **practical** diagram-led<br>*Your Own Home Server*, 39p | **business** diagram-led<br>*Redesigning Work Automation*, 31p |
 
-## The diagram track — v2's centerpiece
+## Diagram track
 
-Body diagrams are declared by the agent as sidecar files and normalized/validated by the build — never hand-placed vectors. Two tracks:
+Body diagrams are declared by the agent as sidecar files; the build normalizes and validates them and places them as vectors. There are two tracks.
 
-1. **antv** — sequence, comparison, hierarchy, and trend-style visualizations are declared as AntV Infographic DSL in `diagrams/fig-NN.json`. The renderer runs server-side rendering from a bundle committed to the repo (`vendor/antv-ssr.bundle.mjs`, pinned `@antv/infographic` 0.2.19), then rewrites the raw output's `<foreignObject>` text into native `<text>` (fo2text) so Typst's usvg backend doesn't silently drop it.
-2. **authored** — the 11 technical-diagram families AntV's catalog doesn't cover (sequence, state machine, ER, swimlane, Gantt, radar, Venn, scatter, org chart, loop, permission matrix) are drawn as SVG by the agent directly. A `diagrams/fig-NN.svg` plus a `{"kind":"authored"}` sidecar is enough — the build bakes the font, forces the palette, checks label overlap, and enforces an 8pt floor, emitting `assets/fig-NN.svg`. Connector rules, complexity budgets, and type routing follow [references/diagrams.md](references/diagrams.md), which absorbs and restates [cathrynlavery/diagram-design](https://github.com/cathrynlavery/diagram-design) (MIT) for bookforge's Korean typesetting, Pretendard, palette tokens, and gate system (no templates or code were imported — measured incompatible with Korean text and narrow trims).
+1. **antv** — key-point visualizations (sequence-of-steps, comparison, hierarchy, numeric trend) are declared in `diagrams/fig-NN.json` using the AntV Infographic DSL. The renderer runs SSR against a vendor bundle committed to the repo (`vendor/antv-ssr.bundle.mjs`, pinned to `@antv/infographic` 0.2.19) and converts the original output's `<foreignObject>` text to native `<text>` (fo2text), preventing the accident where Typst (usvg) silently drops text.
+2. **authored** — the 11 technical-diagram families the AntV catalog does not cover (sequence, state machine, ER, swimlane, Gantt, radar, Venn, scatter, org chart, loop, permission matrix) are drawn by the agent as SVG. Put `diagrams/fig-NN.svg` plus the sidecar `{"kind":"authored"}` and the build normalizes it — font baking, palette enforcement, label-overlap checks, an 8pt minimum — into `assets/fig-NN.svg`. The authoring contract, type routing, connector rules, and complexity budgets are canonically defined in [references/diagrams.md](references/diagrams.md) (absorbed from the [cathrynlavery/diagram-design](https://github.com/cathrynlavery/diagram-design) (MIT) spec, rewritten for Korean typesetting, palette tokens, and the gate system).
 
-Both tracks are physically checked by G0 (pre-render SVG source) and G13 (post-render — every diagram label must exist as real PDF text). Below are authored SVGs pulled from the actual examples.
+Diagram color and size are bound to the style pack by contract. Every palette color declares a role (`palette_roles`: label, fill, stroke), so using a label color as a fill is a gate failure, and label type size cannot exceed a ceiling relative to body copy (`diagram.labelBand.maxRatio`). Placement height is a contract too — a diagram exceeding `diagram.maxHeightMm` is pre-shrunk or rejected at render time (figFitReport), and even a bypass of that is caught on the final PDF by G17-FIGFIT (page splits, frame overruns, and a static recomputation of placed height). Sources are verified before rendering by G0; the physical presence of label text in the PDF is verified after rendering by G13.
 
-| insight — hierarchy | business — swimlane | practical — flowchart |
+| insight — hierarchy (tree) | business — swimlane | practical — flowchart |
 |:---:|:---:|:---:|
 | ![](examples/showcase/insight-agent-protocols-page6.png) | ![](examples/showcase/business-automation-redesign-page9.png) | ![](examples/showcase/practical-home-server-page12.png) |
 
-### TOC coherence (G14) is part of the same generation of work
+## TOC system
 
-A TOC whose printed page numbers drift from the real folios, or whose color family doesn't match the chapter openers, reads like it belongs to a different book. G14 scans every page for this self-consistency and a text-contrast floor — the two TOCs below are from books that actually passed it.
+Every style has its own TOC grammar, and that grammar is a declared contract. A single layout catalog in the skill (`TOC_LAYOUTS`, six layouts) registers each layout's level count, leader-dot usage, and measured size caps; a pack only picks a name via `toc_layout` in its `tokens.json` — if the theme's actual implementation drifts from the declaration, G16-SYNC catches it before the build.
 
-| insight — side band + folio | business — indicator + chapter number |
+| Layout | Styles | Grammar |
+|---|---|---|
+| `hanging-two-level` | insight | chapter rows + indented section rows; on overflow, **multi-page TOC** (`toc_overflow: paginate` — two-pass page-number markers) |
+| `spread-single-level` | magazine | fixed single spread, chapter level only; overflow halts the build |
+| `display-numeral` | business · magazine (alternate) | large chapter-number column on the left, titles/sections on the right |
+| `twocol-balanced` | practical | header band + chapter ordinal chips + dotted leaders; on overflow, balanced two-column split |
+| `academic-flow` | academic | number column + title + right-edge folio |
+| `flush-single-level` | essay | chapter level only, leaders forbidden |
+
+Beyond the default layout, an **alternate overlay** can be enabled per book — declaring `toc_layout` in `book.json` typesets the magazine TOC as `display-numeral`, and alternate layouts carry their own measured capacity contract (`toc_capacity_alt`). Multi-page-TOC styles can additionally publish a **list of figures and tables** (`toc_lists`, opt-in) as separate front-matter pages, with their printed page numbers gate-verified too.
+
+TOC and design consistency is scanned by G14 across five axes: **A** printed TOC page numbers ↔ actual folios / **B** TOC ↔ chapter-opener color (hue family) / **C** WCAG contrast floor for chromatic text / **D** section-row page numbers ↔ actual section start pages / **E** figure/table list ↔ actual caption pages. The two TOCs below are actual passing output.
+
+| insight — side band, folios | business — indicators, chapter numbers |
 |:---:|:---:|
 | ![](examples/showcase/insight-agent-protocols-toc.png) | ![](examples/showcase/business-automation-redesign-toc.png) |
 
-## Interior preview
+## Interior previews
 
-| practical — callouts + procedure | business — table evidence | magazine — image + pull quote |
+| practical — callouts, procedure page | business — tables, data grounding | magazine — image and pull-quote page |
 |:---:|:---:|:---:|
 | ![](examples/showcase/practical-prompt-patterns-page9.png) | ![](examples/showcase/business-sme-ai-page9.png) | ![](examples/showcase/magazine-trend-brief-page6.png) |
 
-| academic — definition box + section hierarchy | essay — generous margins | insight — narrow measurement table |
+| academic — definition boxes, section hierarchy | essay — whitespace-led page | insight — narrow measurement table |
 |:---:|:---:|:---:|
 | ![](examples/showcase/academic-game-theory-page11.png) | ![](examples/showcase/essay-evening-sentences-page6.png) | ![](examples/showcase/insight-ondevice-ai-page10.png) |
 
-## The six style packs
+## Six styles
 
-Each style ships a design rulebook (`styles/*/STYLE.md`) distilled from measured commercial publications — trim size in mm, font sizes in pt, leading, color tokens, page templates, and hard prohibitions.
+Each style ships a rulebook (`styles/*/STYLE.md`) distilled from measurements of real commercial publications — trim size in mm, font sizes in pt, leading percentages, color tokens, page templates, and prohibitions.
 
 | Style | Identity | Trim | Engine |
 |---|---|---|---|
-| `practical` | IT how-to books. Prose sets low in a serif (Noto Serif KR); labels, controls, and numerals stand up in a grotesque (Pretendard) — the typeface itself splits "text you read" from "text you act on" | 153×225 | Typst |
-| `insight` | Tech-trend research reports | 182×257 | HTML→Chromium |
-| `academic` | Scholarly monographs (booktabs tables, numbered sections) | 153×225 | Typst |
-| `essay` | Minimal literary prose (1-ink + 1 accent) | 128×188 | Typst |
-| `business` | Consulting white papers (navy system, action titles, key stats) | 200×280 | Typst |
-| `magazine` | Trend magazines (editorial grid, full-page pull quotes) | 200×265 | HTML→Chromium |
+| `practical` | IT how-to books. Narrative sits low in serif (Noto Serif KR); operations, labels, and figures stand in sans (Pretendard) — "reading text" and "doing text" separated by typeface | 153×225 | Typst |
+| `insight` | tech trend report (research-institute insight) | 182×257 | HTML→Chromium |
+| `academic` | scholarly monograph (three-rule tables, numbered section hierarchy) | 153×225 | Typst |
+| `essay` | minimal essays (single ink + one accent color) | 128×188 | Typst |
+| `business` | consulting white paper (navy system, action titles, key stats) | 200×280 | Typst |
+| `magazine` | trend magazine (editorial grid, pull-quote pages) | 200×265 | HTML→Chromium |
+
+`practical` covers are a catalog too — the default is `numeral` (an oversized ghost numeral on white), and `cover_variant` in `book.json` opts into `ribbon` (the former default), `block`, `grid`, or `obi`. A value outside the catalog fails immediately with no silent fallback.
 
 ## Install
 
 ```bash
 git clone https://github.com/gongnyang/bookforge.git
 cd bookforge
-ln -sfn "$PWD" ~/.claude/skills/bookforge   # Claude Code
-ln -sfn "$PWD" ~/.codex/skills/bookforge    # Codex CLI
-ln -sfn "$PWD" ~/.agents/skills/bookforge   # shared agents dir
+
+# Symlink into both Claude Code and Codex (both officially support symlinks)
+ln -sfn "$PWD" ~/.claude/skills/bookforge
+ln -sfn "$PWD" ~/.codex/skills/bookforge
+ln -sfn "$PWD" ~/.agents/skills/bookforge
 ```
 
-Requirements (self-checked by the skill):
+Requirements (self-checked before every run):
 
-- **Typst 0.14.x** — `practical`, `academic`, `essay`, `business`
+- **Typst 0.14+** — `practical`, `academic`, `essay`, `business`
 - **Python 3 + PyMuPDF + markdown-it-py** — conversion and QC gates (`pip install pymupdf markdown-it-py`)
-- **A global Playwright + Chromium** — `insight`, `magazine`, **and any book that uses `diagrams/`** (diagram prerendering runs through the Chromium harness even for Typst-engine styles) — `npm i -g playwright && npx playwright install chromium`; the build resolves playwright from the **global** `npm root -g`, so a project-local install is not picked up
-- **Only for books using `diagrams/`** — the renderer uses a bundle already committed to the repo (`vendor/antv-ssr.bundle.mjs`, pinned `@antv/infographic` 0.2.19). **No `npm ci` is needed** — it reproduces even if the npm registry disappears. Only run `npm ci && node vendor/build-bundle.mjs` inside the skill folder if the bundle is somehow lost
+- **Global Playwright (Chromium)** — `insight`, `magazine`, **and every book that uses diagrams (`diagrams/`)** (diagram prerendering goes through the Chromium harness even for Typst styles) — `npm i -g playwright && npx playwright install chromium`. The build resolves playwright from the **global** `npm root -g`; a project-local install is not picked up
+- **Only for books with diagrams** — the renderer uses the vendor bundle committed to the repo (`vendor/antv-ssr.bundle.mjs`). **`npm ci` is not required** — the build reproduces even if the npm registry disappears. Only if the bundle is lost, restore it from the skill folder with `npm ci && node vendor/build-bundle.mjs`
 
-Five OFL fonts (Pretendard, Noto Serif KR, Paperlogy, Gmarket Sans, Barlow) ship as **TrueType (TTF) throughout** and render out of the box — Chromium's print-to-PDF path cannot subset CFF (.otf) outlines and silently falls back to Type3, redrawing every glyph as a per-page vector (measured: the same body text produces 19 Type3 objects from the OTF source versus 1 Type0 subset and 0 Type3 objects from the converted TTF). Gate G2 enforces zero Type3 objects as a hard condition — [notice](assets/fonts/LICENSES.md).
+Fonts: five OFL families (Pretendard, Noto Serif KR, Paperlogy, Gmarket Sans, Barlow) are bundled **entirely as TrueType (TTF)** and render out of the box — Chromium's print-to-PDF cannot subset CFF (.otf) and silently falls back to Type3, redrawing glyphs as vectors on every page (measured: identical body copy produced 19 Type3 objects from OTF vs. 1 Type0 subset and 0 Type3 from converted TTF). The G2 gate enforces zero Type3 as a hard condition — [license notice](assets/fonts/LICENSES.md).
 
-## Use
+## Usage
 
-Just ask your agent:
+Just tell the agent:
 
 ```
-"Make an ebook about on-device AI trends in the insight style"   ← topic mode
-"Typeset this manuscript (draft.docx) as an essay collection"    ← manuscript mode
+"Make an insight-style ebook on on-device AI trends"     ← topic mode: research → outline → writing → typesetting
+"Typeset this manuscript (draft.docx) as an essay book"  ← manuscript mode: ingest → typesetting
 ```
 
-The skill detects the mode, picks a style and length, and carries the book through to the end. For a chapter that needs a diagram, drop a `diagrams/fig-NN.json` (antv) or `diagrams/fig-NN.svg` (authored) — the build step prerenders it automatically. Or drive it manually:
+The skill detects the mode, picks style and length, and runs to completion. For chapters that need diagrams, drop `diagrams/fig-NN.json` (antv) or `diagrams/fig-NN.svg` (authored) and the build prerenders them automatically. Manual runs also work:
 
 ```bash
 python3 scripts/scaffold.py mybook --style essay --title "Title" --length short
-# write chapters/*.md + outline.json, then
-python3 scripts/build.py mybook        # → draft/book.pdf (diagrams prerender here automatically)
-python3 scripts/qc_gate.py mybook      # gates pass → final/mybook.pdf
+# write chapters/*.md and outline.json, then
+python3 scripts/build.py mybook        # → draft/book.pdf (diagrams prerender here)
+python3 scripts/qc_gate.py mybook      # only on pass → final/mybook.pdf
 ```
 
 ## Quality gates
 
-Only the gate script can create `final/`:
+Only the gate script can create `final/`. Seventeen machine gates with 30 verdict axes are registered in `gate-report.json`, plus the visual inspection G6 (the agent examines the contact sheet with its own eyes).
 
-| Gate | Check |
+| Gate | Checks |
 |---|---|
-| G0 | (pre-render) diagram SVG source — stray `foreignObject`, missing text, external references, non-standalone paragraphs, sidecar integrity, dropped icons |
-| G1 | render succeeds + trim matches `tokens.trim_mm` + **body size matches `tokens.body_pt` — blocks whole-document shrink** + page count within preset range (WARN — hard only with `--strict-pages`) |
-| G2 | every font fully embedded + **zero Type3 glyphs** |
-| G3-OVERFLOW | zero bbox overflow (1.5pt tolerance) |
-| G3-COLLIDE | zero text-line collisions on a page (per-column bands in multi-column styles) |
-| G3-FIT | front-matter text stays inside the declared frame |
-| G4 | TOC/bookmarks match actual chapter-start pages |
-| G6 | visual inspection of the contact sheet — the agent looks at the rendered pages |
-| G7 | density — frame drift, unintended blank pages, tail shortfall, mid-page gaps (reach/ink/gap) |
-| G8 | detects "air-filled" pages — leading/tracking stretched to force a fill |
-| G9 | orphaned titles / widows at page end (single-column styles) |
-| G10 | (pre-render) every callout, quote, and stat number must exist in the chapter body — blocks fabrication |
-| G11 | `pageroles.json` (intentional-whitespace reason codes) integrity |
-| G12 | zero filler blank pages before a chapter start (no forcing recto starts — this is a single-sided ebook) |
-| G13 | (post-render) every diagram label exists as real PDF text — catches silent text drops during SVG→PDF conversion |
-| G14 | TOC/design coherence — A: printed TOC page numbers self-consistent with actual folios / B: TOC hue family matches chapter openers / C: colored text meets a WCAG contrast floor (3:1 large text, 4.5:1 otherwise) |
-| G15 | page rhythm (`business` style only, enforced only where measurement supports it) — blocks paragraphs over 8 lines / caps consecutive body pages with no visual element |
-| **G16-TOKENS** | **(pre-render · `build.py`)** three axes over the style pack's token contract — **SYNC** (engine ↔ pack reality, `diagram.palette`/`palette_roles` integrity, `brand_default` ↔ `palette[0]`, `contrast_contract` shape, `front_frame_mm` declaration validity) / **CONTRAST** (declared pairs checked against the WCAG floor derived from pt·bold) / **BRAND** (brand input format, contrast at substitution sites, hue agreement with fixed companion colors). This is **the only gate that can abort the build in place**, so on failure there is no `gate-report.json` yet — read the axis and reason from stderr and fix `styles/<style>/tokens.json` |
-| **G16-LINT** | **(`qc_gate` · HTML engine only)** `contrast_contract` checked against `theme.css` and the rendered DOM — ① completeness (two-way omissions and notation drift, **WARN**) ② pt agreement (does the declared size exist in the CSS at all, **HARD**) ③ value coverage (does every CSS color appear in some contract entry, **HARD**). Typst styles have no rendered DOM and are skipped explicitly |
+| G0 | (pre-render) diagram SVG sources — residual `foreignObject`, missing text, external references, standalone-paragraph violations, sidecar integrity, dropped icons |
+| G1 | render success + trim size (`tokens.trim_mm`) + page-count preset range (WARN — HARD only with `--strict-pages`) + **G1-SCALE: absolute body type size vs. `tokens.body_pt` — the only axis that detects the accident class where Chromium shrink-to-fit silently scales the whole document past every relative-metric gate** |
+| G2 | all fonts embedded + **zero Type3 glyphs** |
+| G3 | page geometry, 3 axes — **OVERFLOW** (zero bboxes outside trim, 1.5pt tolerance) · **COLLIDE** (zero intersecting text lines per page; multi-column compared per column band) · **FIT** (front-matter text inside the declared `front_frame_mm`) |
+| G4 | TOC and bookmarks ↔ actual chapter start pages |
+| G6 | contact-sheet visual inspection — the agent verifies real pages by eye |
+| G7 | density, 5 axes — frame drift, unintended blank pages, short tails, mid-page gaps, whole-document (reach/ink/gap) |
+| G8 | air-fill detection (padding pages by inflating leading or tracking) |
+| G9 | end-of-page heading orphans and widows (single-column styles) |
+| G10 | (pre-render) callout, quote, and stat figures must exist in the chapter body — fabrication blocked |
+| G11 | `pageroles.json` integrity (declared-whitespace reason codes) |
+| G12 | zero filler blank pages before chapter starts (no print-era recto alignment in single-sided ebooks) |
+| G13 | (post-render) diagram labels exist as real PDF text — final catch for text dropped in SVG→PDF conversion |
+| G14 | TOC and design consistency, 5 axes — A printed TOC page numbers ↔ folios / B TOC ↔ chapter-opener hue family / C WCAG contrast floor for chromatic text (3:1 large, 4.5:1 otherwise) / D section-row page numbers ↔ section start pages / E figure/table lists ↔ caption pages |
+| G15 | page rhythm, 2 axes (`business` only, enforced only where measurements exist) — paragraphs over 8 lines / cap on consecutive body pages without a visual element |
+| G16-TOKENS | (pre-render, in `build.py`) style pack token contract, 3 axes — **SYNC** (engine ↔ pack reality, palette roles, TOC layout catalog, diagram width substitution contract) / **CONTRAST** (declared pairs' WCAG contrast vs. pt/bold-derived floors) / **BRAND** (brand input format, substitution-point contrast, companion-color hue) . **The only gate that can halt the build in place**, so on failure `gate-report.json` does not exist yet — read the axis and reason from stderr and fix `styles/<style>/tokens.json` |
+| G16-LINT | (in `qc_gate`, html engines only) `contrast_contract` ↔ `theme.css` and rendered DOM — completeness (WARN) / pt agreement (HARD) / value coverage (HARD). Typst styles have no rendered DOM and are explicitly skipped |
+| G17-FIGFIT | (post-render) each diagram figure fits on one page — page splits, frame overruns, static recomputation of placed height ≤ `diagram.maxHeightMm`. Double defense on the final pages against bypasses of the render-time pre-shrink/reject (figFitReport) |
 
-Thresholds and remedies live in [references/pagination.md](references/pagination.md); the diagram-track authoring contract lives in [references/diagrams.md](references/diagrams.md).
+Thresholds and remedies are canonically defined in [references/pagination.md](references/pagination.md); the diagram authoring contract in [references/diagrams.md](references/diagrams.md). Gate sensitivity itself is guarded by the mutation suite — `python3 tests/mutations/run_mutations.py <passing book>` regression-tests both directions (detection and false positives) with 24 defect-injection axes plus an unmutated control.
 
 ## Structure
 
 ```
-SKILL.md            router (mode detection → pipeline → sub-doc pointers)
-modes/               topic.md · manuscript.md
-styles/<6>/          STYLE.md (rulebook) + theme.typ|theme.css + tokens.json
-templates/base.typ   shared Typst book primitives
-vendor/              antv-ssr.bundle.mjs (committed AntV SSR bundle — offline reproducibility) + build-bundle.mjs
-scripts/             scaffold · build · qc_gate · tocgate (G14) · g16_tokens (G16-TOKENS) · contact_sheet · convert_fonts (TTF conversion) · fetch_fonts · ingest_docx
-tests/               lint_contrast.py (G16-LINT — called automatically by qc_gate, also runnable standalone) · mutations/ (gate-sensitivity regression suite)
-references/          generated-art policy · pagination rulebook · diagram contract (diagrams.md) · orchestration · style-pack extension guide
-examples/            9 example PDFs + a 36-shot showcase
+SKILL.md            router (mode detection → pipeline → sub-document pointers)
+AGENTS.md           session-mode split (skill use vs. maintainer)
+modes/              topic.md · manuscript.md
+styles/<6>/         STYLE.md (rulebook) + theme.typ|theme.css + tokens.json
+templates/base.typ  shared Typst book primitives
+vendor/             antv-ssr.bundle.mjs (committed AntV SSR bundle — offline reproducibility) + build-bundle.mjs
+scripts/            scaffold · build (+G16-TOKENS) · build_html (two-pass multi-page TOC) · qc_gate ·
+                    tocgate (G14) · g16_tokens · render_diagrams (diagram prerender) · refit ·
+                    contact_sheet · convert_fonts (TTF conversion) · fetch_fonts · ingest_docx
+tests/              lint_contrast.py (G16-LINT) · mutations/ (gate sensitivity regression suite)
+references/         pagination rulebook (pagination.md) · diagram contract (diagrams.md) ·
+                    generated-art policy · orchestration · style pack extension guide (extending.md)
+examples/           9 example PDFs + 36 showcase cuts
 ```
 
-Generated art policy: cover/body art must be **text-free generated images**; all lettering is set as vectors by the layout layer, and books containing generated images say so in captions and the colophon.
+Generated-image policy: cover and body art use **text-free generated images** only; all lettering is placed as vectors by the typesetting layer. Books containing generated images say so in captions and the colophon.
 
 ## License
 
-Code & docs: MIT. Bundled fonts: OFL 1.1 ([notice](assets/fonts/LICENSES.md)). The nine example PDFs are demo outputs of the skill.
+Code and docs: MIT. Bundled fonts: each font's OFL 1.1 ([notice](assets/fonts/LICENSES.md)). The nine example PDFs are demo output of the skill.
