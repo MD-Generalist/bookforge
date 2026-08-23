@@ -12,12 +12,12 @@
 
 ## 예시 9종 — 전부 이 스킬이 만든 실물입니다
 
-여섯 스타일 전부에 실물 예시가 있고, `practical`·`insight`·`business`는 도해 트랙이 주인공인 책을 하나씩 더해 총 아홉 권입니다(v2.0.0 릴리스 시점 산출물). 각 표지를 클릭하면 PDF 전문이 열립니다.
+여섯 스타일 전부에 실물 예시가 있고, `practical`·`insight`·`business`는 도해 트랙이 주인공인 책을 하나씩 더해 총 아홉 권입니다. practical 두 권과 『온디바이스 AI 2026』은 현행 코드로 재빌드한 산출물이고(numeral 표지·다면 목차·전역 축소 수리 반영), 나머지 여섯 권은 v2.0.0 릴리스 시점 산출물입니다. 각 표지를 클릭하면 PDF 전문이 열립니다.
 
 | | | |
 |:---:|:---:|:---:|
 | [![practical](examples/showcase/practical-prompt-patterns-cover.png)](examples/practical-prompt-patterns.pdf) | [![insight](examples/showcase/insight-ondevice-ai-cover.png)](examples/insight-ondevice-ai.pdf) | [![academic](examples/showcase/academic-game-theory-cover.png)](examples/academic-game-theory.pdf) |
-| **practical** 실용·활용서<br>『바로 쓰는 프롬프트 패턴 24』 45쪽 | **insight** 기술 리포트<br>『온디바이스 AI 2026』 28쪽 | **academic** 학술·논문형<br>『게임이론의 기초』 36쪽 |
+| **practical** 실용·활용서<br>『바로 쓰는 프롬프트 패턴 24』 45쪽 | **insight** 기술 리포트<br>『온디바이스 AI 2026』 31쪽 | **academic** 학술·논문형<br>『게임이론의 기초』 36쪽 |
 | [![essay](examples/showcase/essay-evening-sentences-cover.png)](examples/essay-evening-sentences.pdf) | [![business](examples/showcase/business-sme-ai-cover.png)](examples/business-sme-ai.pdf) | [![magazine](examples/showcase/magazine-trend-brief-cover.png)](examples/magazine-trend-brief.pdf) |
 | **essay** 미니멀 에세이<br>『퇴근길의 문장들』 32쪽 | **business** 컨설팅 백서<br>『중소기업 AI 도입 전략』 28쪽 | **magazine** 트렌드 매거진<br>『TREND BRIEF』 25쪽 |
 | [![insight](examples/showcase/insight-agent-protocols-cover.png)](examples/insight-agent-protocols.pdf) | [![practical](examples/showcase/practical-home-server-cover.png)](examples/practical-home-server.pdf) | [![business](examples/showcase/business-automation-redesign-cover.png)](examples/business-automation-redesign.pdf) |
@@ -65,7 +65,7 @@
 
 | academic — 정의 박스·절 위계 | essay — 여백 낙차형 지면 | insight — narrow 측정 표 |
 |:---:|:---:|:---:|
-| ![](examples/showcase/academic-game-theory-page11.png) | ![](examples/showcase/essay-evening-sentences-page6.png) | ![](examples/showcase/insight-ondevice-ai-page10.png) |
+| ![](examples/showcase/academic-game-theory-page11.png) | ![](examples/showcase/essay-evening-sentences-page6.png) | ![](examples/showcase/insight-ondevice-ai-page12.png) |
 
 ## 스타일 6종
 

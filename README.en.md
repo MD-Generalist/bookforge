@@ -12,12 +12,12 @@ The demo video and three example PDFs are attached to the [v2.0.0 release](https
 
 ## Nine examples — every one produced by this skill
 
-All six styles ship a real example, and `practical`, `insight`, and `business` each add a second book where the diagram track is the whole point, for nine total (built as of the v2.0.0 release). Click a cover to open the full PDF.
+All six styles ship a real example, and `practical`, `insight`, and `business` each add a second book where the diagram track is the whole point, for nine total. The two practical books and *On-Device AI 2026* are rebuilt with the current code (numeral cover, multi-page TOC, and the global-shrink repair applied); the other six are as built at the v2.0.0 release. Click a cover to open the full PDF.
 
 | | | |
 |:---:|:---:|:---:|
 | [![practical](examples/showcase/practical-prompt-patterns-cover.png)](examples/practical-prompt-patterns.pdf) | [![insight](examples/showcase/insight-ondevice-ai-cover.png)](examples/insight-ondevice-ai.pdf) | [![academic](examples/showcase/academic-game-theory-cover.png)](examples/academic-game-theory.pdf) |
-| **practical** how-to book<br>*24 Prompt Patterns*, 45p | **insight** tech report<br>*On-Device AI 2026*, 28p | **academic** scholarly<br>*Foundations of Game Theory*, 36p |
+| **practical** how-to book<br>*24 Prompt Patterns*, 45p | **insight** tech report<br>*On-Device AI 2026*, 31p | **academic** scholarly<br>*Foundations of Game Theory*, 36p |
 | [![essay](examples/showcase/essay-evening-sentences-cover.png)](examples/essay-evening-sentences.pdf) | [![business](examples/showcase/business-sme-ai-cover.png)](examples/business-sme-ai.pdf) | [![magazine](examples/showcase/magazine-trend-brief-cover.png)](examples/magazine-trend-brief.pdf) |
 | **essay** minimal essays<br>*Sentences on the Way Home*, 32p | **business** consulting white paper<br>*SME AI Adoption Strategy*, 28p | **magazine** trend magazine<br>*TREND BRIEF*, 25p |
 | [![insight](examples/showcase/insight-agent-protocols-cover.png)](examples/insight-agent-protocols.pdf) | [![practical](examples/showcase/practical-home-server-cover.png)](examples/practical-home-server.pdf) | [![business](examples/showcase/business-automation-redesign-cover.png)](examples/business-automation-redesign.pdf) |
@@ -65,7 +65,7 @@ TOC and design consistency is scanned by G14 across five axes: **A** printed TOC
 
 | academic — definition boxes, section hierarchy | essay — whitespace-led page | insight — narrow measurement table |
 |:---:|:---:|:---:|
-| ![](examples/showcase/academic-game-theory-page11.png) | ![](examples/showcase/essay-evening-sentences-page6.png) | ![](examples/showcase/insight-ondevice-ai-page10.png) |
+| ![](examples/showcase/academic-game-theory-page11.png) | ![](examples/showcase/essay-evening-sentences-page6.png) | ![](examples/showcase/insight-ondevice-ai-page12.png) |
 
 ## Six styles
 
