@@ -73,6 +73,52 @@ def inline(tokens) -> str:
 def content_escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"')
 
+def fig_width_mm(src: str, ctx) -> float | None:
+    """도해 사이드카 `bf.width` → `#bf-fig(..., width: Nmm)`에 실을 mm 수치.
+
+    구 구현은 width를 **아예 넘기지 않았다**. 그래서 base.typ:123 `bookfig(..., width: 100%)`
+    기본값이 그대로 걸리고 `bf.width: twothirds` 선언이 조판에 도달하지 못했다 — 사이드카는
+    render_diagrams.mjs의 pt 환산 기준으로만 쓰이고 지면 폭은 전폭 그대로였다는 뜻이라,
+    도해 글자 하한은 2/3폭 기준(예: essay 52mm)으로 재면서 실제로는 88mm로 그렸다.
+    HTML 트랙이 2단계에서 없앤 것과 같은 형태의 '제2의 진리원'이며, 여기서는 그 두 번째
+    값이 아예 무시되는 쪽으로 나타났다.
+
+    `full`도 수치로 발행한다. 4종 실측에서 `100%`가 판면폭과 정확히 같아 결과는 불변이지만
+    (practical 121.000 / academic 106.000 / essay 88.000 / business 132.500mm — 프로브
+    PDF 벡터 실측), 그렇게 두면 판면폭이 유일 진리원이고 tokens는 그것을 **추정**하는
+    제2의 값으로 남는다. 수치로 발행하면 tokens 하나가 조판과 게이트를 동시에 정하고,
+    둘이 갈라지는 순간 지면에서 눈에 보인다(G16-SYNC widths 축이 정적으로도 잡는다).
+
+    사이드카가 없는 이미지(표지 아트 등)는 `None` — 종전대로 `width: 100%`로 떨어진다.
+    """
+    widths, dg = ctx.get("fig_widths"), ctx.get("diagrams_dir")
+    if not isinstance(widths, dict) or dg is None:
+        return None
+    sidecar = Path(dg) / (Path(src).stem + ".json")
+    if not sidecar.exists():
+        return None
+    try:
+        bf = json.loads(sidecar.read_text(encoding="utf-8")).get("bf") or {}
+    except (ValueError, OSError):
+        return None                       # 사이드카 파손은 render_diagrams가 이미 죽인다
+    v = widths.get(bf.get("width") or "full")
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or v <= 0:
+        return None                       # 값 부재/비수치는 G16-SYNC widths ①이 렌더 전에 막는다
+    # W7 배치 높이 상한 — render_diagrams(figFitReport)가 metrics.fit에 내린 축소 폭이
+    # 있으면 그 값을 전사한다(HTML 트랙 build_html.fig의 인라인 width와 같은 소비 계약).
+    # 진리원은 tokens.diagram.maxHeightMm 하나이고 여기는 결정의 배치 전사일 뿐이다.
+    metrics_p = Path(dg).parent / "assets" / (Path(src).stem + ".metrics.json")
+    if metrics_p.exists():
+        try:
+            fit = json.loads(metrics_p.read_text(encoding="utf-8")).get("fit") or {}
+        except (ValueError, OSError):
+            fit = {}
+        fw = fit.get("widthMm")
+        if (fit.get("verdict") == "shrunk"
+                and isinstance(fw, (int, float)) and not isinstance(fw, bool) and fw > 0):
+            return float(fw)
+    return float(v)
+
 def render_tokens(tokens, ctx) -> str:
     out, i = [], 0
     while i < len(tokens):
@@ -118,6 +164,9 @@ def render_tokens(tokens, ctx) -> str:
                         args.append(f"caption: [{cap}]")
                     if source:
                         args.append(f"source: [{esc(source)}]")
+                    w = fig_width_mm(src, ctx)
+                    if w is not None:
+                        args.append(f"width: {w:g}mm")
                     out.append(f'#bf-fig({", ".join(args)})\n')
             else:
                 out.append(inline(children) + "\n")
@@ -244,9 +293,14 @@ def split_callouts(md: str):
         yield ("md", "\n".join(buf))
 
 def convert_chapter(md_path: Path, out_path: Path, title: str, summary: str | None,
-                    img_prefix: str = "../../assets/") -> None:
+                    img_prefix: str = "../../assets/",
+                    diagrams_dir: Path | None = None, fig_widths: dict | None = None) -> None:
+    """`diagrams_dir`+`fig_widths`(= tokens.diagram.widths)가 주어지면 도해 사이드카의
+    `bf.width`를 `#bf-fig(..., width: Nmm)`로 발행한다. 둘 중 하나라도 없으면 종전대로
+    width 인자를 생략해 base.typ 기본 `100%`로 떨어진다(단독 CLI 실행 경로)."""
     md = md_path.read_text(encoding="utf-8")
-    ctx = {"chapter_emitted": False, "title_raw": title, "summary": summary, "img_prefix": img_prefix}
+    ctx = {"chapter_emitted": False, "title_raw": title, "summary": summary,
+           "img_prefix": img_prefix, "diagrams_dir": diagrams_dir, "fig_widths": fig_widths}
     parts = ['#import "../_style/theme.typ": *\n']
     for seg in split_callouts(md):
         if seg[0] == "md":

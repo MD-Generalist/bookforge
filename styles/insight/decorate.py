@@ -2,7 +2,9 @@
 
 decorate(doc, ctx) 계약:
   doc: fitz.Document (draft/book.pdf, in place 수정)
-  ctx: {"book": dict, "pages": {"chNN": abs_page}, "fonts_dir": Path}
+  ctx: {"book": dict, "pages": {"chNN[sMM]": abs_page}, "fonts_dir": Path}
+       — pages는 ch 종 마커만 담는다(빌더가 fg/tb를 종별 딕트로 분리해 넘기지 않는다).
+         아래 min(pages) 폴리오 오프셋이 그림·표 면에 오염되지 않기 위한 계약.
 
 STYLE.md 러닝 시스템: 시안 바(y 25.5mm, 좌 8mm·우 11mm) · 우측 세로 러닝헤드 ·
 폴리오(Barlow Light 11.44pt, 우측 끝 = 재단폭 −12mm, baseline = 재단높이 −14mm).
@@ -17,7 +19,8 @@ except ImportError:
 
 MM = 72 / 25.4
 CYAN = (0x5E / 255, 0xC6 / 255, 0xDC / 255)
-MUTE = (0x6D / 255, 0x74 / 255, 0x7A / 255)
+MUTE = (0x5A / 255, 0x61 / 255, 0x67 / 255)  # = theme.css --ink-mute. 백색 지면 위 대비 6.29
+
 
 def decorate(doc, ctx):
     numfont = str(ctx["fonts_dir"] / "Barlow-Light.ttf")

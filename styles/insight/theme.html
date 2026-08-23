@@ -31,7 +31,7 @@ $css
       <circle cx="272" cy="98" r="6" fill="none" stroke="#2a7f8a" stroke-width="1.2"/>
       <circle cx="360" cy="262" r="16" fill="#fff" stroke="$brand" stroke-width="1.4"/>
       <path d="M352 262 h16 M360 254 v16" stroke="$brand" stroke-width="1.2" fill="none"/>
-      <circle cx="260" cy="182" r="11" fill="#fff" stroke="#6d747a" stroke-width="1.2"/>
+      <circle cx="260" cy="182" r="11" fill="#fff" stroke="#5a6167" stroke-width="1.2"/>
       <circle cx="88" cy="222" r="11" fill="#fff" stroke="#2a7f8a" stroke-width="1.2"/>
       <circle cx="20" cy="250" r="4" fill="$brand"/>
       <circle cx="198" cy="140" r="4" fill="$brand"/>
@@ -39,7 +39,12 @@ $css
   </svg>
 </section>
 
-<section class="toc-page">
+<!--BF:TOCPAGE 다면 목차 발행 블록. build_html.py가 substitute 전에 이 블록을 원본
+     템플릿 텍스트에서 잘라내 N회 복제하고, 각 복제본의 $toc→$toc_i / $toc_mod→$toc_mod_i로
+     치환한다. 목차 마크업·장식이 여기 남아 있어야 겹침 게이트가 사고 지점을 검사할 수 있다
+     (장식을 decorate.py로 옮기면 스탬핑 가구가 화이트리스트로 면제된다). 2면 이후는
+     $toc_mod = "toc-cont" — CSS가 Contents 워드와 그에 걸린 커넥터만 감춘다. -->
+<section class="toc-page $toc_mod">
   <svg class="toc-sidebar" viewBox="0 0 40 257" preserveAspectRatio="none">
     <rect width="40" height="257" fill="#2a6f9e"/>
     <g stroke="#3d84b5" stroke-width="0.18">
@@ -149,12 +154,14 @@ $css
        ø3mm 종단 도트, 사이드바 우측 경계 걸침 ø12mm 원 2개(top 50/132mm). mm 좌표계 -->
   <svg style="position:absolute;inset:0;width:182mm;height:257mm;pointer-events:none"
        viewBox="0 0 182 257">
-    <g fill="none" stroke="$brand" stroke-width="0.35" stroke-dasharray="0.7 0.7" opacity="0.55">
-      <path d="M113 46.5 H140 Q144 46.5 144 50.5 V60"/>
+    <g class="toc-connector">
+      <g fill="none" stroke="$brand" stroke-width="0.35" stroke-dasharray="0.7 0.7" opacity="0.55">
+        <path d="M113 46.5 H140 Q144 46.5 144 50.5 V60"/>
+      </g>
+      <circle cx="113" cy="46.5" r="1.5" fill="$brand"/>
+      <circle cx="144" cy="66" r="6" fill="#ffffff" stroke="$brand" stroke-width="0.35"/>
+      <path d="M141 66 h6 M144 63 v6" stroke="$brand" stroke-width="0.42" fill="none"/>
     </g>
-    <circle cx="113" cy="46.5" r="1.5" fill="$brand"/>
-    <circle cx="144" cy="66" r="6" fill="#ffffff" stroke="$brand" stroke-width="0.35"/>
-    <path d="M141 66 h6 M144 63 v6" stroke="$brand" stroke-width="0.42" fill="none"/>
     <circle cx="40" cy="50" r="6" fill="#ffffff" stroke="#2a6f9e" stroke-width="0.35"/>
     <path d="M37.2 50 h5.6 M40 47.2 v5.6" stroke="#2a6f9e" stroke-width="0.42" fill="none"/>
     <circle cx="40" cy="132" r="6" fill="#ffffff" stroke="#2a6f9e" stroke-width="0.35"/>
@@ -165,6 +172,7 @@ $css
     $toc
   </div>
 </section>
+<!--/BF:TOCPAGE-->
 
 $body
 

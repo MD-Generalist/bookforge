@@ -9,12 +9,45 @@ Output <book_dir>/draft/book.pdf   (never writes final/ — that is qc_gate's jo
 import json, os, shutil, subprocess, sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import g16_tokens  # noqa: E402
+
 SKILL = Path(__file__).resolve().parent.parent
 FONTS = SKILL / "assets" / "fonts"
 
 def die(msg: str):
     print(f"BUILD FAIL: {msg}", file=sys.stderr)
     sys.exit(1)
+
+def run_g16(style: str, style_dir: Path, tokens: dict, book: dict, warn_only: bool):
+    """G16-TOKENS(렌더 전). 여기가 유일한 중단 지점이다.
+
+    qc_gate.py의 G10·G0도 이름은 "렌더 전"이지만 실행 순서가 build -> qc_gate라
+    실제로는 렌더 후에 돈다. 토큰 계약 위반은 typst/Chromium 렌더 비용을 지불하기
+    전에 잡아야 존재 이유가 성립하므로 load() 직후·render_diagrams 앞에 둔다.
+    """
+    css = style_dir / "theme.css"
+    res = g16_tokens.run(style, tokens, css.read_text(encoding="utf-8") if css.exists() else None,
+                         book.get("brand"), style_dir)
+    fails = []
+    for axis, findings in res.items():
+        for f in findings:
+            if f["level"] == "FAIL":
+                fails.append(f"{axis}: {f['msg']}")
+            else:
+                print(f"WARN {axis}: {f['msg']}")
+    if not fails:
+        return
+    if warn_only:
+        # 긴급 탈출구 — 전역 강등은 6스타일이 한꺼번에 풀리므로 수렴에 쓸 수 없다.
+        # 축별 승격은 스타일별 데이터 스위치(contrast_contract.enforce)가 담당한다.
+        # 탈출구를 썼다는 사실 자체가 표준출력에 남아야 로그만 보는 사람도 안다.
+        print(f"!! G16-TOKENS 탈출구 사용: --g16-warn-only로 HARD FAIL {len(fails)}건을 "
+              f"강등하고 빌드를 계속한다 (gate-report.json의 gates.G16-*/warns에도 실린다)")
+        for m in fails:
+            print(f"WARN(강등) {m}")
+        return
+    die("G16-TOKENS:\n  " + "\n  ".join(fails) + "\n  (긴급 시 --g16-warn-only)")
 
 def load(book_dir: Path):
     book = json.loads((book_dir / "book.json").read_text(encoding="utf-8"))
@@ -48,7 +81,7 @@ def render_diagrams(book_dir: Path, book: dict):
     if r.returncode != 0:
         die("diagram prerender:\n" + (r.stderr or r.stdout))
 
-def build_typst(book_dir: Path, book: dict, outline: dict, style_dir: Path):
+def build_typst(book_dir: Path, book: dict, outline: dict, style_dir: Path, tokens: dict):
     sys.path.insert(0, str(SKILL / "scripts"))
     from md2typ import convert_chapter
 
@@ -79,7 +112,13 @@ def build_typst(book_dir: Path, book: dict, outline: dict, style_dir: Path):
         if not src.exists():
             die(f"chapter file missing: {src}")
         dst = chap_out / (src.stem + ".typ")
-        convert_chapter(src, dst, ch["title"], ch.get("summary"))
+        # tokens.diagram.widths를 그대로 넘긴다 — Typst 트랙의 도해 폭 단일 진리원.
+        # HTML 트랙이 theme.css $fig_*_mm 치환으로 받는 것과 같은 계약을 md2typ가
+        # `#bf-fig(..., width: Nmm)`로 받는다. 넘기지 않던 구 구현에서는 base.typ 기본
+        # `width: 100%`가 걸려 `bf.width: twothirds`가 조판에 도달하지 못했다.
+        convert_chapter(src, dst, ch["title"], ch.get("summary"),
+                        diagrams_dir=book_dir / "diagrams",
+                        fig_widths=(tokens.get("diagram") or {}).get("widths"))
         prm = refit.get(src.stem, {})
         if prm.get("tracking_em"):
             head, _, rest = dst.read_text(encoding="utf-8").partition("\n")
@@ -109,10 +148,15 @@ def build_html(book_dir: Path, book: dict, outline: dict, style_dir: Path):
     html_build(book_dir, book, outline, style_dir, SKILL)
 
 def main():
-    if len(sys.argv) < 2:
-        sys.exit("usage: python3 scripts/build.py <book_dir>")
-    book_dir = Path(sys.argv[1]).resolve()
+    # 인자 파싱이 없는 파일이라 플래그를 먼저 걸러낸다 — 위치 인자(book_dir) 취득이
+    # 플래그 위치에 흔들리면 안 된다. --strict-pages(qc_gate.py:358)와 같은 raw sys.argv 관례.
+    argv = [a for a in sys.argv[1:] if a != "--g16-warn-only"]
+    warn_only = "--g16-warn-only" in sys.argv[1:]
+    if not argv:
+        sys.exit("usage: python3 scripts/build.py <book_dir> [--g16-warn-only]")
+    book_dir = Path(argv[0]).resolve()
     book, outline, style_dir, tokens = load(book_dir)
+    run_g16(book["style"], style_dir, tokens, book, warn_only)
     # 재빌드 시작 = 이전 final/ 무효화. final/은 이번 산출물이 게이트를 통과한
     # 뒤에만 다시 생긴다 (qc_gate FAIL 경로의 제거와 이중 방어).
     stale = book_dir / "final" / f"{book_dir.name}.pdf"
@@ -122,7 +166,7 @@ def main():
     render_diagrams(book_dir, book)
     engine = tokens.get("engine", "typst")
     if engine == "typst":
-        build_typst(book_dir, book, outline, style_dir)
+        build_typst(book_dir, book, outline, style_dir, tokens)
     elif engine == "html":
         sys.path.insert(0, str(SKILL / "scripts"))
         build_html(book_dir, book, outline, style_dir)

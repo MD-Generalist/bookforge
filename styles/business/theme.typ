@@ -147,8 +147,14 @@
   v(-1.2em)
   block({
     set par(justify: false, first-line-indent: 0em)
-    // 라벨: accent — 대비 하한(4.5:1) 때문에 10.5pt Bold(대형 텍스트 3:1 대역)로 조판
-    text(font: TT.sans-font, size: 10.5pt, tracking: 0.06em, weight: "bold", fill: accent, title)
+    // 라벨색은 토큰만 사용 — accent(#C2662E)는 흰 바탕 4.01로 4.5:1 미달(G14-C).
+    // W4 7단계 전에는 10.5pt Bold로 올려 구(舊) 완화 하한의 "대형 3:1" 대역에 넣어
+    // 통과시켰으나, 하한이 WCAG(≥18pt 또는 ≥14pt Bold)로 교정되면서 그 회피가 무효화됐다.
+    // 급수를 14pt Bold로 더 올리는 길은 STYLE.md 타입 스케일에 없다(라벨은 8/12/+6이
+    // 유일한 급수이고, 14pt는 리드문 13pt·항 15pt 사이라 라벨이 액션 타이틀과 경합한다).
+    // 그래서 색을 바꾼다 — CONTENTS 라벨(아래 toc-head)이 같은 이유로 이미 택한
+    // navy-700(11.60:1)을 그대로 쓰고, 급수는 STYLE.md T1 규정값 8pt/+6%로 되돌린다.
+    text(font: TT.sans-font, size: 8pt, tracking: 0.06em, weight: "bold", fill: navy-700, title)
     if summary != none {
       v(4mm)
       text(font: TT.display-font, size: 22pt, weight: "bold", tracking: -0.015em,

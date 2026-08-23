@@ -191,7 +191,15 @@
 
 ## 캡션·그림 규약
 
-- 그림 폭은 **2종만** 허용: `full` = 판면 폭 88 mm, `narrow` = 판면 폭의 62% = 54.5 mm(좌기준선 정렬).
+- 그림 폭은 **2종만** 허용: `full` = 판면 폭 **88 mm**, `twothirds` = **52 mm**(좌기준선 정렬).
+  둘째 폭의 이름과 값은 구현이 확정한다 — 사이드카 `bf.width`가 받는 키는 `full|twothirds`
+  둘뿐이고(그 밖은 렌더가 즉시 반려한다), mm는 `tokens.json` `diagram.widths`가 **유일한
+  진리원**이며 `md2typ`가 그 값을 `#bf-fig(width: Nmm)`로 발행한다. 이전 판의
+  `narrow` = 판면 폭의 62% = 54.5 mm는 이름·값 모두 실렌더에 도달한 적이 없는 선언이었다
+  (W5 3단계 이전에는 md2typ가 width를 아예 넘기지 않아 둘째 폭 자체가 무시됐다).
+  `full` 88 mm는 `theme.typ` 판면폭(trim.w 128 − 좌 20 − 우 20)이자 PDF 벡터 실측 88.000 mm다.
+- 도해 내 최소 글자 8 pt(HARD) · 최대 글자 ≤ 본문 10 pt × 1.20 = **12 pt**(HARD,
+  `diagram.labelBand.enforce: true`).
 - 전면 재단(full-bleed) 이미지 금지 — 반드시 판면 안에 둔다.
 - 그림 위 여백 **9.5 mm**, 캡션 아래 여백 **12 mm**. 그림 상·하단은 baseline grid에 스냅.
 - `캡션`: Pretendard Regular 8.5 pt / 행간 13 pt / `color.ink-mute` / 좌측 정렬(그림 좌변 기준) / 그림 아래 3 mm.

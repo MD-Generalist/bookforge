@@ -37,6 +37,12 @@ export async function normalizeAuthoredSvg(page, rawSvg, fontDir) {
   await page.setContent(harnessHtml(rawSvg, fontDir), { waitUntil: "networkidle" });
   await page.evaluate(() => document.fonts.ready);
   return page.evaluate(() => {
+    // computed font-size(user unit)를 속성으로 굽는다. SVG에서 font-size의 computed 값은
+    // 유저 좌표계의 px = user unit이므로 scanLabelPt의 환산계(pt/u)와 같은 계다.
+    const bakeFontSize = (el, cs) => {
+      const px = parseFloat(cs.fontSize);
+      if (isFinite(px) && px > 0) el.setAttribute("font-size", px.toFixed(2));
+    };
     const svg = document.querySelector("#stage svg");
     if (!svg) throw new Error("no <svg> in input");
     if (svg.querySelector("foreignObject")) {
@@ -57,8 +63,20 @@ export async function normalizeAuthoredSvg(page, rawSvg, fontDir) {
         throw new Error(`회전 라벨 금지 — <text> #${idx + 1} '${el.textContent.slice(0, 15)}'`);
       }
       el.setAttribute("font-family", "Pretendard");
-      if (!el.getAttribute("font-size")) {
-        el.setAttribute("font-size", parseFloat(cs.fontSize).toFixed(2));
+      // 급수는 **DOM 실측(computed)을 언제나 굽는다.** 종전엔 속성이 없을 때만 구웠고
+      // `<tspan>`은 아예 굽지 않아서, `<style>.big{font-size:34px}` + `<tspan class="big">`가
+      // 급수 축의 사각지대였다(W5 판정 K6). 그 결과 같은 metrics 안에서 `sizesPt`는
+      // 9.974pt를, `labelPaint`는 30.83pt를 기록하는 **이중 진리**가 생겼다 —
+      // scanLabelPt(정규식)와 measureLabelPaint(DOM)가 다른 것을 보고 있었다.
+      // computed를 속성으로 구우면 두 축이 같은 숫자를 본다. 렌더 외형은 불변이다:
+      // 표현 속성은 CSS 선언보다 우선순위가 낮아 `<style>` 규칙이 그대로 이긴다
+      // (pixelSelfCheck가 이 불변을 회차마다 어서션한다).
+      bakeFontSize(el, cs);
+      for (const sp of el.querySelectorAll("tspan")) {
+        const spcs = getComputedStyle(sp);
+        if (spcs.display === "none" || spcs.visibility === "hidden") continue;
+        sp.setAttribute("font-family", "Pretendard");
+        bakeFontSize(sp, spcs);
       }
       // <text> 하위 '모든' 텍스트 노드를 단위로 순회 — tspan에 감싸이지 않은 형제
       // 텍스트 노드(<text>Label: <tspan>42</tspan></text>의 'Label: ')도 라벨 수집(G13
