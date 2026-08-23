@@ -128,6 +128,14 @@ PASS 상태의 책 PDF에 고의 결함을 주입한 사본을 만들고, tocgat
                          단조를 통과한 채 전 회수 면을 1면씩 어긋낸다) → 빌더 die(경계
                          초과) 또는 G14-E 전 쌍 FAIL(장내) 중 하나가 반드시 발화 —
                          "rc 0 + G14-E 침묵"의 조용한 오면 인쇄 경로를 봉쇄한다.
+  M19 도해 배치 높이   — 과도 종횡비 authored 도해 주입(W7). 렌더 층: ㉠상한×1.6 높이 +
+                         하한×1.15 라벨 → 축소가 하한을 깨므로 **반려**(exit≠0, "가로 배치"
+                         처방), ㉡상한×1.15 + 하한×1.35 라벨 → **자동 축소**(fit.verdict=
+                         shrunk, 실효 최소 라벨 ≥ 하한), ㉢상한×0.5 대조군 → ok(오탐 0).
+                         게이트 층(G17-FIGFIT, 스탬핑 PDF 빌드 0회): ㉣라벨 2건을 p1/p2에
+                         갈라 → ① 면 분단 FAIL, 판면 하단 밖 스탬핑 → ② 초과 FAIL,
+                         판면 안 대조군 → 0건. 수리 전엔 이 표본 전부가 조용히 통과했다
+                         (실증 사고: insight 세로 셰브런 254.8mm가 p5/p6 분단 출하).
   M0  무변조 대조군     — 원본은 G14 전 축 + G1-SCALE + G3-COLLIDE/FIT + G16(SYNC/CONTRAST/
                          BRAND 전 축, 원본 스타일 팩) PASS (오탐 없음 확인)
 
@@ -536,6 +544,99 @@ def tspan_band_probe_book(root, style, tokens):
         f'<tspan class="bigcss">CSS급수</tspan></text>'
         f'</svg>', encoding="utf-8")
     return {"cap_pt": cap, "floor_pt": floor, "expect_max_pt": big * scale}
+
+
+def figfit_probe_book(root, style, tokens, mode):
+    """합성 authored 도해 1건짜리 최소 책 — **W7 배치 높이 상한(figFitReport) 전용**.
+
+    band_probe_book과 같은 환산 트릭(viewBox 폭 = widths.full × MM2PT → 트림 후
+    1pt ≈ 1 user unit)으로 라벨 pt를 밴드 안·하한 위에 앉히고, **viewBox 높이만**
+    결함으로 만든다 — 검출된 FAIL이 높이 축의 것임을 증명하기 위해서다.
+
+    mode:
+      "reject"  — 배치 높이 = 상한 × 1.6, 라벨 = 하한 × 1.15. 필요 축소 ×0.625가
+                  허용 한계 ×0.870(= floor ÷ floor×1.15)을 깨므로 **반려**여야 한다.
+      "shrink"  — 배치 높이 = 상한 × 1.15, 라벨 = 하한 × 1.35. 필요 축소 ×0.870이
+                  허용 한계 ×0.741 위이므로 **자동 축소**(fit.verdict=shrunk)여야 한다.
+      "control" — 배치 높이 = 상한 × 0.5 → fit.verdict=ok (오탐 0 확인).
+    """
+    dg = tokens["diagram"]
+    floor = dg["minFontPt"]
+    max_h = dg["maxHeightMm"]
+    w_mm = dg["widths"]["full"]
+    vb_w = w_mm * MM2PT
+    ratio = {"reject": 1.6, "shrink": 1.15, "control": 0.5}[mode]
+    vb_h = vb_w * (max_h / w_mm) * ratio
+    pad = max(2.0, 0.008 * max(vb_w, vb_h))      # render_diagrams.trimViewBox와 동일 식
+    scale = vb_w / (vb_w + 2 * pad)              # 트림 후 pt/user-unit
+    lab = (floor * (1.35 if mode == "shrink" else 1.15)) / scale
+    ink = band_probe_ink(dg)
+    d = Path(root)
+    (d / "diagrams").mkdir(parents=True, exist_ok=True)
+    (d / "book.json").write_text(json.dumps({"style": style, "title": "피그핏 프로브"},
+                                            ensure_ascii=False), encoding="utf-8")
+    (d / "diagrams" / "fig-01.json").write_text(
+        json.dumps({"kind": "authored", "bf": {"width": "full"}}), encoding="utf-8")
+    (d / "diagrams" / "fig-01.svg").write_text(
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {vb_w:.2f} {vb_h:.2f}">'
+        f'<rect x="0" y="0" width="{vb_w:.2f}" height="{vb_h:.2f}" fill="none" stroke="none"/>'
+        f'<text x="4" y="60" font-size="{lab:.3f}" fill="{ink}">높이 표본</text>'
+        f'<text x="4" y="{vb_h - 30:.1f}" font-size="{lab:.3f}" fill="{ink}">하단 표본</text>'
+        f'</svg>', encoding="utf-8")
+    return {"floor_pt": floor, "max_h": max_h,
+            "placed_h_nominal": w_mm * (vb_h + 2 * pad) / (vb_w + 2 * pad)}
+
+
+def figfit_gate_probe(root, tokens, variant):
+    """G17-FIGFIT 지면 술어 프로브 — 최소 book_dir + 스탬핑 PDF(빌드 0회, M1 계열 스탬핑).
+
+    variant:
+      "split"    — 도해 라벨 2건을 p1/p2에 갈라 스탬핑 → ① 면 분단 FAIL이어야 한다.
+      "overflow" — 두 라벨을 p1에 두되 하나를 body_frame 하단 밖에 스탬핑 → ② FAIL.
+      "control"  — 두 라벨 모두 p1 판면 안 → 문제 0건(오탐 0)이어야 한다.
+    반환: g17_figfit_check(...) 결과 problems 리스트.
+    """
+    from qc_gate import g17_figfit_check, line_records as _lr
+    d = Path(root)
+    (d / "chapters").mkdir(parents=True, exist_ok=True)
+    (d / "assets").mkdir(exist_ok=True)
+    (d / "diagrams").mkdir(exist_ok=True)
+    (d / "outline.json").write_text(json.dumps(
+        {"chapters": [{"file": "ch-01.md", "title": "프로브", "summary": ""}]},
+        ensure_ascii=False), encoding="utf-8")
+    (d / "chapters" / "ch-01.md").write_text(
+        "# 프로브\n\n![프로브 캡션](../assets/fig-01.svg)\n", encoding="utf-8")
+    labels = ["피그핏 상단 라벨", "피그핏 하단 라벨"]
+    (d / "assets" / "fig-01.labels.json").write_text(
+        json.dumps(labels, ensure_ascii=False), encoding="utf-8")
+    # 종횡비가 낮은 합법 SVG — 정적 술어 ③은 여기서 통과시켜 ①·②만 겨눈다
+    (d / "assets" / "fig-01.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 368 100"></svg>',
+        encoding="utf-8")
+    (d / "diagrams" / "fig-01.json").write_text(
+        json.dumps({"kind": "authored", "bf": {"width": "full"}}), encoding="utf-8")
+    trim = tokens.get("trim_mm") or [182, 257]
+    top, _r, bottom, left = tokens.get("body_frame_mm") or [40, 20, 25, 25]
+    w_pt, h_pt = trim[0] * MM2PT, trim[1] * MM2PT
+    doc = fitz.open()
+    for _ in range(2):
+        doc.new_page(width=w_pt, height=h_pt)
+    x = left * MM2PT + 10
+    y_in1, y_in2 = top * MM2PT + 60, top * MM2PT + 90
+    y_out = h_pt - bottom * MM2PT + 12   # 판면 하단 밖(overflow 변형)
+    stamps = {"split": [(0, y_in1, labels[0]), (1, y_in1, labels[1])],
+              "overflow": [(0, y_in1, labels[0]), (0, y_out, labels[1])],
+              "control": [(0, y_in1, labels[0]), (0, y_in2, labels[1])]}[variant]
+    for pno, y, txt in stamps:
+        doc[pno].insert_text(fitz.Point(x, y), txt, fontsize=10,
+                             fontname="probe", fontfile=_stamp_font())
+    page_texts = [doc[i].get_text() for i in range(2)]
+    line_recs = {i + 1: _lr(doc[i].get_text("dict").get("blocks", []), None)
+                 for i in range(2)}
+    page_size = {i + 1: (doc[i].rect.width, doc[i].rect.height) for i in range(2)}
+    doc.close()
+    outline = json.loads((d / "outline.json").read_text(encoding="utf-8"))
+    return g17_figfit_check(d, outline, page_texts, line_recs, page_size, tokens, 1)
 
 
 def _rgb(hex_):
@@ -1681,6 +1782,54 @@ def main():
                       if spec_r and spec_x else
                       f"      (M16 부분 실행 — role {bool(spec_r)}/contrast {bool(spec_x)}, "
                       f"대조군 exit {rc_c} 위반 0 {ok_c})")
+
+        # M19 — 도해 **배치 높이 상한**(W7 figFitReport + G17-FIGFIT). 과도 종횡비 도해를
+        # 주입해 수리 전이라면 통과했을 표본이 수리 후 검출되는지 어서션한다.
+        # 렌더 층(반려/자동 축소/대조군)과 게이트 층(면 분단/판면 초과/대조군)을 다 밟는다.
+        dg19 = (tokens.get("diagram") or {})
+        if not (isinstance(dg19.get("maxHeightMm"), (int, float))
+                and (dg19.get("widths") or {}).get("full") and dg19.get("minFontPt")):
+            print("      (M19 건너뜀 — 이 스타일에 diagram.maxHeightMm/widths.full 미선언)")
+        else:
+            bd_rj = Path(td) / "m19-reject"
+            spec_rj = figfit_probe_book(bd_rj, style, tokens, "reject")
+            rc_rj, out_rj = run_render_diagrams(bd_rj, style)
+            bd_sh = Path(td) / "m19-shrink"
+            figfit_probe_book(bd_sh, style, tokens, "shrink")
+            rc_sh, out_sh = run_render_diagrams(bd_sh, style)
+            mp_sh = bd_sh / "assets" / "fig-01.metrics.json"
+            fit_sh = (json.loads(mp_sh.read_text(encoding="utf-8")).get("fit") or {}
+                      ) if mp_sh.exists() else {}
+            bd_cl = Path(td) / "m19-control"
+            figfit_probe_book(bd_cl, style, tokens, "control")
+            rc_cl, out_cl = run_render_diagrams(bd_cl, style)
+            mp_cl = bd_cl / "assets" / "fig-01.metrics.json"
+            fit_cl = (json.loads(mp_cl.read_text(encoding="utf-8")).get("fit") or {}
+                      ) if mp_cl.exists() else {}
+            # ㉠ 반려: 축소가 라벨 하한을 깨는 종횡비 → HARD + 재작성 처방이 진단에 실린다
+            ok_rj = rc_rj != 0 and "배치 높이" in out_rj and "가로 배치" in out_rj
+            # ㉡ 자동 축소: 하한 위에서 수용 가능한 초과 → exit 0 + fit.verdict=shrunk +
+            #    실효 최소 라벨이 하한 위(축소가 하한 HARD를 대체하지 않았다는 증거)
+            ok_sh = (rc_sh == 0 and fit_sh.get("verdict") == "shrunk"
+                     and isinstance(fit_sh.get("widthMm"), (int, float))
+                     and fit_sh["widthMm"] < dg19["widths"]["full"]
+                     and (fit_sh.get("effMinPt") or 0) >= dg19["minFontPt"] - 0.05)
+            # ㉢ 대조군: 낮은 종횡비는 손대지 않는다(오탐 0)
+            ok_cl = rc_cl == 0 and fit_cl.get("verdict") == "ok" and "DIAGRAM-FIT" not in out_cl
+            # ㉣ 게이트 층 — 면 분단·판면 초과·대조군 (스탬핑 PDF, 빌드 0회)
+            p_sp = figfit_gate_probe(Path(td) / "m19-g-split", tokens, "split")
+            p_ov = figfit_gate_probe(Path(td) / "m19-g-overflow", tokens, "overflow")
+            p_ct = figfit_gate_probe(Path(td) / "m19-g-control", tokens, "control")
+            ok_g17 = (any("면 분단" in p for p in p_sp)
+                      and any("판면 세로 범위 밖" in p for p in p_ov)
+                      and not p_ct)
+            results["M19-figfit"] = bool(ok_rj and ok_sh and ok_cl and ok_g17)
+            print(f"      (M19 반려본 배치 {spec_rj['placed_h_nominal']:.1f}mm > 상한 "
+                  f"{spec_rj['max_h']}mm → exit {rc_rj} {ok_rj} · 축소본 fit "
+                  f"{fit_sh.get('verdict')} 폭 {fit_sh.get('widthMm')}mm eff "
+                  f"{fit_sh.get('effMinPt')}pt {ok_sh} · 대조군 {fit_cl.get('verdict')} "
+                  f"{ok_cl} · G17 분단 {len(p_sp)}건/초과 {len(p_ov)}건/대조군 "
+                  f"{len(p_ct)}건 {ok_g17})")
 
         # M7 — body_pt 미선언 스타일 팩에서는 검사 자체가 성립하지 않으므로 건너뛴다
         if decl_pt:
