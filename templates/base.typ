@@ -148,7 +148,8 @@
 
 #let bf-tbl-base(caption: none, source: none, t: (:), label-fmt: none, body) = {
   let t = merged(t)
-  block(breakable: false, above: 1.3em, below: 1.3em, width: 100%, {
+  // breakable — unbreakable 블록 속 긴 표는 넘친 행이 쪽 하단에 0높이로 겹친다(issue #7)
+  block(breakable: true, above: 1.3em, below: 1.3em, width: 100%, {
     if caption != none {
       context {
         tbl-counter.step()

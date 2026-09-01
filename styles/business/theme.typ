@@ -279,7 +279,9 @@
 }
 
 // 표: 콘텐츠 [표] 캡션 계약 — 캡션이 실재할 때만 <표 n-m> 라벨, 출처는 콘텐츠가 준 것만
-#let bf-tbl(caption: none, source: none, body) = block(breakable: false, above: 6mm, below: 6mm, width: 100%, {
+// breakable — 판면보다 긴 표를 unbreakable 블록에 넣으면 Typst가 넘친 행을
+// 쪽 하단 한 줄에 0높이로 겹쳐 찍는다(issue #7). 쪽넘김 + table.header 반복이 정답.
+#let bf-tbl(caption: none, source: none, body) = block(breakable: true, above: 6mm, below: 6mm, width: 100%, {
   if caption != none {
     context {
       biz-tbl.step()
@@ -393,7 +395,9 @@
   set table(stroke: none, inset: (x: 3mm, y: 2.6mm), fill: none)
   show table: it => {
     set text(size: 9pt, font: t.sans-font)
-    block(breakable: false, {
+    // breakable — bf-tbl과 같은 이유(issue #7). 여기가 unbreakable이면 bf-tbl을
+    // 고쳐도 이 래퍼가 다시 표를 한 판면에 눌러 담아 행이 겹친다.
+    block(breakable: true, {
       it
     })
   }

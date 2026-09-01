@@ -48,7 +48,8 @@ P9 되감기      실패 시 P7→P6→P3→(PLAN만)P2 역순. REFIT은 P3에�
 |---|---|---|---|
 | 고아/과부 | 문단 앞뒤 최소 **2행** (3행 보장은 양 엔진 모두 불가) | `text(costs:)` 기본이 2행 — **명시 선언으로 계약 고정** | `p,li { orphans:2; widows:2 }` 기본. 3은 꼬리 개선·중간면 하락 트레이드오프 — refit 탐색 후보로만 |
 | 제목+본문 | 제목은 뒤 본문 2행과 결속 | heading 기본 sticky(해제 불가) | `h1,h2,h3 { break-after: avoid }` |
-| 그림/표+캡션 | 분리 금지(원자) | 캡션 블록 `block(sticky:true)` 또는 breakable:false 묶음 | `figure, table { break-inside: avoid }` |
+| 그림+캡션 | 분리 금지(원자) | 캡션 블록 `block(sticky:true)` 또는 breakable:false 묶음 | `figure { break-inside: avoid }` |
+| 표 | **쪽넘김 허용 + 헤더 행 매 쪽 반복**(`table.header`). 판면보다 긴 표를 `breakable:false` 블록에 넣으면 Typst는 넘친 행을 쪽 하단 한 줄에 **0높이로 겹쳐 찍는다** — 넘침이 아니라 데이터가 뭉개진 채 G2·G4류 텍스트 게이트를 통과하는 파괴 모드다(issue #7 [실측], G3-COLLIDE가 검출). | `bf-tbl` 계열 전부 `breakable: true` + md2typ `table.header` | `table { break-inside: avoid }`는 **힌트라 안전** — 한 면을 넘는 표는 브라우저가 무시하고 쪼개며 `<thead>`가 반복된다 |
 | 인용·박스·코드 | 1면의 0.7 이하일 때만 통짜 | `block(breakable: false)` | `blockquote, pre { break-inside: avoid }` |
 | 본문 문단 | 통짜 금지 | — | **`p`에 break-inside:avoid 절대 금지**(채움 붕괴 1.0→0.7) |
 

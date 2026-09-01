@@ -252,12 +252,13 @@ def render_table(tokens, ctx, cap=None) -> str:
     if not rows:
         return ""
     ncol = max(len(r) for r in rows)
-    cells = []
-    for r in rows:
-        r = r + [""] * (ncol - len(r))
-        cells.extend(f"[{c}]" for c in r)
+    padded = [r + [""] * (ncol - len(r)) for r in rows]
+    # 헤더 행은 table.header로 — 긴 표가 쪽을 넘을 때 매 쪽 상단에 반복된다(issue #7)
+    head = ", ".join(f"[{c}]" for c in padded[0])
+    cells = [f"[{c}]" for r in padded[1:] for c in r]
     # (1fr,)*n — 표 폭 = 판면 폭 100% 강제 (auto 컬럼은 내용 폭만큼만 차지해 우측이 빈다)
-    tbl = f"table(columns: (1fr,) * {ncol}, " + ", ".join(cells) + ")"
+    tbl = f"table(columns: (1fr,) * {ncol}, table.header({head})" \
+          + ("".join(", " + c for c in cells)) + ")"
     if cap:
         title, source = cap
         args = [f"caption: [{esc(title)}]"]
