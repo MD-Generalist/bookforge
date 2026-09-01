@@ -118,7 +118,8 @@
 }
 
 // 표(에세이엔 드묾): 번호 라벨 없이 캡션·출처만 조용히
-#let bf-tbl(caption: none, source: none, body) = block(breakable: false, above: 1.3em, below: 1.3em, width: 100%, {
+// breakable — unbreakable 블록 속 긴 표는 넘친 행이 쪽 하단에 0높이로 겹친다(issue #7)
+#let bf-tbl(caption: none, source: none, body) = block(breakable: true, above: 1.3em, below: 1.3em, width: 100%, {
   if caption != none {
     text(font: TT.sans-font, size: 8.5pt, fill: TT.muted, caption)
     v(2mm)

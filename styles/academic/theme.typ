@@ -130,7 +130,8 @@
 }
 
 // 표: 콘텐츠가 [표] 캡션을 준 경우에만 번호 라벨. 캡션 없으면 표만 렌더.
-#let bf-tbl(caption: none, source: none, body) = block(breakable: false, above: 6mm, below: 6mm, width: 100%, {
+// breakable — unbreakable 블록 속 긴 표는 넘친 행이 쪽 하단에 0높이로 겹친다(issue #7)
+#let bf-tbl(caption: none, source: none, body) = block(breakable: true, above: 6mm, below: 6mm, width: 100%, {
   if caption != none {
     context {
       tbl-counter.step()
